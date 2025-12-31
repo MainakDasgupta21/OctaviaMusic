@@ -9,11 +9,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { searchMusic, SearchResult } from '@/lib/api';
-import { usePlayer, Track } from '@/contexts/PlayerContext';
+import { searchMusic } from '@/lib/api';
+import { usePlayer } from '@/contexts/PlayerContext';
 import { Skeleton } from '@/components/ui/skeleton';
-
-type FilterType = 'song' | 'video' | 'album' | 'artist';
 
 const filterIcons = {
   song: Music,
@@ -24,8 +22,8 @@ const filterIcons = {
 
 const SearchPage = () => {
   const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<FilterType>('song');
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [filter, setFilter] = useState('song');
+  const [results, setResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const { playTrack } = usePlayer();
@@ -47,14 +45,14 @@ const SearchPage = () => {
     }
   }, [query, filter]);
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
       handleSearch();
     }
   };
 
-  const handlePlayTrack = (result: SearchResult) => {
-    const track: Track = {
+  const handlePlayTrack = (result) => {
+    const track = {
       id: result.id,
       videoId: result.videoId,
       title: result.title,
@@ -96,7 +94,7 @@ const SearchPage = () => {
           />
         </div>
         
-        <Select value={filter} onValueChange={(value) => setFilter(value as FilterType)}>
+        <Select value={filter} onValueChange={(value) => setFilter(value)}>
           <SelectTrigger className="w-40 h-14 bg-card/50 border-white/10 rounded-xl">
             <SelectValue />
           </SelectTrigger>
@@ -186,13 +184,7 @@ const SearchPage = () => {
   );
 };
 
-interface SearchResultRowProps {
-  result: SearchResult;
-  index: number;
-  onPlay: () => void;
-}
-
-const SearchResultRow = ({ result, index, onPlay }: SearchResultRowProps) => {
+const SearchResultRow = ({ result, index, onPlay }) => {
   const [isHovered, setIsHovered] = useState(false);
   const { currentTrack, isPlaying } = usePlayer();
   const isCurrentTrack = currentTrack?.videoId === result.videoId;

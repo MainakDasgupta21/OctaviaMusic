@@ -1,51 +1,19 @@
 import React, { createContext, useContext, useState, useRef, useCallback } from 'react';
 
-export interface Track {
-  id: string;
-  videoId: string;
-  title: string;
-  artist: string;
-  thumbnail: string;
-  duration?: string;
-}
+const PlayerContext = createContext(undefined);
 
-interface PlayerContextType {
-  currentTrack: Track | null;
-  isPlaying: boolean;
-  volume: number;
-  progress: number;
-  duration: number;
-  queue: Track[];
-  playTrack: (track: Track) => void;
-  togglePlay: () => void;
-  setVolume: (volume: number) => void;
-  seekTo: (seconds: number) => void;
-  addToQueue: (track: Track) => void;
-  playNext: () => void;
-  playPrevious: () => void;
-  shuffle: boolean;
-  toggleShuffle: () => void;
-  repeat: 'off' | 'one' | 'all';
-  toggleRepeat: () => void;
-  playerRef: React.MutableRefObject<any>;
-  onProgress: (state: { played: number; playedSeconds: number }) => void;
-  onDuration: (duration: number) => void;
-}
-
-const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
-
-export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
+export const PlayerProvider = ({ children }) => {
+  const [currentTrack, setCurrentTrack] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolumeState] = useState(0.7);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [queue, setQueue] = useState<Track[]>([]);
+  const [queue, setQueue] = useState([]);
   const [shuffle, setShuffle] = useState(false);
-  const [repeat, setRepeat] = useState<'off' | 'one' | 'all'>('off');
-  const playerRef = useRef<any>(null);
+  const [repeat, setRepeat] = useState('off');
+  const playerRef = useRef(null);
 
-  const playTrack = useCallback((track: Track) => {
+  const playTrack = useCallback((track) => {
     setCurrentTrack(track);
     setIsPlaying(true);
     setProgress(0);
@@ -55,15 +23,15 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setIsPlaying(prev => !prev);
   }, []);
 
-  const setVolume = useCallback((vol: number) => {
+  const setVolume = useCallback((vol) => {
     setVolumeState(vol);
   }, []);
 
-  const seekTo = useCallback((seconds: number) => {
+  const seekTo = useCallback((seconds) => {
     playerRef.current?.seekTo(seconds, 'seconds');
   }, []);
 
-  const addToQueue = useCallback((track: Track) => {
+  const addToQueue = useCallback((track) => {
     setQueue(prev => [...prev, track]);
   }, []);
 
@@ -94,11 +62,11 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   }, []);
 
-  const onProgress = useCallback((state: { played: number; playedSeconds: number }) => {
+  const onProgress = useCallback((state) => {
     setProgress(state.playedSeconds);
   }, []);
 
-  const onDuration = useCallback((dur: number) => {
+  const onDuration = useCallback((dur) => {
     setDuration(dur);
   }, []);
 

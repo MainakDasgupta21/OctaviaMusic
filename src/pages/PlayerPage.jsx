@@ -10,7 +10,7 @@ import {
   Heart,
   ListMusic
 } from 'lucide-react';
-import { usePlayer, Track } from '@/contexts/PlayerContext';
+import { usePlayer } from '@/contexts/PlayerContext';
 import { Slider } from '@/components/ui/slider';
 
 // Mock similar artists and recommendations
@@ -50,7 +50,7 @@ const PlayerPage = () => {
     playTrack,
   } = usePlayer();
 
-  const formatTime = (seconds: number): string => {
+  const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;

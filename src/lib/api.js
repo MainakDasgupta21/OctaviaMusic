@@ -7,35 +7,8 @@ const api = axios.create({
   timeout: 10000,
 });
 
-export interface SearchResult {
-  id: string;
-  videoId: string;
-  title: string;
-  artist: string;
-  thumbnail: string;
-  type: 'song' | 'video' | 'album' | 'artist';
-  duration?: string;
-}
-
-export interface Album {
-  id: string;
-  title: string;
-  artist: string;
-  thumbnail: string;
-  releaseDate?: string;
-  tracks: SearchResult[];
-}
-
-export interface Artist {
-  id: string;
-  name: string;
-  thumbnail: string;
-  subscribers?: string;
-  albums: Album[];
-}
-
 // Utility function to upgrade low-res YouTube thumbnails
-export const upgradeImageQuality = (url: string): string => {
+export const upgradeImageQuality = (url) => {
   if (!url) return url;
   // Replace low-res patterns with high-res
   return url
@@ -46,15 +19,12 @@ export const upgradeImageQuality = (url: string): string => {
     .replace(/\/sddefault\.jpg/, '/maxresdefault.jpg');
 };
 
-export const searchMusic = async (
-  query: string,
-  filter: 'song' | 'video' | 'album' | 'artist' = 'song'
-): Promise<SearchResult[]> => {
+export const searchMusic = async (query, filter = 'song') => {
   try {
     const response = await api.get('/search', {
       params: { q: query, filter },
     });
-    return response.data.map((item: SearchResult) => ({
+    return response.data.map((item) => ({
       ...item,
       thumbnail: upgradeImageQuality(item.thumbnail),
     }));
@@ -65,13 +35,13 @@ export const searchMusic = async (
   }
 };
 
-export const getAlbum = async (id: string): Promise<Album | null> => {
+export const getAlbum = async (id) => {
   try {
     const response = await api.get(`/album/${id}`);
     return {
       ...response.data,
       thumbnail: upgradeImageQuality(response.data.thumbnail),
-      tracks: response.data.tracks.map((track: SearchResult) => ({
+      tracks: response.data.tracks.map((track) => ({
         ...track,
         thumbnail: upgradeImageQuality(track.thumbnail),
       })),
@@ -82,7 +52,7 @@ export const getAlbum = async (id: string): Promise<Album | null> => {
   }
 };
 
-export const getArtist = async (id: string): Promise<Artist | null> => {
+export const getArtist = async (id) => {
   try {
     const response = await api.get(`/artist/${id}`);
     return {
@@ -96,8 +66,8 @@ export const getArtist = async (id: string): Promise<Artist | null> => {
 };
 
 // Mock data for demo when backend is not available
-const getMockSearchResults = (query: string, filter: string): SearchResult[] => {
-  const mockSongs: SearchResult[] = [
+const getMockSearchResults = (query, filter) => {
+  const mockSongs = [
     {
       id: '1',
       videoId: 'dQw4w9WgXcQ',
@@ -151,7 +121,7 @@ const getMockSearchResults = (query: string, filter: string): SearchResult[] => 
   );
 };
 
-const getMockAlbum = (id: string): Album => ({
+const getMockAlbum = (id) => ({
   id,
   title: 'Greatest Hits',
   artist: 'Various Artists',
@@ -160,7 +130,7 @@ const getMockAlbum = (id: string): Album => ({
   tracks: getMockSearchResults('', 'song'),
 });
 
-const getMockArtist = (id: string): Artist => ({
+const getMockArtist = (id) => ({
   id,
   name: 'Ed Sheeran',
   thumbnail: 'https://i.ytimg.com/vi/JGwWNGJdvx8/maxresdefault.jpg',

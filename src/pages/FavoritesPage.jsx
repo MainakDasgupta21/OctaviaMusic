@@ -1,9 +1,9 @@
 import { motion } from 'framer-motion';
 import { Heart, Play, Clock } from 'lucide-react';
-import { usePlayer, Track } from '@/contexts/PlayerContext';
+import { usePlayer } from '@/contexts/PlayerContext';
 
 // Mock favorites data
-const favoritesTracks: Track[] = [
+const favoritesTracks = [
   { id: 'f1', videoId: 'dQw4w9WgXcQ', title: 'Never Gonna Give You Up', artist: 'Rick Astley', thumbnail: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg', duration: '3:33' },
   { id: 'f2', videoId: 'JGwWNGJdvx8', title: 'Shape of You', artist: 'Ed Sheeran', thumbnail: 'https://i.ytimg.com/vi/JGwWNGJdvx8/maxresdefault.jpg', duration: '3:53' },
   { id: 'f3', videoId: 'IeyJ7MPb7MQ', title: 'Idol', artist: 'YOASOBI', thumbnail: 'https://i.ytimg.com/vi/IeyJ7MPb7MQ/maxresdefault.jpg', duration: '3:35' },
