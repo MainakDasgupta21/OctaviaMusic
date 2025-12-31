@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Play, Clock } from 'lucide-react';
-import { usePlayer, Track } from '@/contexts/PlayerContext';
+import { usePlayer } from '@/contexts/PlayerContext';
 import { Skeleton } from '@/components/ui/skeleton';
 
 // Mock featured albums for demo
@@ -90,16 +90,11 @@ const featuredAlbums = [
   },
 ];
 
-interface AlbumCardProps {
-  album: typeof featuredAlbums[0];
-  index: number;
-}
-
-const AlbumCard = ({ album, index }: AlbumCardProps) => {
+const AlbumCard = ({ album, index }) => {
   const [isHovered, setIsHovered] = useState(false);
   const { playTrack, addToQueue } = usePlayer();
 
-  const handlePlay = (e: React.MouseEvent) => {
+  const handlePlay = (e) => {
     e.stopPropagation();
     if (album.tracks.length > 0) {
       playTrack(album.tracks[0]);
@@ -204,12 +199,7 @@ const HomePage = () => {
   );
 };
 
-interface TrackRowProps {
-  track: Track;
-  index: number;
-}
-
-const TrackRow = ({ track, index }: TrackRowProps) => {
+const TrackRow = ({ track, index }) => {
   const { playTrack, currentTrack, isPlaying } = usePlayer();
   const isCurrentTrack = currentTrack?.id === track.id;
 

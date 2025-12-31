@@ -1,8 +1,8 @@
 import { motion } from 'framer-motion';
 import { TrendingUp, Play, Clock } from 'lucide-react';
-import { usePlayer, Track } from '@/contexts/PlayerContext';
+import { usePlayer } from '@/contexts/PlayerContext';
 
-const trendingSongs: Track[] = [
+const trendingSongs = [
   { id: 't1', videoId: 'IeyJ7MPb7MQ', title: 'Idol', artist: 'YOASOBI', thumbnail: 'https://i.ytimg.com/vi/IeyJ7MPb7MQ/maxresdefault.jpg', duration: '3:35' },
   { id: 't2', videoId: 'ZRtdQ81jPUQ', title: 'Kick Back', artist: 'Kenshi Yonezu', thumbnail: 'https://i.ytimg.com/vi/ZRtdQ81jPUQ/maxresdefault.jpg', duration: '3:18' },
   { id: 't3', videoId: 'DkeiKbqa02g', title: 'Levitating', artist: 'Dua Lipa', thumbnail: 'https://i.ytimg.com/vi/DkeiKbqa02g/maxresdefault.jpg', duration: '3:23' },

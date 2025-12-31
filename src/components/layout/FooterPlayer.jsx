@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { motion, AnimatePresence } from 'framer-motion';
-import { SyntheticEvent, useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 
 const FooterPlayer = () => {
   const {
@@ -35,13 +35,13 @@ const FooterPlayer = () => {
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
 
-  const formatTime = (seconds: number): string => {
+  const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleSeek = (value: number[]) => {
+  const handleSeek = (value) => {
     seekTo(value[0]);
   };
 
@@ -53,17 +53,17 @@ const FooterPlayer = () => {
     }
   };
 
-  const handleTimeUpdate = useCallback((e: SyntheticEvent<HTMLVideoElement>) => {
+  const handleTimeUpdate = useCallback((e) => {
     const video = e.currentTarget;
     setProgress(video.currentTime);
   }, []);
 
-  const handleDurationChange = useCallback((e: SyntheticEvent<HTMLVideoElement>) => {
+  const handleDurationChange = useCallback((e) => {
     const video = e.currentTarget;
     setDuration(video.duration || 0);
   }, []);
 
-  const handleLoadedMetadata = useCallback((e: SyntheticEvent<HTMLVideoElement>) => {
+  const handleLoadedMetadata = useCallback((e) => {
     const video = e.currentTarget;
     setDuration(video.duration || 0);
   }, []);
