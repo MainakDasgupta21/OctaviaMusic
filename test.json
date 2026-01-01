@@ -1,0 +1,344 @@
+{
+  "project_title": "RhythmStream - Premium MERN Stack Music Player with Video Ambience",
+  "role": "Senior Full-Stack Developer and UI/UX Designer with deep expertise in MERN stack (MongoDB, Express.js, React.js, Node.js), Tailwind CSS, and Framer Motion. All code must be in JavaScript. TypeScript must NOT be used anywhere in the project.",
+  "goal": {
+    "primary_objective": "Design and build a visually stunning, high-performance, futuristic music streaming web application with a premium feel.",
+    "core_experience": "Users should feel immersed in a cinematic music environment where audio playback, motion design, and ambient visuals blend seamlessly.",
+    "key_highlight": "Play music sourced from YouTube Music while looping silent, aesthetic background videos to create a luxury, screensaver-like ambience.",
+    "design_expectation": "The UI must look production-ready, comparable to top-tier consumer apps like Apple Music or Spotify Canvas, but with a more experimental and futuristic edge."
+  },
+  "technology_stack": {
+    "frontend": {
+      "framework": {
+        "name": "React.js",
+        "build_tool": "Vite",
+        "language": "JavaScript (ES6+ only)"
+      },
+      "styling": {
+        "framework": "Tailwind CSS",
+        "design_principles": [
+          "utility-first styling",
+          "responsive-first design",
+          "dark-mode-first UI",
+          "glassmorphism effects using backdrop filters"
+        ]
+      },
+      "animations": {
+        "library": "Framer Motion",
+        "usage": [
+          "vinyl disc rotation animation",
+          "hover and tap micro-interactions",
+          "page transitions using AnimatePresence",
+          "smooth deceleration and acceleration physics"
+        ]
+      },
+      "state_management": {
+        "primary": "React Context API",
+        "alternative": "Redux Toolkit",
+        "state_scope": [
+          "authentication state",
+          "current playing song",
+          "playback status (play, pause, shuffle, loop)",
+          "queue management",
+          "user preferences and settings"
+        ]
+      },
+      "icons": {
+        "libraries": [
+          "Lucide-React",
+          "Heroicons"
+        ],
+        "usage_guidelines": "Icons must be minimal, thin-stroke, and consistent with the futuristic UI theme."
+      },
+      "fonts": {
+        "primary": "Plus Jakarta Sans",
+        "secondary": "Inter",
+        "usage": {
+          "headings": "bold, large, high-contrast",
+          "body": "medium weight, high readability",
+          "metadata": "small, muted, secondary tone"
+        }
+      }
+    },
+    "backend": {
+      "runtime": "Node.js",
+      "framework": "Express.js",
+      "architecture": {
+        "pattern": "RESTful API",
+        "folder_structure": [
+          "routes",
+          "controllers",
+          "models",
+          "middlewares",
+          "utils"
+        ]
+      },
+      "responsibilities": [
+        "handle YouTube Music search requests",
+        "manage user authentication and sessions",
+        "store playlists and favorites",
+        "proxy and sanitize external API calls"
+      ]
+    },
+    "database": {
+      "db": "MongoDB",
+      "odm": "Mongoose",
+      "design_principles": [
+        "normalized schemas",
+        "indexed frequently queried fields",
+        "scalable for millions of users"
+      ]
+    },
+    "audio_source": {
+      "type": "YouTube Music",
+      "integration_methods": [
+        "ytmusic-api wrapper",
+        "custom scraping logic when required"
+      ],
+      "constraints": [
+        "audio-only playback",
+        "no visible YouTube UI",
+        "custom player controls only"
+      ]
+    }
+  },
+  "visual_design_and_aesthetics": {
+    "theme": {
+      "name": "Dark Glassmorphism",
+      "mood": [
+        "premium",
+        "cinematic",
+        "futuristic",
+        "minimal yet expressive"
+      ]
+    },
+    "background": {
+      "base_color": "#0A192F",
+      "video_layer": {
+        "type": "ambient looping video",
+        "description": "platinum liquid, abstract smoke, or neon fluid motion",
+        "opacity": 0.3,
+        "behavior": "smooth fade transition between videos"
+      }
+    },
+    "accent_color": {
+      "primary": "#FF6B00",
+      "usage": [
+        "active navigation item",
+        "play/pause button",
+        "progress indicators",
+        "hover highlights"
+      ]
+    },
+    "glass_effect": {
+      "css_properties": {
+        "backdrop_filter": "blur(12px)",
+        "background": "rgba(255,255,255,0.06)",
+        "border": "1px solid rgba(255,255,255,0.15)"
+      },
+      "applies_to": [
+        "cards",
+        "sidebars",
+        "player panels",
+        "queue lists"
+      ]
+    }
+  },
+  "page_structure_and_components": {
+    "sidebar": {
+      "position": "left",
+      "behavior": "fixed and always visible",
+      "navigation_items": [
+        "Feed",
+        "Trending",
+        "Player",
+        "Favorites",
+        "Library",
+        "Settings"
+      ],
+      "active_state_design": {
+        "indicator": "rounded vertical bar on left edge",
+        "color": "#FF6B00",
+        "glow_effect": "soft outer orange glow using box-shadow"
+      },
+      "profile_section": {
+        "location": "top",
+        "avatar": {
+          "shape": "circle",
+          "interaction": "opens user profile/settings on click"
+        }
+      }
+    },
+    "library_view": {
+      "purpose": "Browse playlists and albums",
+      "layout": {
+        "type": "responsive grid",
+        "columns": {
+          "desktop": 5,
+          "tablet": 3,
+          "mobile": 2
+        }
+      },
+      "card_design": {
+        "elements": [
+          "cover image",
+          "playlist/album title",
+          "song count metadata"
+        ],
+        "hover_interactions": {
+          "scale": 1.05,
+          "overlay": "dark gradient",
+          "play_button": {
+            "shape": "circle",
+            "color": "#FF6B00",
+            "animation": "fade + scale in"
+          }
+        }
+      }
+    },
+    "player_view": {
+      "importance": "core hero component of the entire application",
+      "vinyl_system": {
+        "visual": "realistic vinyl disc",
+        "center_label": "dynamically injected album artwork",
+        "animation_logic": {
+          "playing": "continuous rotation at constant speed",
+          "paused": "smooth inertia-based slowdown to stop"
+        }
+      },
+      "progress_indicator": {
+        "shape": "curved arc",
+        "position": "bottom half of vinyl",
+        "behavior": "fills proportionally with playback time"
+      },
+      "controls": {
+        "layout": "centered below track information",
+        "buttons": [
+          "Shuffle",
+          "Previous",
+          "Play/Pause",
+          "Next",
+          "Loop"
+        ],
+        "play_button_design": {
+          "size": "largest control",
+          "shape": "floating circle",
+          "color": "#FF6B00",
+          "shadow": "soft drop shadow for depth"
+        }
+      },
+      "track_information": {
+        "title": {
+          "style": "large, bold, high contrast"
+        },
+        "artist": {
+          "style": "smaller, muted, secondary text"
+        }
+      }
+    },
+    "right_panel": {
+      "sections": {
+        "up_next": {
+          "description": "Current playback queue",
+          "features": [
+            "drag and drop reordering",
+            "highlight currently playing song"
+          ]
+        },
+        "recommendations": {
+          "similar_artists": {
+            "format": "circular avatars",
+            "interaction": "click to explore artist"
+          },
+          "made_for_you": {
+            "format": "square recommendation cards",
+            "purpose": "personalized discovery"
+          }
+        }
+      }
+    }
+  },
+  "key_functionality": {
+    "ambience_background_system": {
+      "component_name": "BackgroundVideoManager",
+      "behavior": {
+        "rotation": "automatically cycles videos every few minutes",
+        "transition": "crossfade between videos",
+        "audio": "always muted"
+      },
+      "overlay": {
+        "color": "black",
+        "opacity": 0.7,
+        "purpose": "ensure UI readability"
+      }
+    },
+    "music_playback_logic": {
+      "backend_flow": {
+        "endpoint": "/api/search",
+        "input": "search query string",
+        "output": "array of YouTube video metadata"
+      },
+      "frontend_flow": {
+        "audio_engine": [
+          "hidden react-player",
+          "or hidden iframe"
+        ],
+        "ui_sync": [
+          "vinyl rotation",
+          "progress arc update",
+          "track metadata update"
+        ]
+      }
+    }
+  },
+  "database_schemas": {
+    "user": {
+      "fields": [
+        "username",
+        "email",
+        "password_hash",
+        "playlists",
+        "favorites",
+        "settings"
+      ],
+      "notes": "passwords must be hashed and never stored in plain text"
+    },
+    "playlist": {
+      "fields": [
+        "title",
+        "coverImage",
+        "songs",
+        "createdBy"
+      ],
+      "notes": "supports both user-created and system-curated playlists"
+    },
+    "song": {
+      "fields": [
+        "yt_id",
+        "title",
+        "artist",
+        "album",
+        "duration",
+        "thumbnailUrl"
+      ]
+    }
+  },
+  "implementation_steps": {
+    "phase_1": "Initialize MERN project and repository structure",
+    "phase_2": "Build sidebar and background ambience system",
+    "phase_3": "Develop library browsing experience",
+    "phase_4": "Implement vinyl player with Framer Motion and dummy audio",
+    "phase_5": "Integrate YouTube Music search and playback",
+    "phase_6": "Polish animations, transitions, and performance"
+  },
+  "initial_instruction": "Begin by generating a complete project folder structure and the full frontend implementation of the Player View with Vinyl Animation using React, Tailwind CSS, and Framer Motion.",
+  "youtube_data_api": {
+    "provider": "YouTube Data API v3",
+    "api_key": "AIzaSyCVxNEKujmHLRaJROM0FxiV0C_vdG7J2VQ",
+    "usage": [
+      "search videos",
+      "fetch metadata",
+      "assist YouTube Music integration"
+    ]
+  }
+}
