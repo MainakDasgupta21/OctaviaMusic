@@ -1,62 +1,144 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    /* Deep navy base */
-    --background: 222 47% 8%;
-    --foreground: 210 40% 98%;
+    /* =======================================================================
+       Surfaces & ink — "editorial nightside"
+       Warmer ink-black (220° instead of 222°, lower sat) so the page feels
+       like printed matter under low light, not a tech dashboard.
+       ======================================================================= */
+    --surface-0: 30 12% 4%;      /* page background, deepest ink */
+    --surface-1: 30 11% 6%;      /* default surface */
+    --surface-2: 30 10% 10%;     /* raised card */
+    --surface-3: 30 10% 14%;     /* tooltip / dropdown */
+    --surface-4: 30 9% 20%;      /* selected row, hover-strong */
 
-    /* Cards with glassmorphism */
-    --card: 222 47% 12%;
-    --card-foreground: 210 40% 98%;
+    /* Warm ivory ink, not pure white. Easier on the eye, evokes paper. */
+    --ink-primary:   38 22% 96%;    /* AAA contrast on surface-1 */
+    --ink-secondary: 38 14% 78%;    /* AA on surface-1 */
+    --ink-tertiary:  35 10% 58%;    /* labels, hints */
+    --ink-quaternary: 32 8% 42%;    /* placeholders, hairlines */
 
-    --popover: 222 47% 10%;
-    --popover-foreground: 210 40% 98%;
+    /* =======================================================================
+       Brand ramp — refined "ember." Slightly warmer hue (16° vs 18°), gentler
+       saturation. Reads sophisticated, not juicy.
+       ======================================================================= */
+    --brand-50:  22 100% 96%;
+    --brand-100: 20 92% 88%;
+    --brand-200: 18 88% 78%;
+    --brand-300: 16 85% 68%;
+    --brand-400: 16 82% 60%;
+    --brand-500: 16 82% 56%;   /* default primary */
+    --brand-600: 14 78% 48%;
+    --brand-700: 13 72% 40%;
+    --brand-800: 12 64% 30%;
+    --brand-900: 12 54% 20%;
 
-    /* Coral/Orange primary - like Spotify's green but warmer */
-    --primary: 18 90% 55%;
-    --primary-foreground: 222 47% 8%;
+    /* Editorial accents: oxblood (paired w/ ember), bone (highlight). */
+    --oxblood: 350 35% 22%;
+    --oxblood-strong: 350 45% 30%;
+    --bone: 38 25% 88%;
 
-    /* Purple/pink secondary for cards */
-    --secondary: 280 60% 25%;
-    --secondary-foreground: 210 40% 98%;
+    /* =======================================================================
+       Dynamic per-track accent — driven by use-color-extraction.
+       Falls back to the ember ramp.
+       ======================================================================= */
+    --track-accent: var(--brand-500);
+    --track-accent-strong: var(--brand-600);
+    --track-accent-foreground: 30 12% 4%;
 
-    /* Muted navy tones */
-    --muted: 222 40% 18%;
-    --muted-foreground: 215 20% 65%;
+    /* =======================================================================
+       Status
+       ======================================================================= */
+    --success: 145 40% 50%;
+    --warning: 38 82% 58%;
+    --danger:  4 70% 56%;
+    --info:    210 70% 60%;
 
-    /* Accent - coral glow */
-    --accent: 18 85% 45%;
-    --accent-foreground: 210 40% 98%;
+    /* =======================================================================
+       shadcn/ui compat layer
+       ======================================================================= */
+    --background: var(--surface-1);
+    --foreground: var(--ink-primary);
+    --card: var(--surface-2);
+    --card-foreground: var(--ink-primary);
+    --popover: var(--surface-3);
+    --popover-foreground: var(--ink-primary);
 
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
+    --primary: var(--brand-500);
+    --primary-foreground: 30 12% 4%;
+    --secondary: var(--oxblood);
+    --secondary-foreground: var(--ink-primary);
 
-    --border: 222 30% 20%;
-    --input: 222 30% 20%;
-    --ring: 18 90% 55%;
+    --muted: 30 10% 14%;
+    --muted-foreground: var(--ink-secondary);
 
-    --radius: 1rem;
+    --accent: 16 78% 50%;
+    --accent-foreground: var(--ink-primary);
 
-    /* Custom music player tokens */
-    --sidebar-bg: 222 50% 6%;
-    --sidebar-active: 18 90% 55%;
-    --player-gradient-start: 222 47% 10%;
-    --player-gradient-end: 280 50% 15%;
-    --glass-bg: 222 47% 15% / 0.6;
-    --glass-border: 210 40% 98% / 0.1;
-    
-    /* Gradient definitions */
-    --gradient-primary: linear-gradient(135deg, hsl(18 90% 55%), hsl(35 95% 60%));
-    --gradient-card: linear-gradient(180deg, hsl(280 60% 25% / 0.3), hsl(222 47% 12%));
-    --gradient-sidebar: linear-gradient(180deg, hsl(222 50% 8%), hsl(222 50% 4%));
-    --gradient-main: radial-gradient(ellipse at 30% 0%, hsl(280 50% 20% / 0.3) 0%, transparent 50%),
-                     radial-gradient(ellipse at 70% 100%, hsl(222 60% 15% / 0.5) 0%, transparent 50%),
-                     hsl(222 47% 8%);
+    --destructive: var(--danger);
+    --destructive-foreground: var(--ink-primary);
+
+    --border: 30 10% 16%;
+    --input: 30 10% 16%;
+    --ring: var(--track-accent);
+
+    /* Mixed radii — magazines aren't all rounded-3xl. */
+    --radius: 0.875rem;
+    --radius-sharp: 0.25rem;
+    --radius-soft: 1.25rem;
+
+    --sidebar-bg: 30 14% 4%;
+    --sidebar-active: var(--track-accent);
+
+    /* =======================================================================
+       Motion
+       ======================================================================= */
+    --ease-emphasis: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-decel:    cubic-bezier(0, 0, 0.2, 1);
+    --ease-accel:    cubic-bezier(0.4, 0, 1, 1);
+    --ease-spring:   cubic-bezier(0.34, 1.56, 0.64, 1);
+
+    --dur-instant: 80ms;
+    --dur-short:   140ms;
+    --dur-med:     220ms;
+    --dur-long:    380ms;
+    --dur-xlong:   600ms;
+
+    /* =======================================================================
+       Elevation. Editorial = dramatic key-light + softer ambient.
+       ======================================================================= */
+    --shadow-1: 0 1px 2px rgba(0,0,0,0.22), 0 1px 1px rgba(0,0,0,0.14);
+    --shadow-2: 0 2px 6px rgba(0,0,0,0.30), 0 6px 14px rgba(0,0,0,0.22);
+    --shadow-3: 0 4px 12px rgba(0,0,0,0.34), 0 14px 30px rgba(0,0,0,0.26);
+    --shadow-4: 0 8px 22px rgba(0,0,0,0.38), 0 28px 64px rgba(0,0,0,0.32);
+    --shadow-5: 0 14px 44px rgba(0,0,0,0.46), 0 40px 100px rgba(0,0,0,0.40);
+    --shadow-accent: 0 10px 36px hsl(var(--track-accent) / 0.32),
+                     0 2px 8px hsl(var(--track-accent) / 0.20);
+
+    /* =======================================================================
+       Gradients — warmer, less "tech."
+       ======================================================================= */
+    --gradient-primary: linear-gradient(135deg, hsl(var(--track-accent)), hsl(var(--track-accent-strong)));
+    --gradient-card: linear-gradient(180deg, hsl(var(--oxblood) / 0.25), hsl(var(--surface-2)));
+    --gradient-sidebar: linear-gradient(180deg, hsl(var(--surface-0)), hsl(30 14% 3%));
+    --gradient-main:
+      radial-gradient(ellipse 80% 60% at 25% -5%, hsl(var(--track-accent) / 0.12) 0%, transparent 55%),
+      radial-gradient(ellipse 70% 50% at 90% 110%, hsl(var(--oxblood) / 0.40) 0%, transparent 55%),
+      hsl(var(--surface-1));
+
+    /* Hairline rules — the editorial bread and butter. */
+    --hairline: 1px solid hsl(var(--ink-primary) / 0.08);
+    --hairline-strong: 1px solid hsl(var(--ink-primary) / 0.14);
+  }
+
+  /* The page tint should glide between accents, not snap. */
+  :root {
+    transition:
+      --track-accent var(--dur-xlong) var(--ease-emphasis),
+      --track-accent-strong var(--dur-xlong) var(--ease-emphasis);
   }
 }
 
@@ -65,101 +147,720 @@
     @apply border-border;
   }
 
+  /* =========================================================================
+     TYPOGRAPHY
+     One typeface across the whole app: Roboto (and Roboto Mono for numerals).
+     `font-synthesis: none` forbids fake bold/italic — only real cuts are used.
+     ========================================================================= */
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: geometricPrecision;
+    font-synthesis: none;
+    -webkit-font-feature-settings: 'kern' 1, 'liga' 1;
+            font-feature-settings: 'kern' 1, 'liga' 1;
+  }
+
   body {
-    @apply bg-background text-foreground font-outfit antialiased;
+    @apply bg-background text-foreground font-sans antialiased;
     background: var(--gradient-main);
     min-height: 100vh;
+    -webkit-font-feature-settings: 'kern' 1, 'liga' 1;
+            font-feature-settings: 'kern' 1, 'liga' 1;
+  }
+
+  /* -------------------------------------------------------------------------
+     Display / headline / editorial aliases all resolve to Roboto, with the
+     tracking & weight that fits each role. Existing `font-display`,
+     `font-headline`, `font-editorial` usages keep their visual intent.
+     ------------------------------------------------------------------------- */
+  .font-display {
+    font-family: 'Roboto', ui-sans-serif, system-ui, sans-serif;
+    font-weight: 500;
+    letter-spacing: -0.018em;
+  }
+
+  .font-display-tight {
+    font-family: 'Roboto', ui-sans-serif, system-ui, sans-serif;
+    font-weight: 500;
+    letter-spacing: -0.028em;
+  }
+
+  .font-editorial {
+    font-family: 'Roboto', ui-sans-serif, system-ui, sans-serif;
+    font-style: italic;
+    font-weight: 400;
+    letter-spacing: -0.005em;
+  }
+
+  .font-headline {
+    font-family: 'Roboto', ui-sans-serif, system-ui, sans-serif;
+    font-weight: 500;
+    letter-spacing: -0.012em;
+  }
+
+  /* -------------------------------------------------------------------------
+     Mono: Roboto Mono. Tabular nums always on for timestamps & data.
+     ------------------------------------------------------------------------- */
+  .font-mono {
+    font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  /* Vintage x GenZ accents (used in now-playing surfaces) */
+  .font-vintage-display {
+    font-family: 'DM Serif Display', 'Roboto', ui-serif, Georgia, serif;
+    font-weight: 400;
+    letter-spacing: -0.014em;
+    font-variant-numeric: lining-nums;
+  }
+  .font-genz-mono {
+    font-family: 'Syne Mono', 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-weight: 400;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+  }
+
+  /* Tabular numbers wherever counts/timers matter. */
+  .tabular-nums,
+  .font-mono,
+  time,
+  kbd,
+  .numerals {
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  /* Display headlines: use lining figures (no oldstyle bumps mid-headline). */
+  .font-display,
+  .font-display-tight,
+  .font-headline {
+    font-variant-numeric: lining-nums;
+  }
+
+  /* Selection uses the dynamic accent on warm ink. */
+  ::selection {
+    background: hsl(var(--track-accent) / 0.36);
+    color: hsl(var(--ink-primary));
+  }
+
+  /* Refined focus visible — accent + ivory inner ring for clarity. */
+  :focus-visible {
+    outline: none;
+  }
+}
+
+/* =========================================================================
+   GRAIN OVERLAY
+   Fixed SVG noise across the viewport. Set very low opacity so it's felt,
+   not seen. Adds paper-grain tactility to every surface.
+   ========================================================================= */
+@layer base {
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    opacity: 0.045;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 0.95 0 0 0 0 0.9 0 0 0 0.9 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    background-size: 240px 240px;
+  }
+
+  :root[data-theme='light'] body::before {
+    mix-blend-mode: multiply;
+    opacity: 0.04;
   }
 }
 
 @layer utilities {
+  /* =======================================================================
+     Surfaces — refined: less blur, sharper hairline border
+     ======================================================================= */
   .glass {
-    @apply bg-card/60 backdrop-blur-xl border border-white/10;
+    @apply backdrop-blur-xl border;
+    background: hsl(var(--surface-2) / 0.62);
+    border-color: hsl(var(--ink-primary) / 0.07);
   }
-
   .glass-strong {
-    @apply bg-card/80 backdrop-blur-2xl border border-white/15;
+    @apply backdrop-blur-2xl border;
+    background: hsl(var(--surface-2) / 0.82);
+    border-color: hsl(var(--ink-primary) / 0.10);
   }
+  .surface-1 { background: hsl(var(--surface-1)); }
+  .surface-2 { background: hsl(var(--surface-2)); }
+  .surface-3 { background: hsl(var(--surface-3)); }
 
+  /* =======================================================================
+     Ink helpers
+     ======================================================================= */
+  .text-ink       { color: hsl(var(--ink-primary)); }
+  .text-ink-2     { color: hsl(var(--ink-secondary)); }
+  .text-ink-3     { color: hsl(var(--ink-tertiary)); }
+  .text-ink-4     { color: hsl(var(--ink-quaternary)); }
+  .text-bone      { color: hsl(var(--bone)); }
+  .text-oxblood   { color: hsl(var(--oxblood-strong)); }
+
+  /* =======================================================================
+     Track-accent helpers
+     ======================================================================= */
+  .text-accent    { color: hsl(var(--track-accent)); }
+  .bg-accent-soft { background: hsl(var(--track-accent) / 0.13); }
+  .ring-accent    { --tw-ring-color: hsl(var(--track-accent) / 0.7); }
+  .border-accent  { border-color: hsl(var(--track-accent) / 0.5); }
+  .gradient-accent {
+    background-image: linear-gradient(135deg, hsl(var(--track-accent)), hsl(var(--track-accent-strong)));
+  }
   .gradient-text {
-    @apply bg-gradient-to-r from-primary to-orange-400 bg-clip-text text-transparent;
+    background: linear-gradient(135deg, hsl(var(--track-accent)), hsl(var(--track-accent-strong)));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .shadow-accent  { box-shadow: var(--shadow-accent); }
+
+  /* =======================================================================
+     EDITORIAL — the new bag of tricks
+     ======================================================================= */
+
+  /* Hairline rules (full width or with center ornament) */
+  .editorial-rule {
+    height: 1px;
+    background: hsl(var(--ink-primary) / 0.10);
+    width: 100%;
+  }
+  .editorial-rule-ornament {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    color: hsl(var(--ink-quaternary));
+  }
+  .editorial-rule-ornament::before,
+  .editorial-rule-ornament::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: hsl(var(--ink-primary) / 0.10);
   }
 
-  .vinyl-shadow {
-    box-shadow: 
-      0 0 60px hsl(18 90% 55% / 0.3),
-      0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  /* Eyebrow — the small all-caps tracked label before headlines */
+  .eyebrow {
+    font-family: 'Roboto', ui-sans-serif, system-ui, sans-serif;
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: hsl(var(--ink-tertiary));
+  }
+  .eyebrow-accent {
+    color: hsl(var(--track-accent));
   }
 
-  .card-hover {
-    @apply transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-primary/10;
+  /* "Editorial number" — a big tabular number used as a column marker */
+  .editorial-num {
+    font-family: 'Roboto', ui-sans-serif, system-ui, sans-serif;
+    font-style: italic;
+    font-weight: 300;
+    font-feature-settings: 'tnum';
+    line-height: 0.85;
+    color: hsl(var(--ink-quaternary));
   }
 
-  .sidebar-item {
-    @apply flex flex-col items-center gap-1 p-3 rounded-xl transition-all duration-200;
+  /* Magazine "issue" pill — sharp corners, hairline, mono */
+  .issue-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.625rem;
+    border: 1px solid hsl(var(--ink-primary) / 0.15);
+    border-radius: var(--radius-sharp);
+    font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    color: hsl(var(--ink-secondary));
+    text-transform: uppercase;
   }
 
-  .sidebar-item-active {
-    @apply bg-primary/20 text-primary;
+  /* Vintage x GenZ surface language for now-playing pages. */
+  .vintage-genz-shell {
+    position: relative;
+    overflow: hidden;
+    border-radius: 24px;
+    border: 1px solid hsl(var(--ink-primary) / 0.13);
+    background:
+      radial-gradient(120% 90% at 50% -20%, hsl(var(--track-accent) / 0.11), transparent 58%),
+      linear-gradient(180deg, hsl(var(--surface-2) / 0.86), hsl(var(--surface-1) / 0.88));
+    box-shadow:
+      0 24px 64px rgba(0, 0, 0, 0.42),
+      inset 0 1px 0 hsl(var(--ink-primary) / 0.08),
+      inset 0 -22px 44px hsl(var(--oxblood) / 0.08);
+  }
+  .vintage-genz-shell::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      linear-gradient(118deg, transparent 15%, hsl(var(--ink-primary) / 0.09) 44%, transparent 72%);
+    mix-blend-mode: screen;
+    opacity: 0.38;
+  }
+  .vintage-genz-shell::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      repeating-linear-gradient(
+        0deg,
+        transparent 0 20px,
+        hsl(var(--ink-primary) / 0.018) 20px 21px
+      );
+    opacity: 0.6;
   }
 
-  .sidebar-item:hover:not(.sidebar-item-active) {
-    @apply bg-white/5 text-white;
+  .vintage-frame {
+    position: relative;
+    border: 1px solid hsl(var(--ink-primary) / 0.19);
+    box-shadow:
+      0 24px 54px rgba(0, 0, 0, 0.46),
+      inset 0 0 0 1px hsl(var(--ink-primary) / 0.06),
+      0 0 44px hsl(var(--track-accent) / 0.18);
+  }
+  .vintage-frame::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      linear-gradient(140deg, hsl(var(--ink-primary) / 0.10), transparent 32%, transparent 66%, hsl(var(--ink-primary) / 0.07));
+    mix-blend-mode: soft-light;
+    opacity: 0.48;
   }
 
-  /* Custom scrollbar */
+  .vintage-chip {
+    border-color: hsl(var(--ink-primary) / 0.22);
+    background:
+      linear-gradient(180deg, hsl(var(--ink-primary) / 0.09), hsl(var(--ink-primary) / 0.03));
+    box-shadow:
+      inset 0 1px 0 hsl(var(--ink-primary) / 0.09),
+      0 6px 16px rgba(0, 0, 0, 0.24);
+    font-family: 'Syne Mono', 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: 0.1em;
+  }
+
+  .vintage-toolbar {
+    border-radius: 16px;
+    border: 1px solid hsl(var(--ink-primary) / 0.10);
+    background:
+      linear-gradient(180deg, hsl(var(--ink-primary) / 0.08), hsl(var(--ink-primary) / 0.02));
+    box-shadow:
+      inset 0 1px 0 hsl(var(--ink-primary) / 0.07),
+      0 8px 22px rgba(0, 0, 0, 0.26);
+  }
+
+  .vintage-tablist [role='tab'] {
+    font-family: 'Syne Mono', 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 12px;
+  }
+
+  /* Mask reveal — text wipes in from below (used for headlines on enter) */
+  @keyframes mask-rise {
+    from { transform: translateY(110%); opacity: 0; }
+    to   { transform: translateY(0); opacity: 1; }
+  }
+  .mask-rise {
+    display: inline-block;
+    overflow: hidden;
+    line-height: 1.05;
+  }
+  .mask-rise > span {
+    display: inline-block;
+    animation: mask-rise 700ms var(--ease-emphasis) both;
+  }
+
+  /* Magnetic hover lift for editorial CTAs */
+  .magnetic-lift {
+    transition: transform var(--dur-med) var(--ease-emphasis),
+                box-shadow var(--dur-med) var(--ease-emphasis),
+                border-color var(--dur-med) var(--ease-emphasis);
+  }
+  .magnetic-lift:hover {
+    transform: translateY(-2px);
+  }
+
+  /* =======================================================================
+     Focus ring (uses track-accent so brand always feels consistent)
+     ======================================================================= */
+  .focus-ring {
+    @apply outline-none;
+  }
+  .focus-ring:focus-visible {
+    box-shadow: 0 0 0 2px hsl(var(--surface-1)), 0 0 0 4px hsl(var(--track-accent) / 0.7);
+    outline: none;
+  }
+
+  /* =======================================================================
+     Scrollbars
+     ======================================================================= */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
   .custom-scrollbar::-webkit-scrollbar {
     width: 8px;
+    height: 8px;
   }
-
   .custom-scrollbar::-webkit-scrollbar-track {
     @apply bg-transparent;
   }
-
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    @apply bg-white/10 rounded-full;
+    background: hsl(var(--ink-primary) / 0.08);
+    border-radius: 9999px;
   }
-
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    @apply bg-white/20;
+    background: hsl(var(--ink-primary) / 0.18);
   }
 
-  /* Vinyl record animation */
+  /* =======================================================================
+     Vinyl + waveform decorations (kept; now accent-aware)
+     ======================================================================= */
+  .vinyl-shadow {
+    box-shadow:
+      0 0 60px hsl(var(--track-accent) / 0.30),
+      0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  }
+
+  /* Pressed-vinyl record: concentric grooves, a deep center, accent rim glow.
+     Used as the single now-playing centerpiece (replaces the old dual viz). */
+  .vinyl-disc {
+    background:
+      repeating-radial-gradient(circle at 50% 50%,
+        rgba(0, 0, 0, 0.55) 0 1.5px,
+        rgba(255, 255, 255, 0.035) 1.5px 3px),
+      radial-gradient(circle at 50% 50%, hsl(var(--surface-3)) 0%, #09090b 72%);
+    box-shadow:
+      0 36px 80px -28px rgba(0, 0, 0, 0.8),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+      inset 0 0 46px rgba(0, 0, 0, 0.6),
+      0 0 64px hsl(var(--track-accent) / 0.22);
+  }
+  /* Static specular sheen over the record (does not rotate with the disc). */
+  .vinyl-gloss {
+    background: linear-gradient(
+      125deg,
+      rgba(255, 255, 255, 0.18) 0%,
+      transparent 34%,
+      transparent 66%,
+      rgba(255, 255, 255, 0.07) 100%
+    );
+    mix-blend-mode: screen;
+  }
+
+  /* Refined card hover — gentler lift + hairline accent ring */
+  .card-hover {
+    transition: transform var(--dur-med) var(--ease-emphasis),
+                box-shadow var(--dur-med) var(--ease-emphasis),
+                border-color var(--dur-med) var(--ease-emphasis);
+  }
+  .card-hover:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-3),
+                inset 0 0 0 1px hsl(var(--track-accent) / 0.25);
+  }
+
+  .sidebar-item {
+    @apply flex flex-col items-center gap-1 p-3;
+    border-radius: var(--radius);
+    transition: background var(--dur-short) var(--ease-emphasis),
+                color var(--dur-short) var(--ease-emphasis);
+  }
+
   @keyframes spin-vinyl {
-    from {
-      transform: rotate(0deg);
-    }
-    to {
-      transform: rotate(360deg);
-    }
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
   }
-
   .vinyl-spinning {
     animation: spin-vinyl 3s linear infinite;
   }
-
   .vinyl-paused {
     animation-play-state: paused;
   }
 
-  /* Pulse animation for playing indicator */
   @keyframes pulse-glow {
-    0%, 100% {
-      box-shadow: 0 0 20px hsl(18 90% 55% / 0.4);
-    }
-    50% {
-      box-shadow: 0 0 40px hsl(18 90% 55% / 0.6);
-    }
+    0%, 100% { box-shadow: 0 0 20px hsl(var(--track-accent) / 0.4); }
+    50%      { box-shadow: 0 0 40px hsl(var(--track-accent) / 0.6); }
   }
-
   .pulse-glow {
     animation: pulse-glow 2s ease-in-out infinite;
   }
 
-  /* Wave background pattern */
-  .wave-bg {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 320'%3E%3Cpath fill='%23ffffff' fill-opacity='0.02' d='M0,160L48,176C96,192,192,224,288,213.3C384,203,480,149,576,138.7C672,128,768,160,864,186.7C960,213,1056,235,1152,218.7C1248,203,1344,149,1392,122.7L1440,96L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z'%3E%3C/path%3E%3C/svg%3E");
-    background-size: cover;
-    background-position: bottom;
+  /* -----------------------------------------------------------------------
+     Expanded player ambient layers
+     ----------------------------------------------------------------------- */
+  @keyframes ambient-drift {
+    0%   { transform: translate3d(-2%, -1.5%, 0) scale(1.32); }
+    50%  { transform: translate3d(1.5%, 1%, 0) scale(1.38); }
+    100% { transform: translate3d(2%, -1%, 0) scale(1.34); }
   }
+  .ambient-drift {
+    animation: ambient-drift 16s var(--ease-emphasis) infinite alternate;
+    will-change: transform;
+  }
+  .now-playing-aurora {
+    background:
+      radial-gradient(ellipse 70% 55% at 24% 12%, hsl(var(--track-accent) / 0.42), transparent 65%),
+      radial-gradient(ellipse 58% 48% at 82% 88%, hsl(var(--track-accent-strong) / 0.35), transparent 66%),
+      radial-gradient(ellipse 75% 62% at 50% 50%, hsl(var(--oxblood) / 0.20), transparent 72%);
+  }
+  .now-playing-vignette {
+    background:
+      linear-gradient(180deg, rgba(0, 0, 0, 0.56) 0%, transparent 32%, transparent 68%, rgba(0, 0, 0, 0.62) 100%),
+      linear-gradient(90deg, rgba(0, 0, 0, 0.36) 0%, transparent 18%, transparent 82%, rgba(0, 0, 0, 0.36) 100%);
+  }
+
+  /* Equalizer bars used in the mini now-playing badge on artwork. */
+  @keyframes now-playing-bars {
+    0%, 100% { transform: scaleY(0.28); opacity: 0.5; }
+    50%      { transform: scaleY(1); opacity: 1; }
+  }
+  .now-playing-bar {
+    width: 2px;
+    height: 12px;
+    border-radius: 9999px;
+    background: hsl(var(--bone));
+    transform-origin: center bottom;
+    animation: now-playing-bars 900ms ease-in-out infinite;
+  }
+  @keyframes live-dot-pulse {
+    0%   { transform: scale(1); box-shadow: 0 0 0 0 hsl(var(--danger) / 0.5); opacity: 1; }
+    70%  { transform: scale(1.15); box-shadow: 0 0 0 8px hsl(var(--danger) / 0); opacity: 0.86; }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 hsl(var(--danger) / 0); opacity: 1; }
+  }
+  .live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 9999px;
+    background: hsl(var(--danger));
+    animation: live-dot-pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes sidebar-playing-bars {
+    0%, 100% { transform: scaleY(0.3); opacity: 0.55; }
+    50%      { transform: scaleY(1); opacity: 1; }
+  }
+  .sidebar-playing-bar {
+    width: 2px;
+    height: 10px;
+    border-radius: 9999px;
+    background: hsl(var(--track-accent));
+    box-shadow: 0 0 8px hsl(var(--track-accent) / 0.45);
+    transform-origin: center bottom;
+    animation: sidebar-playing-bars 840ms ease-in-out infinite;
+  }
+
+  /* Seek bar accent bloom while playback is active. */
+  .scrubber-glow .slider-track {
+    background: hsl(var(--ink-primary) / 0.15);
+  }
+  .scrubber-glow .slider-range {
+    box-shadow:
+      0 0 10px hsl(var(--track-accent) / 0.5),
+      0 0 24px hsl(var(--track-accent-strong) / 0.35);
+  }
+
+  .player-seekbar .slider-track {
+    height: 7px;
+    border: 1px solid hsl(var(--ink-primary) / 0.10);
+    background: hsl(var(--ink-primary) / 0.12);
+  }
+  .player-seekbar .slider-range {
+    box-shadow:
+      0 0 10px hsl(var(--track-accent) / 0.42),
+      0 0 24px hsl(var(--track-accent-strong) / 0.28);
+  }
+  .player-seekbar .slider-thumb {
+    width: 14px;
+    height: 14px;
+    box-shadow:
+      0 0 0 4px hsl(var(--track-accent) / 0.22),
+      0 0 14px hsl(var(--track-accent) / 0.45);
+  }
+
+  .issue-pill-premium {
+    border-color: hsl(var(--ink-primary) / 0.18);
+    background:
+      linear-gradient(180deg, hsl(var(--ink-primary) / 0.06), hsl(var(--ink-primary) / 0.02));
+    box-shadow:
+      inset 0 1px 0 hsl(var(--ink-primary) / 0.08),
+      0 6px 16px rgba(0, 0, 0, 0.24);
+  }
+
+  /* =======================================================================
+     Like-burst
+     ======================================================================= */
+  @keyframes like-burst {
+    0%   { transform: translate(-50%, -50%) scale(0.6); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(1.8); opacity: 0; }
+  }
+  .like-burst {
+    animation: like-burst 600ms var(--ease-decel) forwards;
+  }
+
+  /* =======================================================================
+     Route progress bar
+     ======================================================================= */
+  .route-progress {
+    background: linear-gradient(90deg, hsl(var(--track-accent)), hsl(var(--track-accent-strong)));
+    box-shadow: 0 0 10px hsl(var(--track-accent) / 0.7);
+  }
+
+  /* =======================================================================
+     TopBar audio glow — subtle pulse on the hairline when playing
+     ======================================================================= */
+  @keyframes topbar-pulse {
+    0%, 100% { opacity: 0.7; }
+    50%      { opacity: 1; }
+  }
+
+  /* =======================================================================
+     Shimmer skeleton — warmer now
+     ======================================================================= */
+  @keyframes shimmer {
+    0%   { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--surface-2)) 25%,
+      hsl(var(--surface-3)) 50%,
+      hsl(var(--surface-2)) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.6s linear infinite;
+  }
+
+  /* =======================================================================
+     Tilt cards
+     ======================================================================= */
+  .tilt {
+    transform-style: preserve-3d;
+    transition: transform var(--dur-short) var(--ease-emphasis);
+    will-change: transform;
+  }
+  .tilt-gloss {
+    pointer-events: none;
+    background: radial-gradient(
+      circle at var(--mx, 50%) var(--my, 50%),
+      hsl(var(--ink-primary) / 0.18),
+      transparent 40%
+    );
+    mix-blend-mode: overlay;
+  }
+}
+
+/* =========================================================================
+   Reduced-motion
+   ========================================================================= */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .vinyl-spinning { animation: none !important; }
+  .ambient-drift { animation: none !important; transform: translate3d(0, 0, 0) scale(1.34) !important; }
+  .now-playing-bar { animation: none !important; transform: scaleY(0.65) !important; }
+  .live-dot { animation: none !important; }
+  .sidebar-playing-bar { animation: none !important; transform: scaleY(0.65) !important; }
+  .mask-rise > span { animation: none !important; transform: none !important; }
+}
+
+:root[data-reduce-motion='true'] *,
+:root[data-reduce-motion='true'] *::before,
+:root[data-reduce-motion='true'] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+:root[data-reduce-motion='true'] .vinyl-spinning {
+  animation: none !important;
+}
+:root[data-reduce-motion='true'] .ambient-drift {
+  animation: none !important;
+  transform: translate3d(0, 0, 0) scale(1.34) !important;
+}
+:root[data-reduce-motion='true'] .now-playing-bar {
+  animation: none !important;
+  transform: scaleY(0.65) !important;
+}
+:root[data-reduce-motion='true'] .live-dot {
+  animation: none !important;
+}
+:root[data-reduce-motion='true'] .sidebar-playing-bar {
+  animation: none !important;
+  transform: scaleY(0.65) !important;
+}
+:root[data-reduce-motion='true'] .mask-rise > span {
+  animation: none !important;
+  transform: none !important;
+}
+
+/* =========================================================================
+   Theme variants
+   ========================================================================= */
+:root[data-theme='oled'] {
+  --surface-0: 0 0% 0%;
+  --surface-1: 0 0% 2%;
+  --surface-2: 0 0% 6%;
+  --surface-3: 0 0% 10%;
+  --surface-4: 0 0% 14%;
+  --gradient-main:
+    radial-gradient(ellipse 80% 60% at 25% -5%, hsl(var(--track-accent) / 0.14) 0%, transparent 55%),
+    hsl(0 0% 0%);
+}
+:root[data-theme='light'] {
+  /* "Editorial day" — warm cream paper, ink on cream */
+  --surface-0: 38 30% 96%;
+  --surface-1: 38 32% 98%;
+  --surface-2: 38 22% 93%;
+  --surface-3: 38 18% 88%;
+  --surface-4: 38 16% 82%;
+  --ink-primary:   30 18% 10%;
+  --ink-secondary: 30 14% 28%;
+  --ink-tertiary:  30 12% 44%;
+  --ink-quaternary: 30 10% 58%;
+  --border: 30 14% 84%;
+  --hairline: 1px solid hsl(var(--ink-primary) / 0.10);
+  --gradient-main:
+    radial-gradient(ellipse 80% 60% at 25% -5%, hsl(var(--track-accent) / 0.10) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 50% at 90% 110%, hsl(var(--oxblood) / 0.10) 0%, transparent 55%),
+    hsl(var(--surface-1));
+}
+:root[data-theme='hicontrast'] {
+  --surface-0: 0 0% 0%;
+  --surface-1: 0 0% 0%;
+  --surface-2: 0 0% 8%;
+  --surface-3: 0 0% 14%;
+  --ink-primary:   0 0% 100%;
+  --ink-secondary: 0 0% 92%;
+  --ink-tertiary:  0 0% 80%;
+  --border: 0 0% 50%;
+  --brand-500: 30 100% 65%;
+}
+
+/* Sonner toasts: pull our tokens. */
+:where([data-sonner-toaster][data-theme='dark']) {
+  --normal-bg: hsl(var(--surface-3) / 0.95);
+  --normal-border: hsl(var(--border));
+  --normal-text: hsl(var(--ink-primary));
 }

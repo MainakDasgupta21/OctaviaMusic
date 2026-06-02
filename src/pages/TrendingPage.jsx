@@ -1,128 +1,241 @@
+import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { TrendingUp, Play, Clock } from 'lucide-react';
+import { Play, Clock, AlertTriangle, TrendingUp } from 'lucide-react';
 import { usePlayer } from '@/contexts/PlayerContext';
+import HeartButton from '@/components/HeartButton';
+import Button from '@/components/ui-v2/Button';
+import EmptyState from '@/components/ui-v2/EmptyState';
+import Skeleton from '@/components/ui-v2/Skeleton';
+import { getTrending } from '@/lib/api';
+import { fadeUp, staggerChildren } from '@/design/motion';
+import { cn } from '@/lib/utils';
 
-const trendingSongs = [
-  { id: 't1', videoId: 'IeyJ7MPb7MQ', title: 'Idol', artist: 'YOASOBI', thumbnail: 'https://i.ytimg.com/vi/IeyJ7MPb7MQ/maxresdefault.jpg', duration: '3:35' },
-  { id: 't2', videoId: 'ZRtdQ81jPUQ', title: 'Kick Back', artist: 'Kenshi Yonezu', thumbnail: 'https://i.ytimg.com/vi/ZRtdQ81jPUQ/maxresdefault.jpg', duration: '3:18' },
-  { id: 't3', videoId: 'DkeiKbqa02g', title: 'Levitating', artist: 'Dua Lipa', thumbnail: 'https://i.ytimg.com/vi/DkeiKbqa02g/maxresdefault.jpg', duration: '3:23' },
-  { id: 't4', videoId: '8OkpRK2_gVs', title: 'Shinzou wo Sasageyo', artist: 'Linked Horizon', thumbnail: 'https://i.ytimg.com/vi/8OkpRK2_gVs/maxresdefault.jpg', duration: '5:12' },
-  { id: 't5', videoId: 'JGwWNGJdvx8', title: 'Shape of You', artist: 'Ed Sheeran', thumbnail: 'https://i.ytimg.com/vi/JGwWNGJdvx8/maxresdefault.jpg', duration: '3:53' },
-  { id: 't6', videoId: 'kJQP7kiw5Fk', title: 'Despacito', artist: 'Luis Fonsi', thumbnail: 'https://i.ytimg.com/vi/kJQP7kiw5Fk/maxresdefault.jpg', duration: '4:42' },
-  { id: 't7', videoId: 'fJ9rUzIMcZQ', title: 'Bohemian Rhapsody', artist: 'Queen', thumbnail: 'https://i.ytimg.com/vi/fJ9rUzIMcZQ/maxresdefault.jpg', duration: '5:55' },
-  { id: 't8', videoId: 'hT_nvWreIhg', title: 'Counting Stars', artist: 'OneRepublic', thumbnail: 'https://i.ytimg.com/vi/hT_nvWreIhg/maxresdefault.jpg', duration: '4:17' },
-];
+const formatPlays = (n) => {
+  if (!Number.isFinite(n)) return '—';
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return `${n}`;
+};
+
+const formatMasthead = () => {
+  const d = new Date();
+  return new Intl.DateTimeFormat('en-US', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(d).toUpperCase();
+};
+
+const NowPlayingBars = () => (
+  <span className="inline-flex items-end gap-0.5 h-4" aria-label="Now playing">
+    <span className="w-0.5 h-2 bg-accent rounded-full animate-pulse" />
+    <span
+      className="w-0.5 h-3 bg-accent rounded-full animate-pulse"
+      style={{ animationDelay: '0.12s' }}
+    />
+    <span
+      className="w-0.5 h-1.5 bg-accent rounded-full animate-pulse"
+      style={{ animationDelay: '0.24s' }}
+    />
+  </span>
+);
+
+const TrendingRowSkeleton = () => (
+  <div className="grid grid-cols-[2.5rem_3rem_1fr_auto_auto_auto] gap-4 px-4 py-3.5 items-center border-b border-white/[0.06] last:border-0">
+    <Skeleton className="h-7 w-7 mx-auto" />
+    <Skeleton className="w-12 h-12 rounded-sharp" />
+    <div className="flex-1">
+      <Skeleton className="h-4 w-1/2 mb-2" />
+      <Skeleton className="h-3 w-1/4" />
+    </div>
+    <Skeleton className="hidden md:block w-20 h-3" />
+    <Skeleton className="w-6 h-6 rounded-full" />
+    <Skeleton className="w-12 h-3" />
+  </div>
+);
 
 const TrendingPage = () => {
   const { playTrack, currentTrack, isPlaying, addToQueue } = usePlayer();
+  const masthead = useMemo(() => formatMasthead(), []);
+  const issueNum = useMemo(() => {
+    const start = new Date(new Date().getFullYear(), 0, 0);
+    return String(Math.floor((Date.now() - start.getTime()) / 86_400_000)).padStart(3, '0');
+  }, []);
+
+  const { data: trending = [], isLoading, isError } = useQuery({
+    queryKey: ['trending'],
+    queryFn: () => getTrending({ limit: 20 }),
+  });
 
   const handlePlayAll = () => {
-    if (trendingSongs.length > 0) {
-      playTrack(trendingSongs[0]);
-      trendingSongs.slice(1).forEach(track => addToQueue(track));
-    }
+    if (!trending.length) return;
+    playTrack(trending[0]);
+    trending.slice(1).forEach((t) => addToQueue(t));
   };
 
   return (
-    <div className="p-8">
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between mb-8"
+    <div className="p-5 md:p-10 max-w-[1600px] mx-auto pb-12">
+      {/* Editorial masthead */}
+      <div
+        aria-hidden="true"
+        className="hidden md:flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.22em] text-ink-4 mb-8 pb-3 border-b border-white/[0.08]"
       >
+        <span>{masthead}</span>
+        <span className="flex items-center gap-3">
+          <span className="text-ink-3">✦</span>
+          <span>The Harmony Hub Daily · Trending</span>
+          <span className="text-ink-3">✦</span>
+        </span>
+        <span>Vol. 01 · No. {issueNum}</span>
+      </div>
+
+      {/* Page header */}
+      <motion.div {...fadeUp} className="mb-10 grid md:grid-cols-[1fr_auto] gap-6 md:gap-10 items-end">
         <div>
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 rounded-xl bg-primary/20">
-              <TrendingUp className="w-6 h-6 text-primary" />
-            </div>
-            <h1 className="text-3xl font-bold gradient-text">Trending Now</h1>
-          </div>
-          <p className="text-muted-foreground">The hottest tracks right now</p>
+          <p className="eyebrow eyebrow-accent mb-3 flex items-center gap-2">
+            <span className="w-6 h-px bg-track" />
+            <TrendingUp className="w-3.5 h-3.5" />
+            On the rise
+          </p>
+          <h1 className="font-display text-display-xl text-ink leading-[0.92] mask-rise">
+            <span>
+              The world is{' '}
+              <em className="font-editorial text-track not-italic">on rotation.</em>
+            </span>
+          </h1>
+          <p className="font-editorial text-[15px] text-ink-3 mt-4 max-w-xl leading-snug">
+            Twenty tracks climbing the charts right now — refreshed every hour, from every corner.
+          </p>
         </div>
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={handlePlayAll}
-          className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-primary to-orange-400 font-semibold text-primary-foreground shadow-lg shadow-primary/30"
-        >
-          <Play className="w-5 h-5 fill-current" />
-          Play All
-        </motion.button>
+        <div className="flex items-center gap-3 pb-2">
+          <Button
+            onClick={handlePlayAll}
+            disabled={!trending.length}
+            size="lg"
+            leftIcon={<Play className="w-4 h-4 fill-current" />}
+          >
+            Play the whole feed
+          </Button>
+        </div>
       </motion.div>
 
-      {/* Trending List */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.1 }}
-        className="glass rounded-2xl overflow-hidden"
-      >
-        <div className="grid grid-cols-[auto_1fr_auto_auto] gap-4 p-4 border-b border-white/5 text-sm text-muted-foreground">
-          <span className="w-10 text-center">#</span>
-          <span>Title</span>
-          <span className="hidden md:block w-32">Album</span>
-          <span className="w-16 text-right">
-            <Clock className="w-4 h-4 inline" />
-          </span>
+      {isError ? (
+        <EmptyState
+          icon={AlertTriangle}
+          title="Trending is offline"
+          description="We couldn't reach the catalog service. Please try again in a moment."
+        />
+      ) : (
+        <motion.div
+          variants={staggerChildren(0.025)}
+          initial="initial"
+          animate="animate"
+          className="rounded-soft border border-white/[0.06] bg-surface-2/40 backdrop-blur-md overflow-hidden"
+        >
+          {/* Table header */}
+          <div className="grid grid-cols-[2.5rem_3rem_1fr_auto_auto_auto] gap-4 px-4 py-3 border-b border-white/[0.08] text-[10px] font-mono uppercase tracking-[0.18em] text-ink-4">
+            <span className="text-center">№</span>
+            <span aria-hidden />
+            <span>Title</span>
+            <span className="hidden md:block text-right">Plays</span>
+            <span className="w-8" aria-hidden />
+            <span className="text-right">
+              <Clock className="w-3.5 h-3.5 inline" />
+            </span>
+          </div>
+
+          {isLoading
+            ? Array.from({ length: 8 }).map((_, i) => <TrendingRowSkeleton key={i} />)
+            : trending.map((track, index) => {
+                const isCurrent = currentTrack?.id === track.id;
+                return (
+                  <motion.div
+                    variants={fadeUp}
+                    key={track.id}
+                    onClick={() => playTrack(track)}
+                    className={cn(
+                      'group grid grid-cols-[2.5rem_3rem_1fr_auto_auto_auto] gap-4 px-4 py-3.5',
+                      'items-center cursor-pointer transition-colors border-b border-white/[0.05] last:border-0',
+                      isCurrent ? 'bg-track/[0.08]' : 'hover:bg-white/[0.035]',
+                    )}
+                  >
+                    {/* Ordinal number — italic serif, editorial */}
+                    <span className="flex justify-center items-center">
+                      {isCurrent && isPlaying ? (
+                        <NowPlayingBars />
+                      ) : (
+                        <span
+                          className={cn(
+                            'font-display italic text-2xl leading-none tabular-nums',
+                            isCurrent ? 'text-accent' : 'text-ink-3 group-hover:text-ink',
+                          )}
+                        >
+                          {String(index + 1).padStart(2, '0')}
+                        </span>
+                      )}
+                    </span>
+
+                    {/* Artwork */}
+                    <div className="relative">
+                      <img
+                        src={track.thumbnail}
+                        alt={track.title}
+                        className="w-12 h-12 rounded-sharp object-cover ring-1 ring-white/10"
+                      />
+                      <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-sharp">
+                        <Play className="w-4 h-4 text-white fill-current" />
+                      </div>
+                    </div>
+
+                    {/* Title + artist */}
+                    <div className="min-w-0">
+                      <h4
+                        className={cn(
+                          'text-[14px] font-medium truncate',
+                          isCurrent ? 'text-accent' : 'text-ink',
+                        )}
+                      >
+                        {track.title}
+                      </h4>
+                      <p className="font-editorial text-[12.5px] text-ink-3 truncate mt-0.5">
+                        by {track.artist}
+                      </p>
+                    </div>
+
+                    {/* Plays */}
+                    <span className="hidden md:block w-20 text-right font-mono text-[12px] text-ink-3 tabular-nums tracking-tight">
+                      {formatPlays(track.plays)}
+                    </span>
+
+                    {/* Heart */}
+                    <div
+                      className="opacity-0 group-hover:opacity-100 transition-opacity w-8 flex justify-center"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <HeartButton track={track} size="sm" />
+                    </div>
+
+                    {/* Duration */}
+                    <span className="w-12 text-right font-mono text-[12px] text-ink-4 tabular-nums tracking-tight">
+                      {track.duration}
+                    </span>
+                  </motion.div>
+                );
+              })}
+        </motion.div>
+      )}
+
+      {/* End-of-feed marker */}
+      {!isLoading && !isError && trending.length > 0 ? (
+        <div className="mt-10 flex items-center gap-4 text-[10px] font-mono uppercase tracking-[0.2em] text-ink-4">
+          <span className="flex-1 h-px bg-white/[0.08]" />
+          <span>End of trending · {trending.length} tracks</span>
+          <span className="flex-1 h-px bg-white/[0.08]" />
         </div>
-        
-        {trendingSongs.map((track, index) => {
-          const isCurrentTrack = currentTrack?.id === track.id;
-          
-          return (
-            <motion.div
-              key={track.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.03 }}
-              onClick={() => playTrack(track)}
-              className={`grid grid-cols-[auto_1fr_auto_auto] gap-4 p-4 items-center cursor-pointer transition-all hover:bg-white/5 ${
-                isCurrentTrack ? 'bg-primary/10' : ''
-              }`}
-            >
-              <span className="w-10 text-center text-muted-foreground">
-                {isCurrentTrack && isPlaying ? (
-                  <div className="flex gap-0.5 justify-center">
-                    <span className="w-0.5 h-3 bg-primary animate-pulse rounded-full" />
-                    <span className="w-0.5 h-4 bg-primary animate-pulse rounded-full" style={{ animationDelay: '0.1s' }} />
-                    <span className="w-0.5 h-2 bg-primary animate-pulse rounded-full" style={{ animationDelay: '0.2s' }} />
-                  </div>
-                ) : (
-                  <span className={isCurrentTrack ? 'text-primary font-bold' : ''}>{index + 1}</span>
-                )}
-              </span>
-              
-              <div className="flex items-center gap-4 min-w-0">
-                <div className="relative group">
-                  <img
-                    src={track.thumbnail}
-                    alt={track.title}
-                    className="w-12 h-12 rounded object-cover"
-                  />
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded">
-                    <Play className="w-5 h-5 text-white fill-current" />
-                  </div>
-                </div>
-                <div className="min-w-0">
-                  <h4 className={`font-medium truncate ${isCurrentTrack ? 'text-primary' : ''}`}>
-                    {track.title}
-                  </h4>
-                  <p className="text-sm text-muted-foreground truncate">{track.artist}</p>
-                </div>
-              </div>
-              
-              <span className="hidden md:block w-32 text-sm text-muted-foreground truncate">
-                {track.title}
-              </span>
-              
-              <span className="w-16 text-right text-sm text-muted-foreground">
-                {track.duration}
-              </span>
-            </motion.div>
-          );
-        })}
-      </motion.div>
+      ) : null}
     </div>
   );
 };

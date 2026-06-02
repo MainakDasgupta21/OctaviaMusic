@@ -1,68 +1,448 @@
-import { Home, Search, Library, Play, Heart, Settings, TrendingUp } from 'lucide-react';
-import { NavLink } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import {
+  Home,
+  Search,
+  Library,
+  Play,
+  Heart,
+  Settings,
+  TrendingUp,
+  Compass,
+  ListMusic,
+  Plus,
+  ChevronsRight,
+  ChevronsLeft,
+} from 'lucide-react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { useSettings } from '@/contexts/SettingsContext';
+import { usePlaylists } from '@/contexts/PlaylistContext';
+import { usePlayer } from '@/contexts/PlayerContext';
+import { usePrefetchProps } from '@/hooks/use-route-prefetch';
+import { LogoMark, Wordmark } from '@/components/brand/Logo';
+import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
-const navItems = [
-  { icon: Home, label: 'Feed', path: '/' },
-  { icon: TrendingUp, label: 'Trending', path: '/trending' },
-  { icon: Play, label: 'Player', path: '/player' },
-  { icon: Heart, label: 'Favorites', path: '/favorites' },
-  { icon: Library, label: 'Library', path: '/library' },
+const groups = [
+  {
+    label: 'Discover',
+    items: [
+      { icon: Home, label: 'Home', path: '/' },
+      { icon: Search, label: 'Search', path: '/search' },
+      { icon: TrendingUp, label: 'Charts', path: '/charts' },
+      { icon: Compass, label: 'Explore', path: '/explore' },
+      { icon: ListMusic, label: 'Genres', path: '/genres' },
+    ],
+  },
+  {
+    label: 'Library',
+    items: [
+      { icon: Library, label: 'Your library', path: '/library' },
+      { icon: Heart, label: 'Favorites', path: '/favorites' },
+      { icon: Play, label: 'Now playing', path: '/player' },
+    ],
+  },
 ];
 
-const Sidebar = () => {
-  return (
-    <motion.aside 
-      initial={{ x: -80 }}
-      animate={{ x: 0 }}
-      className="fixed left-0 top-0 h-full w-20 flex flex-col items-center py-6 z-50"
-      style={{ background: 'var(--gradient-sidebar)' }}
-    >
-      {/* Logo/Avatar */}
-      <motion.div 
-        whileHover={{ scale: 1.05 }}
-        className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-orange-400 flex items-center justify-center mb-8 cursor-pointer shadow-lg shadow-primary/30"
-      >
-        <Play className="w-6 h-6 text-primary-foreground fill-current" />
-      </motion.div>
+const COLLAPSED_W = 80;
+const EXPANDED_W = 260;
 
-      {/* Navigation */}
-      <nav className="flex-1 flex flex-col gap-2">
-        {navItems.map((item, index) => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            className={({ isActive }) =>
-              `sidebar-item ${isActive ? 'sidebar-item-active' : 'text-muted-foreground'}`
-            }
-          >
-            {({ isActive }) => (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                className="flex flex-col items-center gap-1"
-              >
-                <div className={`p-2 rounded-xl transition-all duration-200 ${isActive ? 'bg-primary/20' : ''}`}>
-                  <item.icon className={`w-5 h-5 ${isActive ? 'text-primary' : ''}`} />
-                </div>
-                <span className="text-[10px] font-medium">{item.label}</span>
-              </motion.div>
+const NavItem = ({
+  to,
+  icon: Icon,
+  label,
+  expanded,
+  isActive,
+  onClick,
+  indicatorId,
+  isPlayingNow = false,
+}) => {
+  const prefetch = usePrefetchProps(to);
+  return (
+    <NavLink
+      to={to}
+      onClick={onClick}
+      {...prefetch}
+      title={expanded ? undefined : label}
+      aria-label={label}
+      className={cn(
+        'group relative flex items-center rounded-xl border focus-ring',
+        'transition-[background-color,color,border-color,box-shadow,transform] duration-short ease-emphasis',
+        expanded ? 'gap-3 pl-3 pr-3 py-2.5' : 'justify-center h-12 w-12 mx-auto',
+        'hover:scale-[1.02] active:scale-[0.98]',
+        isActive
+          ? 'text-ink bg-white/[0.055] border-white/[0.12] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_24px_rgba(0,0,0,0.26)]'
+          : 'border-transparent text-ink-3 hover:text-ink hover:bg-white/[0.04] hover:border-white/[0.07]',
+      )}
+    >
+      {/* Active indicator — a hairline bar beside the icon. Centered with
+          auto-margins (NOT translate), because framer-motion's layoutId
+          animation overrides `transform` and would knock a translate-based
+          centering out of alignment. */}
+      {isActive && (
+        <motion.span
+          layoutId={indicatorId}
+          aria-hidden="true"
+          className={cn(
+            'absolute inset-y-0 my-auto h-6 w-[3px] bg-track rounded-full',
+            expanded ? 'left-0' : 'left-0.5',
+          )}
+          transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+          style={{ boxShadow: '0 0 12px hsl(var(--track-accent) / 0.6)' }}
+        />
+      )}
+      <span
+        className={cn(
+          'relative z-10 inline-flex items-center justify-center rounded-lg transition-colors',
+          expanded ? 'h-8 w-8' : 'h-9 w-9',
+          isActive
+            ? 'bg-track/[0.14] text-accent shadow-[0_0_16px_hsl(var(--track-accent)/0.25)]'
+            : 'text-current group-hover:bg-white/[0.06]',
+        )}
+      >
+        <Icon className="w-[17px] h-[17px] flex-shrink-0" strokeWidth={isActive ? 2.25 : 1.8} />
+      </span>
+      <AnimatePresence>
+        {expanded && (
+          <motion.span
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -8 }}
+            transition={{ duration: 0.18 }}
+            className={cn(
+              'relative z-10 text-[13px] whitespace-nowrap',
+              isActive ? 'font-medium tracking-tight' : 'font-normal',
             )}
-          </NavLink>
+          >
+            {label}
+          </motion.span>
+        )}
+      </AnimatePresence>
+      {isPlayingNow ? (
+        expanded ? (
+          <span aria-hidden="true" className="ml-auto relative z-10 inline-flex items-end gap-0.5 h-3.5">
+            <span className="sidebar-playing-bar [animation-delay:-0.35s]" />
+            <span className="sidebar-playing-bar [animation-delay:-0.2s]" />
+            <span className="sidebar-playing-bar" />
+          </span>
+        ) : (
+          <span
+            aria-hidden="true"
+            className="absolute bottom-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-track shadow-[0_0_8px_hsl(var(--track-accent)/0.7)]"
+          />
+        )
+      ) : null}
+    </NavLink>
+  );
+};
+
+const SortablePinnedPlaylist = ({ playlist, expanded, isActive }) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: playlist.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+  const prefetch = usePrefetchProps(`/playlist/${playlist.id}`);
+  return (
+    <li ref={setNodeRef} style={style} {...attributes}>
+      <NavLink
+        to={`/playlist/${playlist.id}`}
+        {...prefetch}
+        className={cn(
+          'relative flex items-center gap-3 pl-4 pr-3 py-2 rounded-md text-[13px] focus-ring',
+          'transition-colors duration-short ease-emphasis',
+          isActive
+            ? 'text-accent'
+            : 'text-ink-3 hover:text-ink hover:bg-white/[0.035]',
+        )}
+      >
+        {isActive && (
+          <span
+            aria-hidden="true"
+            className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 bg-track rounded-full"
+            style={{ boxShadow: '0 0 10px hsl(var(--track-accent) / 0.5)' }}
+          />
+        )}
+        <span
+          {...listeners}
+          className="w-2 h-2 rounded-sm bg-white/15 flex-shrink-0 cursor-grab active:cursor-grabbing"
+          aria-label="Drag to reorder"
+        />
+        <ListMusic className="w-4 h-4 flex-shrink-0" />
+        <AnimatePresence>
+          {expanded && (
+            <motion.span
+              initial={{ opacity: 0, x: -6 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -6 }}
+              transition={{ duration: 0.15 }}
+              className="truncate"
+            >
+              {playlist.name}
+            </motion.span>
+          )}
+        </AnimatePresence>
+      </NavLink>
+    </li>
+  );
+};
+
+const Sidebar = ({ onNavigate }) => {
+  const navigate = useNavigate();
+  const { settings, updateSetting } = useSettings();
+  const { pinned, createPlaylist, reorderPlaylists } = usePlaylists();
+  const { isPlaying } = usePlayer();
+  const location = useLocation();
+  const expanded = settings.sidebarExpanded;
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    reorderPlaylists(active.id, over.id);
+  };
+
+  const handleCreate = () => {
+    const id = createPlaylist({ name: 'New playlist', pinned: true });
+    toast.success('Playlist created');
+    navigate(`/playlist/${id}`);
+  };
+
+  return (
+    <motion.aside
+      initial={false}
+      animate={{ width: expanded ? EXPANDED_W : COLLAPSED_W }}
+      transition={{ type: 'spring', stiffness: 280, damping: 32 }}
+      className="hidden md:flex fixed left-0 top-0 h-full flex-col py-4 z-50 overflow-hidden border-r border-white/[0.08] backdrop-blur-xl"
+      style={{
+        background: 'var(--gradient-sidebar)',
+        boxShadow: expanded
+          ? '12px 0 36px rgba(0,0,0,0.42), inset -1px 0 0 rgba(255,255,255,0.05)'
+          : '8px 0 28px rgba(0,0,0,0.30), inset -1px 0 0 rgba(255,255,255,0.04)',
+      }}
+    >
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 opacity-70"
+        style={{
+          background:
+            'radial-gradient(120% 46% at 0% 20%, hsl(var(--track-accent) / 0.12), transparent 55%)',
+        }}
+      />
+      {/* Brand */}
+      <div
+        className={cn(
+          'mb-6 flex items-center relative z-10',
+          expanded ? 'px-5 justify-between' : 'justify-center px-0',
+        )}
+      >
+        <NavLink
+          to="/"
+          onClick={onNavigate}
+          aria-label="Harmony Hub home"
+          className={cn(
+            'inline-flex items-center gap-3 focus-ring rounded-2xl border border-white/[0.08] backdrop-blur-md',
+            expanded
+              ? 'px-3 py-2 bg-white/[0.02] hover:bg-white/[0.04]'
+              : 'h-12 w-12 justify-center bg-white/[0.03] hover:bg-white/[0.05]',
+          )}
+        >
+          <LogoMark size={expanded ? 36 : 32} />
+          <AnimatePresence>
+            {expanded && (
+              <motion.span
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -8 }}
+                transition={{ duration: 0.18 }}
+                className="flex items-center gap-2"
+              >
+                <Wordmark size="md" />
+                <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-ink-4 pt-2">
+                  /&nbsp;hub
+                </span>
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </NavLink>
+      </div>
+
+      <nav
+        className={cn(
+          'relative z-10 flex-1 flex flex-col overflow-y-auto custom-scrollbar pb-3',
+          expanded ? 'gap-6 px-3' : 'gap-4 px-2',
+        )}
+      >
+        {groups.map((group, gi) => (
+          <div
+            key={group.label}
+            className={cn(
+              'flex flex-col gap-1',
+              !expanded && 'mx-0.5 rounded-2xl border border-white/[0.07] bg-white/[0.02] py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]',
+            )}
+          >
+            {expanded && (
+              <div className="h-5 px-4 flex items-center">
+                <motion.span
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="font-editorial text-[12px] text-ink-3 whitespace-nowrap flex items-center gap-2"
+                >
+                  <span className="font-mono not-italic text-[9px] text-ink-4 tracking-[0.15em]">
+                    §{String(gi + 1).padStart(2, '0')}
+                  </span>
+                  {group.label}
+                </motion.span>
+              </div>
+            )}
+            {/* Small hairline divider when collapsed gives the icon stack rhythm. */}
+            {!expanded && gi > 0 && null}
+            {group.items.map((item) => (
+              <NavItem
+                key={item.path}
+                to={item.path}
+                icon={item.icon}
+                label={item.label}
+                expanded={expanded}
+                isActive={location.pathname === item.path}
+                onClick={onNavigate}
+                indicatorId="sidebar-nav-active"
+                isPlayingNow={item.path === '/player' && isPlaying}
+              />
+            ))}
+          </div>
         ))}
+
+        {/* Pinned playlists */}
+        <div className="flex flex-col gap-0.5">
+          {expanded ? (
+            <div className="h-5 px-4 flex items-center justify-between">
+              <span className="font-editorial text-[12px] text-ink-3 whitespace-nowrap flex items-center gap-2">
+                <span className="font-mono not-italic text-[9px] text-ink-4 tracking-[0.15em]">
+                  §03
+                </span>
+                Playlists
+              </span>
+              <button
+                type="button"
+                onClick={handleCreate}
+                className="p-1 rounded-sharp text-ink-3 hover:text-ink hover:bg-white/[0.04] focus-ring"
+                aria-label="Create playlist"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="mx-auto mb-2 h-px w-9 bg-gradient-to-r from-transparent via-white/[0.16] to-transparent" aria-hidden />
+              <button
+                type="button"
+                onClick={handleCreate}
+                title="Create playlist"
+                aria-label="Create playlist"
+                className="mx-auto h-10 w-10 flex items-center justify-center rounded-md text-ink-3 hover:text-ink hover:bg-white/[0.04] focus-ring"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </>
+          )}
+          {expanded && (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={pinned.map((p) => p.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <ul className="flex flex-col gap-0.5">
+                  {pinned.map((p) => (
+                    <SortablePinnedPlaylist
+                      key={p.id}
+                      playlist={p}
+                      expanded={expanded}
+                      isActive={location.pathname === `/playlist/${p.id}`}
+                    />
+                  ))}
+                </ul>
+              </SortableContext>
+            </DndContext>
+          )}
+          {pinned.length === 0 && expanded ? (
+            <p className="px-3 mt-1 text-[11px] text-ink-4">Pin a playlist to see it here.</p>
+          ) : null}
+        </div>
       </nav>
 
-      {/* Settings at bottom */}
-      <NavLink
-        to="/settings"
-        className={({ isActive }) =>
-          `sidebar-item ${isActive ? 'sidebar-item-active' : 'text-muted-foreground'}`
-        }
+      {/* Settings + expand toggle + editorial footer */}
+      <div
+        className={cn(
+          'pt-3 mt-2 border-t border-white/[0.06] flex flex-col gap-1',
+          expanded ? 'px-3' : 'px-2',
+        )}
       >
-        <Settings className="w-5 h-5" />
-        <span className="text-[10px] font-medium">Settings</span>
-      </NavLink>
+        <NavItem
+          to="/settings"
+          icon={Settings}
+          label="Settings"
+          expanded={expanded}
+          isActive={location.pathname === '/settings'}
+          onClick={onNavigate}
+          indicatorId="sidebar-nav-active"
+        />
+        <button
+          type="button"
+          onClick={() => updateSetting('sidebarExpanded', !expanded)}
+          title={expanded ? 'Collapse sidebar' : 'Expand sidebar'}
+          aria-label={expanded ? 'Collapse sidebar' : 'Expand sidebar'}
+          className={cn(
+            'mt-1 inline-flex items-center justify-center rounded-md text-ink-3 hover:text-ink hover:bg-white/[0.04] focus-ring',
+            expanded ? 'mx-1 h-9' : 'mx-auto h-10 w-10',
+          )}
+        >
+          {expanded ? <ChevronsLeft className="w-4 h-4" /> : <ChevronsRight className="w-4 h-4" />}
+        </button>
+
+        {/* Editorial masthead footer — only when expanded */}
+        <AnimatePresence>
+          {expanded && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="px-4 pt-4 pb-1 flex items-baseline justify-between text-[9px] font-mono uppercase tracking-[0.2em] text-ink-4"
+            >
+              <span>Vol. 01</span>
+              <span aria-hidden="true">✦</span>
+              <span>{new Date().getFullYear()}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </motion.aside>
   );
 };

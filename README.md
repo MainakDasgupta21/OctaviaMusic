@@ -1,73 +1,120 @@
-# Welcome to your Lovable project
+# Harmony Hub
 
-## Project info
+A modern, glass-themed music streaming web app built with React, Vite, Tailwind CSS, shadcn/ui, and Framer Motion. Search and play music from YouTube Music in real time, browse live charts and trending tracks, build a personal favorites library, and control playback with a polished UI and keyboard shortcuts.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Features
 
-## How can I edit this code?
+- Beautiful dark glassmorphism interface with smooth Framer Motion transitions
+- Expandable sidebar with grouped navigation (Discover / Library)
+- Global top bar with history navigation, search, and a `⌘K` command palette
+- Persistent favorites (saved to `localStorage`)
+- Full-fidelity now-playing view with stable waveform visualization
+- Footer mini-player that expands into a full now-playing overlay
+- Keyboard shortcuts: `Space` play/pause, `←/→` seek, `Shift+←/→` prev/next, `M` mute, `L` like, `/` focus search, `⌘K` palette, `Esc` close
+- Mobile-aware shell: drawer sidebar, bottom tab bar, compact footer player
 
-There are several ways of editing your application.
+## Tech stack
 
-**Use Lovable**
+- **Build:** Vite + SWC React plugin
+- **UI:** React 18, Tailwind CSS, shadcn/ui (Radix primitives), Framer Motion, lucide-react
+- **State:** React Context (`PlayerContext`, `FavoritesContext`), TanStack Query
+- **Routing:** react-router-dom v6
+- **Audio:** react-player v3 (YouTube source)
+- **Catalog:** Express + [`ytmusic-api`](https://www.npmjs.com/package/ytmusic-api) (unofficial YouTube Music client; no API key required)
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+## Getting started
 
-Changes made via Lovable will be committed automatically to this repo.
+```bash
+# 1. Install frontend dependencies
+npm install
 
-**Use your preferred IDE**
+# 2. Configure the API base URL
+cp .env.example .env
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# 3. Start the frontend
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The dev server runs at <http://localhost:8080>. A companion Express server in
+`server/` serves the catalog/search endpoints the frontend calls:
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```bash
+cd server
+npm install
+npm run dev   # starts the API on http://localhost:5000
+```
 
-**Use GitHub Codespaces**
+### Environment variables
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Configuration is supplied via Vite env files (`.env`, `.env.local`) for the
+frontend, and ordinary process env vars for the backend. See `.env.example`
+for the full list.
 
-## What technologies are used for this project?
+**Frontend**
 
-This project is built with:
+- `VITE_API_BASE` — base URL of the backend API (defaults to `http://localhost:5000/api`)
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+**Backend** (all optional, sensible defaults baked in)
 
-## How can I deploy this project?
+- `YTM_CHARTS_PLAYLIST` / `YTM_TRENDING_PLAYLIST` — YouTube Music playlist IDs
+  to drive `/api/charts` and `/api/trending`. When unset, the server falls back
+  to a broad search query.
+- `YTM_CACHE_SEARCH_MIN`, `YTM_CACHE_DETAIL_MIN`, `YTM_CACHE_CHARTS_MIN`,
+  `YTM_CACHE_GENRES_MIN` — in-memory TTL (minutes) per endpoint family.
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+Never commit a real `.env`; only `.env.example` is tracked.
 
-## Can I connect a custom domain to my Lovable project?
+### Live YouTube Music fetching
 
-Yes, you can!
+Searches, album / artist pages, charts, trending, home, and genres are all
+served by the Express layer in `server/` which calls
+[`ytmusic-api`](https://www.npmjs.com/package/ytmusic-api) under the hood. The
+upstream is unofficial and occasionally rate-limits; the server caches every
+response in memory (with configurable TTLs) and falls back to a curated static
+catalog when a live call fails so the UI never blanks out. Playback itself
+goes straight from the browser to YouTube via `react-player` — the server only
+hands the client a `videoId`.
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+### Scripts
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+- `npm run dev` — start the Vite dev server
+- `npm run build` — production build
+- `npm run build:dev` — development-mode build
+- `npm run preview` — preview the production build
+- `npm run lint` — run ESLint
+
+## Project layout
+
+```
+.
+├── public/             Static assets (robots.txt, sitemap.xml, og-image.svg)
+├── server/             Companion Express API
+│   ├── data/           In-memory music catalog + query helpers
+│   └── server.js       REST endpoints (search, album, artist, charts, …)
+├── src/
+│   ├── components/     Feature components (CommandPalette, ExpandedPlayer, …)
+│   │   ├── brand/      Logo / brand marks
+│   │   ├── layout/     App shell (Sidebar, TopBar, FooterPlayer, MainLayout, …)
+│   │   ├── player/     Now-playing UI (LyricsPanel, QueuePanel, Visualizer)
+│   │   ├── ui/         shadcn/ui primitives (Radix-based, kebab-case)
+│   │   └── ui-v2/      Higher-level design-system components
+│   ├── contexts/       Player, Favorites, Playlist, Settings, Sound, UI providers
+│   ├── design/         Shared motion tokens
+│   ├── hooks/          Reusable hooks (use-keyboard-shortcuts, use-tilt, …)
+│   ├── lib/            API client, audio, lyrics, notifications, utils
+│   ├── pages/          Route-level views (Home, Search, Player, Album, …)
+│   ├── App.jsx         Providers, routes, lazy-loaded pages
+│   └── main.jsx        App bootstrap (theme, smooth scroll, React root)
+└── index.html
+```
+
+### Conventions
+
+- **Components** use `PascalCase` filenames (`Sidebar.jsx`).
+- **shadcn/ui primitives** keep their generated `kebab-case` names (`dropdown-menu.jsx`).
+- **Hooks** use the `use-*` `kebab-case` convention (`use-keyboard-shortcuts.js`).
+- The `@` alias maps to `src/` (configured in `vite.config.ts` / `tsconfig`).
+
+## License
+
+MIT

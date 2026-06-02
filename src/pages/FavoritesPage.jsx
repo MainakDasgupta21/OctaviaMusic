@@ -1,127 +1,257 @@
+import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Heart, Play, Clock } from 'lucide-react';
+import { Heart, Play, Clock, X, Shuffle } from 'lucide-react';
 import { usePlayer } from '@/contexts/PlayerContext';
+import { useFavorites } from '@/contexts/FavoritesContext';
+import HeartButton from '@/components/HeartButton';
+import TrackContextMenu from '@/components/TrackContextMenu';
+import Button from '@/components/ui-v2/Button';
+import EmptyState from '@/components/ui-v2/EmptyState';
+import Tabs from '@/components/ui-v2/Tabs';
+import Kbd from '@/components/ui-v2/Kbd';
+import { useListNavigation } from '@/hooks/use-list-navigation';
+import notify from '@/lib/notify';
+import { fadeUp, staggerChildren } from '@/design/motion';
+import { cn } from '@/lib/utils';
 
-// Mock favorites data
-const favoritesTracks = [
-  { id: 'f1', videoId: 'dQw4w9WgXcQ', title: 'Never Gonna Give You Up', artist: 'Rick Astley', thumbnail: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg', duration: '3:33' },
-  { id: 'f2', videoId: 'JGwWNGJdvx8', title: 'Shape of You', artist: 'Ed Sheeran', thumbnail: 'https://i.ytimg.com/vi/JGwWNGJdvx8/maxresdefault.jpg', duration: '3:53' },
-  { id: 'f3', videoId: 'IeyJ7MPb7MQ', title: 'Idol', artist: 'YOASOBI', thumbnail: 'https://i.ytimg.com/vi/IeyJ7MPb7MQ/maxresdefault.jpg', duration: '3:35' },
-];
+const SORTS = {
+  recent: { label: 'Recent', fn: (a, b) => (b.addedAt || 0) - (a.addedAt || 0) },
+  title: { label: 'Title', fn: (a, b) => a.title.localeCompare(b.title) },
+  artist: { label: 'Artist', fn: (a, b) => a.artist.localeCompare(b.artist) },
+};
+
+const NowPlayingBars = () => (
+  <span className="inline-flex items-end gap-0.5 h-4" aria-label="Now playing">
+    <span className="w-0.5 h-2 bg-accent rounded-full animate-pulse" />
+    <span
+      className="w-0.5 h-3 bg-accent rounded-full animate-pulse"
+      style={{ animationDelay: '0.12s' }}
+    />
+    <span
+      className="w-0.5 h-1.5 bg-accent rounded-full animate-pulse"
+      style={{ animationDelay: '0.24s' }}
+    />
+  </span>
+);
 
 const FavoritesPage = () => {
   const { playTrack, currentTrack, isPlaying, addToQueue } = usePlayer();
+  const { list, removeFavorite, toggleFavorite } = useFavorites();
+  const [sort, setSort] = useState('recent');
+
+  const sorted = useMemo(() => [...list].sort(SORTS[sort].fn), [list, sort]);
+
+  const { selectedIndex, setSelectedIndex } = useListNavigation({
+    items: sorted,
+    onSelect: (track) => playTrack(track),
+    onQueue: (track) => {
+      addToQueue(track);
+      notify.added(track.title);
+    },
+    onLike: (track) => {
+      toggleFavorite(track);
+      notify.unliked(track.title);
+    },
+  });
 
   const handlePlayAll = () => {
-    if (favoritesTracks.length > 0) {
-      playTrack(favoritesTracks[0]);
-      favoritesTracks.slice(1).forEach(track => addToQueue(track));
+    if (sorted.length > 0) {
+      playTrack(sorted[0]);
+      sorted.slice(1).forEach((track) => addToQueue(track));
     }
   };
 
+  const handleShuffle = () => {
+    if (sorted.length === 0) return;
+    const shuffled = [...sorted].sort(() => Math.random() - 0.5);
+    playTrack(shuffled[0]);
+    shuffled.slice(1).forEach((track) => addToQueue(track));
+  };
+
   return (
-    <div className="p-8">
-      {/* Header */}
+    <div className="p-5 md:p-10 max-w-[1600px] mx-auto pb-12">
       <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between mb-8"
+        {...fadeUp}
+        className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 mb-10"
       >
         <div>
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 rounded-xl bg-primary/20">
-              <Heart className="w-6 h-6 text-primary fill-current" />
-            </div>
-            <h1 className="text-3xl font-bold gradient-text">Favorites</h1>
-          </div>
-          <p className="text-muted-foreground">{favoritesTracks.length} songs you love</p>
+          <p className="eyebrow eyebrow-accent mb-3 flex items-center gap-2">
+            <span className="w-5 h-px bg-track" />
+            <Heart className="w-3.5 h-3.5 fill-current" />
+            Loved
+          </p>
+          <h1 className="font-display text-display-xl text-ink leading-[0.92] mask-rise">
+            <span>
+              Songs you've{' '}
+              <em className="font-editorial text-track not-italic">kept.</em>
+            </span>
+          </h1>
+          <p className="font-editorial text-[15px] text-ink-3 mt-4 max-w-xl leading-snug">
+            {sorted.length === 0
+              ? 'Songs you like will appear here.'
+              : `${sorted.length} ${sorted.length === 1 ? 'song' : 'songs'} you love, always within reach.`}
+          </p>
         </div>
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={handlePlayAll}
-          disabled={favoritesTracks.length === 0}
-          className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-primary to-orange-400 font-semibold text-primary-foreground shadow-lg shadow-primary/30 disabled:opacity-50"
-        >
-          <Play className="w-5 h-5 fill-current" />
-          Play All
-        </motion.button>
+        <div className="flex items-center gap-3 flex-wrap">
+          <Tabs
+            items={Object.entries(SORTS).map(([id, { label }]) => ({ id, label }))}
+            value={sort}
+            onValueChange={setSort}
+            variant="pill"
+          />
+          <Button
+            onClick={handlePlayAll}
+            disabled={sorted.length === 0}
+            leftIcon={<Play className="w-4 h-4 fill-current" />}
+          >
+            Play all
+          </Button>
+          <Button
+            variant="editorial"
+            onClick={handleShuffle}
+            disabled={sorted.length === 0}
+            leftIcon={<Shuffle className="w-3.5 h-3.5" />}
+          >
+            Shuffle
+          </Button>
+        </div>
       </motion.div>
 
-      {/* Favorites List */}
-      {favoritesTracks.length > 0 ? (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.1 }}
-          className="glass rounded-2xl overflow-hidden"
-        >
-          {favoritesTracks.map((track, index) => {
-            const isCurrentTrack = currentTrack?.id === track.id;
-            
-            return (
-              <motion.div
-                key={track.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                onClick={() => playTrack(track)}
-                className={`flex items-center gap-4 p-4 cursor-pointer transition-all hover:bg-white/5 border-b border-white/5 last:border-0 ${
-                  isCurrentTrack ? 'bg-primary/10' : ''
-                }`}
-              >
-                <span className="w-8 text-center text-muted-foreground">
-                  {isCurrentTrack && isPlaying ? (
-                    <div className="flex gap-0.5 justify-center">
-                      <span className="w-0.5 h-3 bg-primary animate-pulse rounded-full" />
-                      <span className="w-0.5 h-4 bg-primary animate-pulse rounded-full" style={{ animationDelay: '0.1s' }} />
-                      <span className="w-0.5 h-2 bg-primary animate-pulse rounded-full" style={{ animationDelay: '0.2s' }} />
+      {sorted.length > 0 ? (
+        <>
+          <motion.div
+            variants={staggerChildren(0.025)}
+            initial="initial"
+            animate="animate"
+            className="rounded-soft border border-white/[0.06] bg-surface-2/40 backdrop-blur-md overflow-hidden"
+          >
+            {/* Table header */}
+            <div className="grid grid-cols-[2.5rem_3rem_1fr_auto_auto_auto] gap-4 px-4 py-3 border-b border-white/[0.08] text-[10px] font-mono uppercase tracking-[0.18em] text-ink-4">
+              <span className="text-center">№</span>
+              <span aria-hidden="true" />
+              <span>Title</span>
+              <span aria-hidden="true" className="w-8" />
+              <span className="hidden md:block text-right">
+                <Clock className="w-3.5 h-3.5 inline" />
+              </span>
+              <span className="w-8" aria-hidden="true" />
+            </div>
+
+            {sorted.map((track, index) => {
+              const isCurrentTrack = currentTrack?.id === track.id;
+              const isSelected = selectedIndex === index;
+              return (
+                <TrackContextMenu key={track.id} track={track}>
+                  <motion.div
+                    variants={fadeUp}
+                    onClick={() => playTrack(track)}
+                    onMouseEnter={() => setSelectedIndex(index)}
+                    className={cn(
+                      'group grid grid-cols-[2.5rem_3rem_1fr_auto_auto_auto] gap-4 px-4 py-3.5',
+                      'items-center cursor-pointer transition-colors border-b border-white/[0.05] last:border-0',
+                      isCurrentTrack && 'bg-track/[0.10]',
+                      isSelected && !isCurrentTrack && 'bg-white/[0.05]',
+                      !isSelected && !isCurrentTrack && 'hover:bg-white/[0.035]',
+                    )}
+                  >
+                    <span className="flex justify-center">
+                      {isCurrentTrack && isPlaying ? (
+                        <NowPlayingBars />
+                      ) : (
+                        <span
+                          className={cn(
+                            'font-display italic text-2xl leading-none tabular-nums',
+                            isCurrentTrack ? 'text-accent' : 'text-ink-3 group-hover:text-ink',
+                          )}
+                        >
+                          {String(index + 1).padStart(2, '0')}
+                        </span>
+                      )}
+                    </span>
+
+                    <div className="relative">
+                      <img
+                        src={track.thumbnail}
+                        alt=""
+                        className="w-12 h-12 rounded-sharp object-cover ring-1 ring-white/10"
+                      />
+                      <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-sharp">
+                        <Play className="w-4 h-4 text-white fill-current" />
+                      </div>
                     </div>
-                  ) : (
-                    index + 1
-                  )}
-                </span>
-                
-                <div className="relative group">
-                  <img
-                    src={track.thumbnail}
-                    alt={track.title}
-                    className="w-12 h-12 rounded object-cover"
-                  />
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded">
-                    <Play className="w-5 h-5 text-white fill-current" />
-                  </div>
-                </div>
-                
-                <div className="flex-1 min-w-0">
-                  <h4 className={`font-medium truncate ${isCurrentTrack ? 'text-primary' : ''}`}>
-                    {track.title}
-                  </h4>
-                  <p className="text-sm text-muted-foreground truncate">{track.artist}</p>
-                </div>
-                
-                <Heart className="w-5 h-5 text-primary fill-current" />
-                
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Clock className="w-4 h-4" />
-                  <span className="text-sm">{track.duration}</span>
-                </div>
-              </motion.div>
-            );
-          })}
-        </motion.div>
-      ) : (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center py-20"
-        >
-          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-muted flex items-center justify-center">
-            <Heart className="w-10 h-10 text-muted-foreground" />
+
+                    <div className="flex-1 min-w-0">
+                      <h4
+                        className={cn(
+                          'text-[14px] font-medium truncate',
+                          isCurrentTrack ? 'text-accent' : 'text-ink',
+                        )}
+                      >
+                        {track.title}
+                      </h4>
+                      <p className="font-editorial text-[12.5px] text-ink-3 truncate mt-0.5">
+                        by {track.artist}
+                      </p>
+                    </div>
+
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <HeartButton track={track} size="sm" />
+                    </div>
+
+                    <div className="hidden md:flex items-center justify-end gap-2 text-ink-4">
+                      <span className="font-mono text-[12px] tabular-nums tracking-tight">
+                        {track.duration || '\u2014'}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeFavorite(track.id);
+                        notify.unliked(track.title);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 p-2 rounded-sharp text-ink-3 hover:text-danger hover:bg-danger/10 transition-all focus-ring"
+                      aria-label="Remove from favorites"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </motion.div>
+                </TrackContextMenu>
+              );
+            })}
+          </motion.div>
+
+          {/* Keyboard hint strip */}
+          <div className="mt-5 flex items-center gap-4 flex-wrap text-[11px] text-ink-3">
+            <span className="inline-flex items-center gap-1.5">
+              <Kbd keys={['j', 'k']} />
+              <span className="font-editorial italic">navigate</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Kbd keys={['Enter']} />
+              <span className="font-editorial italic">play</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Kbd keys={['Q']} />
+              <span className="font-editorial italic">queue</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Kbd keys={['L']} />
+              <span className="font-editorial italic">like</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Kbd keys={['Right click']} />
+              <span className="font-editorial italic">menu</span>
+            </span>
           </div>
-          <h3 className="text-xl font-semibold mb-2">No favorites yet</h3>
-          <p className="text-muted-foreground">Songs you like will appear here</p>
-        </motion.div>
+        </>
+      ) : (
+        <EmptyState
+          icon={Heart}
+          title="No favorites yet"
+          description="Tap the heart on any song to save it here."
+        />
       )}
     </div>
   );

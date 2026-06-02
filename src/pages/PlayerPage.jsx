@@ -1,317 +1,480 @@
-import { motion } from 'framer-motion';
-import { 
-  Play, 
-  Pause, 
-  SkipBack, 
-  SkipForward, 
-  Shuffle, 
-  Repeat, 
+import { AnimatePresence, motion } from 'framer-motion';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  Shuffle,
+  Repeat,
   Repeat1,
-  Heart,
-  ListMusic
+  ListMusic,
+  Mic2,
+  Sparkles,
 } from 'lucide-react';
-import { usePlayer } from '@/contexts/PlayerContext';
+import { usePlayer, usePlayerProgress } from '@/contexts/PlayerContext';
+import HeartButton from '@/components/HeartButton';
 import { Slider } from '@/components/ui/slider';
+import LyricsPanel from '@/components/player/LyricsPanel';
+import QueuePanel from '@/components/player/QueuePanel';
+import Tabs from '@/components/ui-v2/Tabs';
+import EmptyState from '@/components/ui-v2/EmptyState';
+import { useColorExtraction } from '@/hooks/use-color-extraction';
+import { useTilt } from '@/hooks/use-tilt';
+import { fadeUp, isReducedMotion, staggerChildren } from '@/design/motion';
+import { cn } from '@/lib/utils';
 
-// Mock similar artists and recommendations
-const similarArtists = [
-  { id: '1', name: 'Shawn Mendes', followers: '36.4M Followers', image: 'https://i.ytimg.com/vi/kJQP7kiw5Fk/maxresdefault.jpg' },
-  { id: '2', name: 'James Arthur', followers: '9.3M Followers', image: 'https://i.ytimg.com/vi/JGwWNGJdvx8/maxresdefault.jpg' },
-  { id: '3', name: 'James TW', followers: '1.0M Followers', image: 'https://i.ytimg.com/vi/hT_nvWreIhg/maxresdefault.jpg' },
+const formatTime = (seconds) => {
+  if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+};
+
+const PANELS = [
+  { id: 'queue', label: 'Up next', icon: ListMusic },
+  { id: 'lyrics', label: 'Lyrics', icon: Mic2 },
+  { id: 'related', label: 'Related', icon: Sparkles },
 ];
 
-const madeForYou = [
-  { id: '1', title: 'New Music Friday', songs: 96, image: 'https://i.ytimg.com/vi/IeyJ7MPb7MQ/maxresdefault.jpg' },
-  { id: '2', title: 'just hits', songs: 94, image: 'https://i.ytimg.com/vi/ZRtdQ81jPUQ/maxresdefault.jpg' },
-  { id: '3', title: 'Wake Up Happy', songs: 150, image: 'https://i.ytimg.com/vi/DkeiKbqa02g/maxresdefault.jpg' },
-];
+const formatIssueNo = (track) => {
+  if (!track) return '01';
+  const source = `${track.id || ''}:${track.title || ''}:${track.artist || ''}`;
+  let hash = 0;
+  for (let i = 0; i < source.length; i += 1) {
+    hash = (hash * 31 + source.charCodeAt(i)) | 0;
+  }
+  return String((Math.abs(hash) % 90) + 10).padStart(2, '0');
+};
 
-const newReleases = [
-  { id: '1', title: 'Dharma', artist: 'Sebastian Yatra', image: 'https://i.ytimg.com/vi/4iGU6PctOBg/maxresdefault.jpg' },
-  { id: '2', title: 'Me vs. Me', artist: 'NLE Choppa', image: 'https://i.ytimg.com/vi/fJ9rUzIMcZQ/maxresdefault.jpg' },
-  { id: '3', title: "the lifeboat's empty!", artist: 'Chelsea Cutler', image: 'https://i.ytimg.com/vi/8OkpRK2_gVs/maxresdefault.jpg' },
-];
+const RelatedRail = () => {
+  const { history, currentTrack, playTrack } = usePlayer();
+  const list = history.filter((t) => t.id !== currentTrack?.id).slice(0, 8);
+  if (list.length === 0) {
+    return (
+      <p className="font-editorial italic text-[13px] text-ink-3 px-2 py-6">
+        Play more tracks to unlock related suggestions.
+      </p>
+    );
+  }
+  return (
+    <ul className="space-y-1">
+      {list.map((t, i) => (
+        <li key={t.id}>
+          <button
+            type="button"
+            onClick={() => playTrack(t)}
+            className="group w-full flex items-center gap-3 px-2 py-2 rounded-sharp hover:bg-white/[0.04] text-left focus-ring transition-colors"
+          >
+            <span
+              aria-hidden="true"
+              className="font-display italic text-base leading-none text-ink-4 w-6 text-center tabular-nums"
+            >
+              {String(i + 1).padStart(2, '0')}
+            </span>
+            <img
+              src={t.thumbnail}
+              alt=""
+              className="w-10 h-10 rounded-sharp object-cover ring-1 ring-white/10"
+            />
+            <div className="flex-1 min-w-0">
+              <p className="text-[13.5px] font-medium truncate text-ink">{t.title}</p>
+              <p className="font-editorial text-[12px] text-ink-3 truncate mt-0.5">
+                by {t.artist}
+              </p>
+            </div>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+};
 
 const PlayerPage = () => {
   const {
     currentTrack,
-    isPlaying,
-    progress,
-    duration,
     queue,
+    isPlaying,
     togglePlay,
     seekTo,
     playNext,
     playPrevious,
+    canGoNext,
     shuffle,
     toggleShuffle,
     repeat,
     toggleRepeat,
-    playTrack,
   } = usePlayer();
+  const { progress, duration, canGoPrevious } = usePlayerProgress();
+  const [panel, setPanel] = useState('queue');
+  const [scrubPreview, setScrubPreview] = useState(null);
+  const scrubberRef = useRef(null);
+  const reduceMotion = isReducedMotion();
+  const { ref: tiltRef, handlers: tiltHandlers } = useTilt({ max: 5, scale: 1.01 });
+  const bodyStagger = useMemo(() => staggerChildren(0.08, 0.04), []);
 
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  useColorExtraction(currentTrack?.thumbnail);
+
+  // Hard-lock document scrolling while this route is mounted.
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+    const { documentElement, body } = document;
+    const prevHtmlOverflow = documentElement.style.overflow;
+    const prevBodyOverflow = body.style.overflow;
+    documentElement.style.overflow = 'hidden';
+    body.style.overflow = 'hidden';
+    return () => {
+      documentElement.style.overflow = prevHtmlOverflow;
+      body.style.overflow = prevBodyOverflow;
+    };
+  }, []);
+
+  const titleParts = useMemo(() => {
+    if (!currentTrack?.title) return { lead: '', accent: '' };
+    const t = currentTrack.title.trim();
+    // Italicize the trailing word for editorial emphasis (subtle, never aggressive).
+    const idx = t.lastIndexOf(' ');
+    if (idx === -1 || t.length < 14) return { lead: t, accent: '' };
+    return { lead: t.slice(0, idx), accent: t.slice(idx + 1) };
+  }, [currentTrack?.title]);
+
+  const panelItems = useMemo(
+    () =>
+      PANELS.map((item) =>
+        item.id === 'queue' ? { ...item, count: queue?.length ?? 0 } : item,
+      ),
+    [queue?.length],
+  );
+
+  const issueNo = useMemo(
+    () => formatIssueNo(currentTrack),
+    [currentTrack?.id, currentTrack?.title, currentTrack?.artist],
+  );
+  const playbackDuration = currentTrack?.duration || formatTime(duration);
+
+  const updateScrubPreview = (clientX) => {
+    if (!duration || !Number.isFinite(duration) || !scrubberRef.current) return;
+    const rect = scrubberRef.current.getBoundingClientRect();
+    if (!rect.width) return;
+    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+    setScrubPreview(ratio * duration);
   };
 
-  // Default track for display when nothing is playing
-  const displayTrack = currentTrack || {
-    title: 'Select a song to play',
-    artist: 'Browse your library',
-    thumbnail: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg',
-  };
+  const showScrubPreview =
+    Number.isFinite(scrubPreview) && Number.isFinite(duration) && duration > 0;
+  const scrubPreviewPct = showScrubPreview
+    ? Math.min(98, Math.max(2, (scrubPreview / duration) * 100))
+    : 0;
+
+  if (!currentTrack) {
+    return (
+      <div className="h-full flex items-center justify-center p-10">
+        <EmptyState
+          icon={ListMusic}
+          title="No track playing"
+          description="Pick a song from Home, Search, or any playlist to start listening."
+        />
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen p-8">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Player Area */}
-        <div className="lg:col-span-2">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="glass rounded-3xl p-8 mb-8"
+    <div className="relative isolate flex h-full min-h-0 flex-col overflow-hidden">
+      {/* Ambient backdrop — blurred art bloom + aurora + vignette, clipped to the page */}
+      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.img
+            key={currentTrack.id || currentTrack.thumbnail || currentTrack.title}
+            src={currentTrack.thumbnail}
+            alt=""
+            aria-hidden="true"
+            initial={{ opacity: 0, scale: 1.2 }}
+            animate={{
+              opacity: 0.4,
+              scale: 1.36,
+              transition: {
+                duration: reduceMotion ? 0 : 0.7,
+                ease: [0.22, 1, 0.36, 1],
+              },
+            }}
+            exit={{
+              opacity: 0,
+              transition: {
+                duration: reduceMotion ? 0 : 0.35,
+                ease: [0.4, 0, 1, 1],
+              },
+            }}
+            className="absolute left-1/2 top-1/2 h-[140vmax] w-[140vmax] -translate-x-1/2 -translate-y-1/2 object-cover blur-[150px] saturate-[1.35] ambient-drift"
+          />
+        </AnimatePresence>
+        <div aria-hidden="true" className="absolute inset-0 now-playing-aurora opacity-90" />
+        <div aria-hidden="true" className="absolute inset-0 now-playing-vignette" />
+      </div>
+
+      {/* Content column — fills the locked viewport; reserves the footer player gutter */}
+      <div className="relative z-10 flex flex-1 min-h-0 flex-col px-5 lg:px-10 pt-4 lg:pt-6 pb-[104px]">
+        {/* Cover-spread dateline */}
+        <div
+          aria-hidden="true"
+          className="hidden md:flex shrink-0 items-center justify-between text-[10px] font-genz-mono text-ink-4 mb-4 pb-3 border-b border-white/[0.08]"
+        >
+          <span>The cover spread · Issue {issueNo}</span>
+          <span className="flex items-center gap-3">
+            <span className="text-ink-3">✦</span>
+            <span>Now playing · {currentTrack.artist}</span>
+            <span className="text-ink-3">✦</span>
+          </span>
+          <span>Side A</span>
+        </div>
+
+        <motion.div
+          variants={bodyStagger}
+          initial="initial"
+          animate="animate"
+          className="grid grid-cols-1 md:grid-cols-[1.08fr_1fr] md:grid-rows-[minmax(0,1fr)] gap-7 lg:gap-11 flex-1 min-h-0"
+        >
+          {/* Left: vertically-centered cover stage */}
+          <motion.section
+            variants={fadeUp}
+            className="flex justify-center items-stretch min-w-0 min-h-0"
           >
-            {/* Song Title */}
-            <motion.h1 
-              key={displayTrack.title}
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="text-4xl md:text-5xl font-bold text-center mb-2 gradient-text"
-            >
-              {displayTrack.title}
-            </motion.h1>
-            <p className="text-center text-muted-foreground mb-8">{displayTrack.artist}</p>
-
-            {/* Vinyl Record and Controls */}
-            <div className="flex items-center justify-center gap-8 mb-8">
-              {/* Vinyl Record */}
-              <div className="relative w-64 h-64">
-                {/* Outer ring glow */}
-                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary/20 to-transparent blur-xl" />
-                
-                {/* Vinyl disc */}
-                <motion.div 
-                  className={`relative w-full h-full rounded-full overflow-hidden ${isPlaying ? 'vinyl-spinning' : ''}`}
-                  style={{
-                    background: 'radial-gradient(circle at 50% 50%, hsl(222 47% 15%) 0%, hsl(222 47% 8%) 100%)',
-                    boxShadow: '0 0 60px rgba(0,0,0,0.5), inset 0 0 30px rgba(0,0,0,0.5)',
-                  }}
-                >
-                  {/* Vinyl grooves */}
-                  <div 
-                    className="absolute inset-4 rounded-full border border-white/5"
-                    style={{ boxShadow: 'inset 0 0 20px rgba(0,0,0,0.3)' }}
-                  />
-                  <div className="absolute inset-8 rounded-full border border-white/5" />
-                  <div className="absolute inset-12 rounded-full border border-white/5" />
-                  <div className="absolute inset-16 rounded-full border border-white/5" />
-                  
-                  {/* Center album art */}
-                  <div className="absolute inset-[25%] rounded-full overflow-hidden ring-2 ring-white/10">
-                    <img
-                      src={displayTrack.thumbnail}
-                      alt={displayTrack.title}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  
-                  {/* Center dot */}
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white/20" />
-                </motion.div>
-              </div>
-            </div>
-
-            {/* Progress Bar */}
-            <div className="flex items-center gap-4 mb-6 max-w-lg mx-auto">
-              <span className="text-sm text-muted-foreground w-12 text-right">{formatTime(progress)}</span>
-              <div className="flex-1 relative">
-                {/* Waveform visualization placeholder */}
-                <div className="absolute inset-0 flex items-center justify-center gap-0.5 opacity-30">
-                  {Array.from({ length: 40 }).map((_, i) => (
-                    <div 
-                      key={i} 
-                      className="w-1 rounded-full bg-primary"
-                      style={{ 
-                        height: `${Math.random() * 20 + 10}px`,
-                        opacity: i / 40 < progress / duration ? 1 : 0.3,
-                      }}
-                    />
-                  ))}
-                </div>
-                <Slider
-                  value={[progress]}
-                  max={duration || 100}
-                  step={1}
-                  onValueChange={(value) => seekTo(value[0])}
-                  className="relative z-10"
+            <div className="vintage-genz-shell w-full max-w-[470px] h-full flex flex-col items-center justify-center gap-[clamp(9px,1.6vh,18px)] min-h-0 px-5 lg:px-6 py-5 lg:py-6">
+              <div
+                ref={tiltRef}
+                {...tiltHandlers}
+                className="vintage-frame tilt relative aspect-square h-[clamp(156px,29vh,300px)] max-w-full rounded-2xl overflow-hidden shadow-elev-5 shadow-accent vinyl-shadow"
+              >
+                <motion.img
+                  layoutId="footer-art"
+                  src={currentTrack.thumbnail}
+                  alt={currentTrack.title}
+                  className="w-full h-full object-cover"
                 />
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/15" />
+                <span aria-hidden="true" className="tilt-gloss absolute inset-0" />
+                <AnimatePresence>
+                  {isPlaying && (
+                    <motion.div
+                      key="now-playing-badge"
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={{ duration: reduceMotion ? 0 : 0.2 }}
+                      className="absolute top-3 left-3 inline-flex items-center gap-2 rounded-full border border-white/20 bg-black/50 px-2.5 py-1 backdrop-blur-md"
+                    >
+                      <span aria-hidden="true" className="live-dot" />
+                      <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-bone">
+                        Live
+                      </span>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
-              <span className="text-sm text-muted-foreground w-12">{formatTime(duration)}</span>
-            </div>
 
-            {/* Controls */}
-            <div className="flex items-center justify-center gap-6">
-              <button
-                onClick={toggleShuffle}
-                className={`p-3 rounded-full transition-colors ${shuffle ? 'text-primary bg-primary/20' : 'text-muted-foreground hover:text-foreground'}`}
-              >
-                <Shuffle className="w-5 h-5" />
-              </button>
-              <button
-                onClick={playPrevious}
-                className="p-3 text-foreground hover:text-primary transition-colors"
-              >
-                <SkipBack className="w-7 h-7" />
-              </button>
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={togglePlay}
-                className="w-16 h-16 rounded-full bg-gradient-to-r from-primary to-orange-400 flex items-center justify-center shadow-lg shadow-primary/40 pulse-glow"
-              >
-                {isPlaying ? (
-                  <Pause className="w-7 h-7 text-primary-foreground" />
-                ) : (
-                  <Play className="w-7 h-7 text-primary-foreground ml-1" />
-                )}
-              </motion.button>
-              <button
-                onClick={playNext}
-                className="p-3 text-foreground hover:text-primary transition-colors"
-              >
-                <SkipForward className="w-7 h-7" />
-              </button>
-              <button
-                onClick={toggleRepeat}
-                className={`p-3 rounded-full transition-colors ${repeat !== 'off' ? 'text-primary bg-primary/20' : 'text-muted-foreground hover:text-foreground'}`}
-              >
-                {repeat === 'one' ? <Repeat1 className="w-5 h-5" /> : <Repeat className="w-5 h-5" />}
-              </button>
-            </div>
-          </motion.div>
-
-          {/* Recommendations */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Similar Artists */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="glass rounded-2xl p-5"
-            >
-              <h3 className="font-semibold mb-4">Similar Artists</h3>
-              <div className="space-y-3">
-                {similarArtists.map((artist) => (
-                  <div key={artist.id} className="flex items-center gap-3 hover:bg-white/5 p-2 rounded-lg cursor-pointer transition-colors">
-                    <img src={artist.image} alt={artist.name} className="w-10 h-10 rounded-full object-cover" />
-                    <div>
-                      <p className="text-sm font-medium">{artist.name}</p>
-                      <p className="text-xs text-muted-foreground">{artist.followers}</p>
-                    </div>
-                  </div>
-                ))}
+              <div className="text-center w-full min-w-0">
+                <p className="eyebrow eyebrow-accent mb-2 flex items-center gap-2 justify-center font-genz-mono">
+                  <span className="w-5 h-px bg-track" />
+                  Now playing
+                </p>
+                <div
+                  key={currentTrack.id || currentTrack.title}
+                  className="mask-rise block w-full"
+                >
+                  <h1 className="font-vintage-display text-[clamp(23px,2.75vh,42px)] leading-[0.98] text-ink">
+                    <span>
+                      {titleParts.lead}
+                      {titleParts.accent ? (
+                        <>
+                          {' '}
+                          <em className="font-editorial text-track not-italic">
+                            {titleParts.accent}
+                          </em>
+                        </>
+                      ) : null}
+                    </span>
+                  </h1>
+                </div>
+                <p className="font-editorial text-[14px] text-ink-3 mt-2 truncate">
+                  by {currentTrack.artist}
+                </p>
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-2.5">
+                  <span className="issue-pill vintage-chip">Issue {issueNo}</span>
+                  <span className="issue-pill vintage-chip">{currentTrack.album || 'Single'}</span>
+                  <span className="issue-pill vintage-chip">{playbackDuration}</span>
+                </div>
               </div>
-            </motion.div>
 
-            {/* Made for You */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="glass rounded-2xl p-5"
-            >
-              <h3 className="font-semibold mb-4">Made for You</h3>
-              <div className="space-y-3">
-                {madeForYou.map((playlist) => (
-                  <div key={playlist.id} className="flex items-center gap-3 hover:bg-white/5 p-2 rounded-lg cursor-pointer transition-colors">
-                    <img src={playlist.image} alt={playlist.title} className="w-10 h-10 rounded object-cover" />
-                    <div>
-                      <p className="text-sm font-medium">{playlist.title}</p>
-                      <p className="text-xs text-muted-foreground">{playlist.songs} Songs</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-
-            {/* New Releases */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="glass rounded-2xl p-5"
-            >
-              <h3 className="font-semibold mb-4">New Releases</h3>
-              <div className="space-y-3">
-                {newReleases.map((release) => (
-                  <div key={release.id} className="flex items-center gap-3 hover:bg-white/5 p-2 rounded-lg cursor-pointer transition-colors">
-                    <img src={release.image} alt={release.title} className="w-10 h-10 rounded object-cover" />
-                    <div>
-                      <p className="text-sm font-medium">{release.title}</p>
-                      <p className="text-xs text-muted-foreground">{release.artist}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          </div>
-        </div>
-
-        {/* Right Sidebar - Album & Queue */}
-        <div className="space-y-6">
-          {/* Current Album */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="glass rounded-2xl p-5"
-          >
-            <img
-              src={displayTrack.thumbnail}
-              alt={displayTrack.title}
-              className="w-full aspect-square rounded-xl object-cover mb-4"
-            />
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="font-semibold">{displayTrack.title}</h3>
-                <p className="text-sm text-muted-foreground">{displayTrack.artist}</p>
-              </div>
-              <button className="p-2 text-muted-foreground hover:text-primary transition-colors">
-                <Heart className="w-5 h-5" />
-              </button>
-            </div>
-          </motion.div>
-
-          {/* Up Next Queue */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.1 }}
-            className="glass rounded-2xl p-5"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold">Up Next</h3>
-              <ListMusic className="w-5 h-5 text-muted-foreground" />
-            </div>
-            <div className="space-y-2">
-              {queue.length > 0 ? (
-                queue.slice(0, 6).map((track, index) => (
-                  <div
-                    key={track.id}
-                    onClick={() => playTrack(track)}
-                    className="flex items-center justify-between p-2 rounded-lg hover:bg-white/5 cursor-pointer transition-colors"
+              {/* Progress */}
+              <div
+                ref={scrubberRef}
+                onMouseMove={(event) => updateScrubPreview(event.clientX)}
+                onMouseLeave={() => setScrubPreview(null)}
+                className={cn('player-seekbar w-full relative', isPlaying && 'scrubber-glow')}
+              >
+                {showScrubPreview && (
+                  <span
+                    className="pointer-events-none absolute -top-7 -translate-x-1/2 rounded-sharp border border-white/15 bg-black/65 px-2 py-0.5 font-mono text-[10px] tracking-[0.08em] text-bone z-10"
+                    style={{ left: `${scrubPreviewPct}%` }}
                   >
-                    <p className="text-sm truncate flex-1">{track.title}</p>
-                    <span className="text-xs text-muted-foreground">{track.duration || '3:30'}</span>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground text-center py-4">Queue is empty</p>
-              )}
+                    {formatTime(scrubPreview)}
+                  </span>
+                )}
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-[11px] text-ink-3 w-10 text-right tabular-nums tracking-tight">
+                    {formatTime(progress)}
+                  </span>
+                  <Slider
+                    value={[progress]}
+                    max={duration || 100}
+                    step={1}
+                    onValueChange={(v) => seekTo(v[0])}
+                    className="flex-1"
+                    aria-label="Seek"
+                  />
+                  <span className="font-mono text-[11px] text-ink-3 w-10 tabular-nums tracking-tight">
+                    {formatTime(duration)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Controls */}
+              <div className="vintage-toolbar flex items-center justify-center gap-3 lg:gap-4 w-full py-2 px-2">
+                <motion.button
+                  whileTap={reduceMotion ? undefined : { scale: 0.94 }}
+                  onClick={toggleShuffle}
+                  className={cn(
+                    'p-2.5 rounded-full transition-colors focus-ring bg-white/[0.03] hover:bg-white/[0.10]',
+                    shuffle ? 'text-accent bg-accent-soft' : 'text-ink-3 hover:text-ink',
+                  )}
+                  aria-label="Toggle shuffle"
+                  aria-pressed={shuffle}
+                >
+                  <Shuffle className="w-5 h-5" strokeWidth={1.75} />
+                </motion.button>
+                <motion.button
+                  whileTap={reduceMotion ? undefined : { scale: 0.94 }}
+                  onClick={playPrevious}
+                  disabled={!canGoPrevious}
+                  className="p-2.5 text-ink hover:text-accent transition-colors focus-ring rounded-full bg-white/[0.03] hover:bg-white/[0.10] disabled:opacity-25 disabled:cursor-not-allowed"
+                  aria-label="Previous"
+                >
+                  <SkipBack className="w-6 h-6" />
+                </motion.button>
+                <motion.button
+                  whileHover={reduceMotion ? undefined : { scale: 1.04 }}
+                  whileTap={reduceMotion ? undefined : { scale: 0.94 }}
+                  onClick={togglePlay}
+                  className={cn(
+                    'w-16 h-16 rounded-full text-track-fg flex items-center justify-center shadow-accent ring-1 ring-white/20 focus-ring',
+                    isPlaying && 'pulse-glow',
+                  )}
+                  style={{
+                    backgroundImage:
+                      'radial-gradient(circle at 30% 25%, hsl(var(--ink-primary) / 0.25), transparent 55%), linear-gradient(135deg, hsl(var(--track-accent)), hsl(var(--track-accent-strong)))',
+                  }}
+                  aria-label={isPlaying ? 'Pause' : 'Play'}
+                >
+                  {isPlaying ? (
+                    <Pause className="w-7 h-7 fill-current" />
+                  ) : (
+                    <Play className="w-7 h-7 fill-current ml-0.5" />
+                  )}
+                </motion.button>
+                <motion.button
+                  whileTap={reduceMotion ? undefined : { scale: 0.94 }}
+                  onClick={playNext}
+                  disabled={!canGoNext}
+                  className="p-2.5 text-ink hover:text-accent transition-colors focus-ring rounded-full bg-white/[0.03] hover:bg-white/[0.10] disabled:opacity-25 disabled:cursor-not-allowed"
+                  aria-label="Next"
+                >
+                  <SkipForward className="w-6 h-6" />
+                </motion.button>
+                <motion.button
+                  whileTap={reduceMotion ? undefined : { scale: 0.94 }}
+                  onClick={toggleRepeat}
+                  className={cn(
+                    'p-2.5 rounded-full transition-colors focus-ring bg-white/[0.03] hover:bg-white/[0.10]',
+                    repeat !== 'off'
+                      ? 'text-accent bg-accent-soft'
+                      : 'text-ink-3 hover:text-ink',
+                  )}
+                  aria-label="Cycle repeat"
+                  aria-pressed={repeat !== 'off'}
+                >
+                  {repeat === 'one' ? (
+                    <Repeat1 className="w-5 h-5" strokeWidth={1.75} />
+                  ) : (
+                    <Repeat className="w-5 h-5" strokeWidth={1.75} />
+                  )}
+                </motion.button>
+                <span className="mx-1 h-6 w-px bg-white/[0.08]" aria-hidden="true" />
+                <HeartButton track={currentTrack} />
+              </div>
             </div>
-          </motion.div>
-        </div>
+          </motion.section>
+
+          {/* Right: listen room (full-height glass column with internal scroll) */}
+          <motion.section
+            variants={fadeUp}
+            className="vintage-genz-shell flex h-full min-h-0 flex-col p-3 lg:p-4"
+          >
+            <div className="shrink-0 mb-3">
+              <Tabs
+                items={panelItems}
+                value={panel}
+                onValueChange={setPanel}
+                variant="underline"
+                className="w-full vintage-tablist"
+              />
+              <div className="mt-3 px-1 flex items-center gap-3">
+                <span className="font-genz-mono text-[10px] text-ink-4">
+                  Listen room
+                </span>
+                <span className="editorial-rule" />
+              </div>
+            </div>
+            <div className="vintage-toolbar flex-1 min-h-0 overflow-hidden p-2.5">
+              <AnimatePresence mode="wait" initial={false}>
+                {panel === 'queue' && (
+                  <motion.div
+                    key="queue-panel"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: reduceMotion ? 0 : 0.2 }}
+                    className="h-full"
+                  >
+                    <QueuePanel />
+                  </motion.div>
+                )}
+                {panel === 'lyrics' && (
+                  <motion.div
+                    key="lyrics-panel"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: reduceMotion ? 0 : 0.2 }}
+                    className="h-full"
+                  >
+                    <LyricsPanel />
+                  </motion.div>
+                )}
+                {panel === 'related' && (
+                  <motion.div
+                    key="related-panel"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: reduceMotion ? 0 : 0.2 }}
+                    className="h-full overflow-y-auto custom-scrollbar"
+                  >
+                    <RelatedRail />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </motion.section>
+        </motion.div>
       </div>
     </div>
   );

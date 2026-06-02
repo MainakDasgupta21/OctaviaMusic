@@ -1,0 +1,113 @@
+import { forwardRef } from 'react';
+import { cva } from 'class-variance-authority';
+import { Loader2 } from 'lucide-react';
+import { Slot } from '@radix-ui/react-slot';
+import { cn } from '@/lib/utils';
+
+const button = cva(
+  [
+    'inline-flex items-center justify-center gap-2 select-none whitespace-nowrap',
+    'font-medium rounded-full focus-ring',
+    'transition-[transform,background,box-shadow,opacity,border-color]',
+    'duration-short ease-emphasis',
+    'disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100',
+    'active:scale-[0.98]',
+  ],
+  {
+    variants: {
+      variant: {
+        // Refined solid — radial highlight + subtle ring give it premium gloss
+        // without the "juicy" gradient flatness.
+        solid: [
+          'text-track-fg shadow-accent ring-1 ring-white/15',
+          'bg-[radial-gradient(circle_at_30%_25%,hsl(var(--ink-primary)/0.22),transparent_55%),linear-gradient(135deg,hsl(var(--track-accent)),hsl(var(--track-accent-strong)))]',
+          'hover:brightness-[1.06] hover:ring-white/25',
+        ],
+        ghost: [
+          'bg-transparent text-ink hover:bg-white/[0.04]',
+        ],
+        glass: [
+          'bg-white/[0.04] backdrop-blur-md border border-white/[0.10] text-ink',
+          'hover:bg-white/[0.08] hover:border-white/[0.18]',
+        ],
+        outline: [
+          'bg-transparent border border-white/15 text-ink hover:bg-white/[0.04] hover:border-white/25',
+        ],
+        gradient: [
+          'bg-gradient-to-r from-brand-500 to-brand-400 text-track-fg shadow-elev-3 ring-1 ring-white/15',
+          'hover:from-brand-400 hover:to-brand-300',
+        ],
+        link: [
+          'bg-transparent text-accent hover:underline underline-offset-4 px-0 h-auto rounded-none',
+        ],
+        danger: [
+          'bg-danger/15 text-danger hover:bg-danger/25 border border-danger/30',
+        ],
+        // EDITORIAL — sharp corners, mono uppercase, hairline border.
+        // For "Learn more", "Read", "Continue" — the cool counterpart to solid.
+        editorial: [
+          '!rounded-sharp bg-transparent border border-white/15 text-ink',
+          'font-mono uppercase tracking-[0.15em] !text-[11px] !font-medium',
+          'hover:bg-ink/5 hover:border-white/30',
+        ],
+      },
+      size: {
+        sm: 'h-8 px-3.5 text-[12px]',
+        md: 'h-10 px-4 text-[13px]',
+        lg: 'h-12 px-6 text-[14px]',
+        icon: 'h-10 w-10 p-0',
+        'icon-sm': 'h-8 w-8 p-0',
+        'icon-lg': 'h-12 w-12 p-0',
+      },
+    },
+    defaultVariants: { variant: 'solid', size: 'md' },
+  },
+);
+
+const Button = forwardRef(
+  (
+    {
+      className,
+      variant,
+      size,
+      loading = false,
+      disabled,
+      asChild = false,
+      leftIcon,
+      rightIcon,
+      children,
+      ...props
+    },
+    ref,
+  ) => {
+    const Comp = asChild ? Slot : 'button';
+    return (
+      <Comp
+        ref={ref}
+        className={cn(button({ variant, size }), className)}
+        disabled={disabled || loading}
+        aria-busy={loading || undefined}
+        {...props}
+      >
+        {loading ? (
+          <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+        ) : leftIcon ? (
+          <span className="inline-flex items-center" aria-hidden="true">
+            {leftIcon}
+          </span>
+        ) : null}
+        {children}
+        {!loading && rightIcon ? (
+          <span className="inline-flex items-center" aria-hidden="true">
+            {rightIcon}
+          </span>
+        ) : null}
+      </Comp>
+    );
+  },
+);
+
+Button.displayName = 'Button';
+
+export { Button, button };
+export default Button;

@@ -1,127 +1,108 @@
 # Backend Setup Guide
 
-This music player frontend expects a Node/Express backend running on `http://localhost:5000`.
+This music player frontend talks to a small Node/Express server in
+[`server/`](server/) running on `http://localhost:5000`. The server is a thin
+adapter around the unofficial [`ytmusic-api`](https://www.npmjs.com/package/ytmusic-api)
+package — no API key, no Google project, no quotas to manage.
+
+## Quick start
+
+```bash
+cd server
+npm install
+npm run dev   # http://localhost:5000
+```
+
+That's it. The first request triggers a one-time InnerTube handshake; results
+are then cached in memory so repeat requests are instant.
+
+## Architecture
+
+```
+React (axios) ──► Express ──► server/lib/ytmusic.js ──► ytmusic-api
+                                       │
+                                       └─► TTL cache + mappers
+                                                  │
+                                                  └─► server/data/catalog.js (fallback)
+```
+
+Every route handler in [`server.js`](server/server.js) wraps its live call in
+`liveOrFallback(...)`. When the upstream errors (rate-limit, network blip,
+schema drift) the static curated catalog answers instead so the UI keeps
+working.
 
 ## Required Endpoints
 
-### 1. Search - `GET /api/search`
-**Query Params:** `q` (search query), `filter` (song|video|album|artist)
+All endpoints return JSON. Errors yield `{ error: 'Not found' }` with status
+404 — the frontend's `isNotFoundError` helper switches to an EmptyState on
+that signal.
 
-**Response:**
+### `GET /api/search?q=<query>&type=<song|artist|album|all>`
+
+Flat array of mixed `{ type: 'song' | 'artist' | 'album', ... }` records.
+
 ```json
 [
   {
-    "id": "string",
-    "videoId": "youtube_video_id",
-    "title": "Song Title",
-    "artist": "Artist Name",
-    "thumbnail": "https://i.ytimg.com/vi/{videoId}/maxresdefault.jpg",
+    "id": "dQw4w9WgXcQ",
     "type": "song",
-    "duration": "3:45"
+    "videoId": "dQw4w9WgXcQ",
+    "title": "Never Gonna Give You Up",
+    "artist": "Rick Astley",
+    "artistId": "UCuAXFkgsw1L7xaCfnd5JJOw",
+    "artistSlug": "UCuAXFkgsw1L7xaCfnd5JJOw",
+    "album": "Whenever You Need Somebody",
+    "albumId": "MPREb_...",
+    "duration": "3:33",
+    "thumbnail": "https://lh3.googleusercontent.com/...=w544-h544"
   }
 ]
 ```
 
-### 2. Get Album - `GET /api/album/:id`
-**Response:**
-```json
-{
-  "id": "string",
-  "title": "Album Title",
-  "artist": "Artist Name",
-  "thumbnail": "url",
-  "releaseDate": "2023-01-01",
-  "tracks": [/* array of track objects */]
-}
-```
+### `GET /api/album/:id`
 
-### 3. Get Artist - `GET /api/artist/:id`
-**Response:**
-```json
-{
-  "id": "string",
-  "name": "Artist Name",
-  "thumbnail": "url",
-  "subscribers": "10M",
-  "albums": [/* array of album objects */]
-}
-```
+`id` is the YouTube Music album browse id (e.g. `MPREb_...`). Returns the
+album summary plus a `tracks: TrackDTO[]` array.
 
-## Backend Stack
+### `GET /api/artist/:slugOrId`
 
-```bash
-npm init -y
-npm install express mongoose cors axios dotenv
-```
+`slugOrId` is the YouTube channel id (e.g. `UC...`). Returns the artist
+summary plus `topTracks: TrackDTO[]` and `albums: AlbumSummary[]`.
 
-## Example Server (server.js)
+### `GET /api/charts?limit=50`
 
-```javascript
-const express = require('express');
-const cors = require('cors');
-const mongoose = require('mongoose');
+Top-N tracks with synthesized `rank` + `prev` fields for the UI's
+up/down arrows.
 
-const app = express();
-app.use(cors({ origin: 'http://localhost:5173' }));
-app.use(express.json());
+### `GET /api/trending?limit=20`
 
-// Connect MongoDB
-mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/musicplayer');
+Recent / rising tracks. Same `TrackDTO` shape as charts (no rank fields).
 
-// Mongoose Schemas
-const FavoriteSchema = new mongoose.Schema({
-  userId: String,
-  videoId: String,
-  title: String,
-  artist: String,
-  thumbnail: String,
-  addedAt: { type: Date, default: Date.now }
-});
+### `GET /api/home/featured`
 
-const PlaylistSchema = new mongoose.Schema({
-  userId: String,
-  name: String,
-  tracks: [{
-    videoId: String,
-    title: String,
-    artist: String,
-    thumbnail: String
-  }],
-  createdAt: { type: Date, default: Date.now }
-});
+Three editorial picks built from the charts head, decorated with curated
+`eyebrow` / `title` / `description` copy.
 
-const Favorite = mongoose.model('Favorite', FavoriteSchema);
-const Playlist = mongoose.model('Playlist', PlaylistSchema);
+### `GET /api/genres`
 
-// Routes
-app.get('/api/search', async (req, res) => {
-  const { q, filter = 'song' } = req.query;
-  // Proxy to YouTube Music API or use ytmusic-api package
-  // Return formatted results
-  res.json([]);
-});
+Static genre defs (gradients + labels) enriched with a live `sampleTrack`.
 
-app.get('/api/album/:id', async (req, res) => {
-  // Fetch album details
-  res.json({});
-});
+## Configuration
 
-app.get('/api/artist/:id', async (req, res) => {
-  // Fetch artist details
-  res.json({});
-});
+All optional — see [.env.example](.env.example) for the full list:
 
-app.listen(5000, () => console.log('Backend running on port 5000'));
-```
+| Env var                  | Default                       | What it does                                    |
+| ------------------------ | ----------------------------- | ----------------------------------------------- |
+| `PORT`                   | `5000`                        | Listen port                                     |
+| `YTM_CHARTS_PLAYLIST`    | built-in hits playlist        | YouTube playlist id used for `/api/charts`      |
+| `YTM_TRENDING_PLAYLIST`  | built-in hits playlist        | YouTube playlist id used for `/api/trending`    |
+| `YTM_CACHE_SEARCH_MIN`   | `5`                           | TTL (min) for `/api/search` responses           |
+| `YTM_CACHE_DETAIL_MIN`   | `30`                          | TTL (min) for album/artist responses            |
+| `YTM_CACHE_CHARTS_MIN`   | `60`                          | TTL (min) for charts/trending/home              |
+| `YTM_CACHE_GENRES_MIN`   | `60`                          | TTL (min) for genre sample tracks               |
 
-## Image Quality Utility
+## Playback note
 
-The frontend includes a utility to upgrade low-res YouTube thumbnails:
-```javascript
-// Converts =w60-h60 to =w544-h544 for high-res images
-upgradeImageQuality(url)
-```
-
-## Playback Note
-
-The app uses `react-player` with YouTube video IDs. When a user clicks a song, pass the `videoId` to the player - it handles YouTube's stream internally without needing direct MP3 URLs.
+`react-player` (in `src/components/layout/FooterPlayer.jsx`) is fed the
+`videoId` from each `TrackDTO` and streams directly from YouTube. The server
+never proxies media — it only resolves metadata.
