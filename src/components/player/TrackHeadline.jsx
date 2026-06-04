@@ -62,7 +62,11 @@ const TrackHeadline = ({ onNavigate }) => {
             <Link
               to={slug ? `/artist/${slug}` : '#'}
               onClick={handleNavigate}
-              className="text-track hover:underline underline-offset-4 transition-colors focus-ring rounded-sm font-medium"
+              // Premium link treatment — always-on hairline underline at
+              // 6px offset, ink-quaternary by default, lifts to accent on
+              // hover. Reads as "this is a link" without competing with
+              // the title typography above.
+              className="text-track underline decoration-1 underline-offset-[6px] decoration-white/15 hover:decoration-accent transition-colors focus-ring rounded-sm font-medium"
             >
               {currentTrack.artist || 'Unknown artist'}
             </Link>
@@ -71,7 +75,7 @@ const TrackHeadline = ({ onNavigate }) => {
               <Link
                 to={`/album/${currentTrack.albumId}`}
                 onClick={handleNavigate}
-                className="text-ink-3 hover:text-ink transition-colors focus-ring rounded-sm"
+                className="text-ink-3 underline decoration-1 underline-offset-[6px] decoration-transparent hover:decoration-white/20 hover:text-ink transition-colors focus-ring rounded-sm"
               >
                 {album}
               </Link>

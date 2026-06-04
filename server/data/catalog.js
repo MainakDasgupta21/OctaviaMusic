@@ -9,6 +9,22 @@
 // many older/short uploads and produces broken-image states downstream.
 const thumb = (videoId) => `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 
+// Parse "m:ss" / "h:mm:ss" → total seconds. The catalog stores duration as a
+// pre-formatted display string; the search ranker uses `durationSec` for the
+// `duration<3:30` operator and SmartImage doesn't care either way.
+const parseDurationToSeconds = (raw) => {
+  if (raw == null) return null;
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+  const str = String(raw).trim();
+  if (/^\d+$/.test(str)) return Number(str);
+  const m = str.match(/^(\d+):([0-5]?\d)(?::([0-5]?\d))?$/);
+  if (!m) return null;
+  const a = Number(m[1]);
+  const b = Number(m[2]);
+  const c = m[3] != null ? Number(m[3]) : null;
+  return c == null ? a * 60 + b : a * 3600 + b * 60 + c;
+};
+
 // Artists -----------------------------------------------------------------
 const artists = [
   {
@@ -272,6 +288,7 @@ const toTrackDTO = (song) => {
   return {
     id: song.id,
     type: 'song',
+    kind: 'song',
     videoId: song.videoId,
     title: song.title,
     artist: artist?.name || 'Unknown artist',
@@ -280,9 +297,11 @@ const toTrackDTO = (song) => {
     album: album?.title || null,
     albumId: album?.id || null,
     duration: song.duration,
+    durationSec: parseDurationToSeconds(song.duration),
     thumbnail: thumb(song.videoId),
     plays: song.plays,
     releaseDate: song.releaseDate,
+    rank: null,
   };
 };
 
@@ -297,6 +316,8 @@ const toAlbumSummaryDTO = (album) => {
     artistSlug: artist?.slug || null,
     year: album.year,
     thumbnail: thumb(album.coverVideoId),
+    playlistId: album.playlistId || null,
+    rank: null,
   };
 };
 
@@ -319,6 +340,7 @@ const toArtistSummaryDTO = (artist) => ({
   verified: artist.verified,
   monthly: artist.monthly,
   thumbnail: thumb(artist.coverVideoId),
+  rank: null,
 });
 
 const toArtistDetailDTO = (artist) => {

@@ -39,6 +39,7 @@ import { toast } from 'sonner';
 
 const groups = [
   {
+    ordinal: '01',
     label: 'Discover',
     items: [
       { icon: Home, label: 'Home', path: '/' },
@@ -49,6 +50,7 @@ const groups = [
     ],
   },
   {
+    ordinal: '02',
     label: 'Library',
     items: [
       { icon: Library, label: 'Your library', path: '/library' },
@@ -93,16 +95,32 @@ const NavItem = ({
           animation overrides `transform` and would knock a translate-based
           centering out of alignment. */}
       {isActive && (
-        <motion.span
-          layoutId={indicatorId}
-          aria-hidden="true"
-          className={cn(
-            'absolute inset-y-0 my-auto h-6 w-[3px] bg-track rounded-full',
-            expanded ? 'left-0' : 'left-0.5',
-          )}
-          transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-          style={{ boxShadow: '0 0 12px hsl(var(--track-accent) / 0.6)' }}
-        />
+        <>
+          {/* Sliding gradient pill — sits behind the icon/label and morphs
+              between items via the shared layoutId. */}
+          <motion.span
+            layoutId={`${indicatorId}-pill`}
+            aria-hidden="true"
+            className="absolute inset-0 rounded-xl"
+            transition={{ type: 'spring', stiffness: 360, damping: 32 }}
+            style={{
+              background:
+                'linear-gradient(135deg, hsl(var(--track-accent) / 0.18), hsl(var(--accent-iris-c) / 0.14))',
+              boxShadow:
+                'inset 0 0 0 1px hsl(var(--track-accent) / 0.30), 0 8px 20px -8px hsl(var(--track-accent) / 0.45)',
+            }}
+          />
+          <motion.span
+            layoutId={indicatorId}
+            aria-hidden="true"
+            className={cn(
+              'absolute inset-y-0 my-auto h-6 w-[3px] bg-track rounded-full',
+              expanded ? 'left-0' : 'left-0.5',
+            )}
+            transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+            style={{ boxShadow: '0 0 12px hsl(var(--track-accent) / 0.6)' }}
+          />
+        </>
       )}
       <span
         className={cn(
@@ -289,9 +307,19 @@ const Sidebar = ({ onNavigate }) => {
 
       <nav
         className={cn(
-          'relative z-10 flex-1 flex flex-col overflow-y-auto custom-scrollbar pb-3',
+          'relative z-10 flex-1 flex flex-col overflow-y-auto custom-scrollbar pb-6',
           expanded ? 'gap-5 px-3' : 'gap-4 px-2',
         )}
+        // Fade-out mask along the bottom so a long playlist list feels
+        // infinite rather than abruptly cut. The mask is purely cosmetic;
+        // scroll behaviour is unchanged. Browsers without mask-image
+        // support fall back to a plain scrollable list.
+        style={{
+          WebkitMaskImage:
+            'linear-gradient(180deg, #000 0, #000 calc(100% - 28px), transparent 100%)',
+          maskImage:
+            'linear-gradient(180deg, #000 0, #000 calc(100% - 28px), transparent 100%)',
+        }}
       >
         {groups.map((group, gi) => (
           <div
@@ -302,13 +330,23 @@ const Sidebar = ({ onNavigate }) => {
             )}
           >
             {expanded && (
-              <div className="h-5 px-4 flex items-center">
+              <div className="h-5 px-4 flex items-center gap-2">
                 <motion.span
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.15 }}
-                  className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-4 whitespace-nowrap"
+                  className="font-mono text-[9.5px] uppercase tracking-[0.22em] text-ink-4/80 whitespace-nowrap"
+                  aria-hidden="true"
+                >
+                  §{group.ordinal}
+                </motion.span>
+                <motion.span
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-4 whitespace-nowrap"
                 >
                   {group.label}
                 </motion.span>
@@ -335,9 +373,17 @@ const Sidebar = ({ onNavigate }) => {
         {/* Pinned playlists */}
         <div className="flex flex-col gap-0.5">
           {expanded ? (
-            <div className="h-5 px-4 flex items-center justify-between">
-              <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-4 whitespace-nowrap">
-                Playlists
+            <div className="h-5 px-4 flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2 min-w-0">
+                <span
+                  aria-hidden="true"
+                  className="font-mono text-[9.5px] uppercase tracking-[0.22em] text-ink-4/80 whitespace-nowrap"
+                >
+                  §03
+                </span>
+                <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-4 whitespace-nowrap">
+                  Playlists
+                </span>
               </span>
               <button
                 type="button"

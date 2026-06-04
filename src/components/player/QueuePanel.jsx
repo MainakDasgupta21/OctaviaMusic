@@ -32,8 +32,13 @@ const SortableQueueItem = ({ track, index, onPlay, onRemove, isCurrent }) => {
       ref={setNodeRef}
       style={style}
       className={cn(
-        'group grid grid-cols-[1.6rem_2.5rem_1fr_auto_auto] items-center gap-2.5 px-2 py-2 rounded-xl transition-colors',
-        isCurrent ? 'bg-track/[0.12] border border-track/30' : 'hover:bg-white/[0.045]',
+        'group grid grid-cols-[1.6rem_2.5rem_1fr_auto_auto] items-center gap-2.5 px-2 py-2 rounded-xl',
+        // `row-hover` provides the tinted-slide-in language used across the
+        // app for list rows. The `isCurrent` branch still gets its own
+        // active state so the now-playing row reads first.
+        isCurrent
+          ? 'bg-track/[0.12] border border-track/30'
+          : 'row-hover',
       )}
       {...attributes}
     >
@@ -123,10 +128,8 @@ const QueuePanel = () => {
   return (
     <div className="h-full flex flex-col pr-0.5">
       <div className="px-2.5 mb-3 pb-2.5 border-b border-white/[0.06] flex items-center justify-between">
-        <h3 className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-4">
-          Now playing
-        </h3>
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-4 tabular-nums">
+        <h3 className="eyebrow">Now playing</h3>
+        <span className="eyebrow tabular">
           {queue.length} up next
         </span>
       </div>

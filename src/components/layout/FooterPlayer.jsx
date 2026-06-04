@@ -1,8 +1,13 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo } from 'react';
 import { usePlayer, usePlayerProgress } from '@/contexts/PlayerContext';
 import { useUI } from '@/contexts/UIContext';
 import { useSettings } from '@/contexts/SettingsContext';
-import ReactPlayer from 'react-player';
+
+// react-player + its hls.js/dash.js bundle is the largest dep in the project
+// (~470 KB gzip). Defer the chunk until a track is actually selected — users
+// who never press play never pay for it. The Suspense fallback is null because
+// the player element is visually `display: none` anyway.
+const ReactPlayer = lazy(() => import('react-player'));
 import {
   Play,
   Pause,
@@ -233,21 +238,23 @@ const FooterPlayer = () => {
 
   return (
     <>
-      <ReactPlayer
-        ref={playerRef}
-        src={`https://www.youtube.com/watch?v=${safeVideoId}`}
-        playing={isPlaying}
-        volume={volume}
-        config={playerConfig}
-        onReady={handlePlayerReady}
-        onTimeUpdate={handleTimeUpdate}
-        onDurationChange={handleDurationChange}
-        onLoadedMetadata={handleLoadedMetadata}
-        onEnded={handleTrackEnded}
-        width="0"
-        height="0"
-        style={{ display: 'none' }}
-      />
+      <Suspense fallback={null}>
+        <ReactPlayer
+          ref={playerRef}
+          src={`https://www.youtube.com/watch?v=${safeVideoId}`}
+          playing={isPlaying}
+          volume={volume}
+          config={playerConfig}
+          onReady={handlePlayerReady}
+          onTimeUpdate={handleTimeUpdate}
+          onDurationChange={handleDurationChange}
+          onLoadedMetadata={handleLoadedMetadata}
+          onEnded={handleTrackEnded}
+          width="0"
+          height="0"
+          style={{ display: 'none' }}
+        />
+      </Suspense>
 
       <AnimatePresence>
         {/* Desktop / tablet footer */}
@@ -257,7 +264,13 @@ const FooterPlayer = () => {
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 100, opacity: 0 }}
           className="hidden md:flex fixed bottom-0 right-0 h-[100px] glass-strong z-40 transition-[left] duration-med ease-emphasis border-t border-white/[0.06]"
-          style={{ left: 'var(--sidebar-w, 80px)' }}
+          style={{
+            left: 'var(--sidebar-w, 80px)',
+            // Rim-light along the top edge so the footer reads as a
+            // physical surface lifting off the page, not a flat band.
+            boxShadow:
+              'inset 0 1px 0 hsl(var(--ink-primary) / 0.07), 0 -2px 24px rgba(0,0,0,0.32)',
+          }}
         >
           {/* Subtle ember bloom that picks up the track accent */}
           <div
@@ -286,13 +299,14 @@ const FooterPlayer = () => {
                   loading="eager"
                   decoding="async"
                   referrerPolicy="no-referrer"
+                  style={{ viewTransitionName: 'vt-now-cover' }}
                   className="w-14 h-14 rounded-sharp object-cover ring-1 ring-white/10 shadow-elev-2 flex-shrink-0"
                 />
                 <div className="min-w-0 flex-1">
-                  <h4 className="font-display text-[15px] leading-tight truncate text-ink">
+                  <h4 className="font-display text-[15px] leading-tight truncate text-ink tracking-tight">
                     {currentTrack.title}
                   </h4>
-                  <p className="text-[11px] text-ink-3 truncate mt-0.5">
+                  <p className="text-[11.5px] text-ink-3 truncate mt-1 leading-tight">
                     <span className="font-editorial">by</span> {currentTrack.artist || 'Unknown artist'}
                   </p>
                 </div>
@@ -325,11 +339,19 @@ const FooterPlayer = () => {
                   whileHover={{ scale: 1.04 }}
                   whileTap={{ scale: 0.94 }}
                   onClick={togglePlay}
-                  className="relative w-12 h-12 rounded-full gradient-accent text-track-fg flex items-center justify-center shadow-accent focus-ring ring-1 ring-white/15"
+                  className={cn(
+                    'relative w-12 h-12 rounded-full gradient-accent text-track-fg flex items-center justify-center shadow-accent focus-premium ring-1 ring-white/15',
+                    // Subtle pulse glow when playing — sells "live, breathing"
+                    // without being noisy. Off entirely when paused.
+                    isPlaying && 'pulse-glow',
+                  )}
                   aria-label={isPlaying ? 'Pause' : 'Play'}
                   style={{
                     backgroundImage:
-                      'radial-gradient(circle at 30% 25%, hsl(var(--ink-primary) / 0.22), transparent 55%), linear-gradient(135deg, hsl(var(--track-accent)), hsl(var(--track-accent-strong)))',
+                      'radial-gradient(circle at 30% 25%, hsl(var(--ink-primary) / 0.26), transparent 55%), linear-gradient(135deg, hsl(var(--track-accent)), hsl(var(--track-accent-strong)))',
+                    boxShadow: isPlaying
+                      ? 'inset 0 1px 0 hsl(var(--ink-primary)/0.30), 0 6px 18px hsl(var(--track-accent)/0.45), 0 0 0 1px hsl(var(--ink-primary)/0.10)'
+                      : 'inset 0 1px 0 hsl(var(--ink-primary)/0.22), 0 4px 12px hsl(var(--track-accent)/0.28), 0 0 0 1px hsl(var(--ink-primary)/0.08)',
                   }}
                 >
                   {isPlaying ? (
@@ -371,8 +393,8 @@ const FooterPlayer = () => {
                 </button>
               </div>
 
-              <div className="w-full max-w-xl flex items-center gap-3">
-                <span className="text-[10.5px] font-mono text-ink-3 w-10 text-right tabular-nums tracking-tight">
+              <div className="w-full max-w-xl flex items-center gap-3 group/seek">
+                <span className="text-[10.5px] font-mono text-ink-3 w-10 text-right tabular tracking-tight">
                   {formatTime(progress)}
                 </span>
                 <Slider
@@ -380,16 +402,20 @@ const FooterPlayer = () => {
                   max={duration || 100}
                   step={1}
                   onValueChange={handleSeek}
-                  className="flex-1"
+                  // Delicate idle (2px) → tactile interaction (4px). The
+                  // descendant selectors target the Radix Slider internals
+                  // emitted with `slider-track` / `slider-range` classes by
+                  // the shared shadcn Slider primitive.
+                  className="flex-1 [&_.slider-track]:h-[2px] [&_.slider-track]:transition-[height] [&_.slider-track]:duration-med [&_.slider-track]:ease-emphasis hover:[&_.slider-track]:h-[4px] focus-within:[&_.slider-track]:h-[4px] [&[data-state=active]_.slider-track]:h-[4px]"
                   aria-label="Seek"
                 />
-                <span className="text-[10.5px] font-mono text-ink-4 w-10 tabular-nums tracking-tight">
+                <span className="text-[10.5px] font-mono text-ink-4 w-10 tabular tracking-tight">
                   {formatTime(duration)}
                 </span>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 w-48">
+            <div className="flex items-center gap-3 w-48 group/volume">
               <button
                 onClick={toggleMute}
                 className="text-ink-3 hover:text-ink transition-colors focus-ring rounded-full p-1"
@@ -406,7 +432,8 @@ const FooterPlayer = () => {
                 max={100}
                 step={1}
                 onValueChange={(value) => setVolume(value[0] / 100)}
-                className="flex-1"
+                // Same delicate-then-tactile treatment as the seek bar.
+                className="flex-1 [&_.slider-track]:h-[2px] [&_.slider-track]:transition-[height] [&_.slider-track]:duration-med [&_.slider-track]:ease-emphasis hover:[&_.slider-track]:h-[4px] focus-within:[&_.slider-track]:h-[4px]"
                 aria-label="Volume"
               />
               <button
@@ -426,7 +453,12 @@ const FooterPlayer = () => {
           initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 100, opacity: 0 }}
-          className="md:hidden fixed inset-x-2 bottom-[5.25rem] z-40 h-16 rounded-soft glass-strong overflow-hidden ring-1 ring-white/[0.06] shadow-elev-3"
+          className="md:hidden fixed inset-x-2 bottom-[5.25rem] z-40 h-16 rounded-soft glass-strong overflow-hidden ring-1 ring-white/[0.06]"
+          style={{
+            // Same rim-light vocabulary as the desktop footer.
+            boxShadow:
+              'inset 0 1px 0 hsl(var(--ink-primary) / 0.07), var(--shadow-3)',
+          }}
         >
           <button
             type="button"
@@ -445,10 +477,10 @@ const FooterPlayer = () => {
               className="w-12 h-12 rounded-sharp object-cover ring-1 ring-white/10 flex-shrink-0"
             />
             <div className="flex-1 min-w-0">
-              <p className="font-display text-[15px] leading-tight truncate text-ink">
+              <p className="font-display text-[15px] leading-tight truncate text-ink tracking-tight">
                 {currentTrack.title}
               </p>
-              <p className="text-[11px] text-ink-3 truncate mt-0.5">
+              <p className="text-[11.5px] text-ink-3 truncate mt-1 leading-tight">
                 <span className="font-editorial">by</span> {currentTrack.artist || 'Unknown artist'}
               </p>
             </div>

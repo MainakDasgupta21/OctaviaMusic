@@ -28,13 +28,22 @@ import Input from '@/components/ui-v2/Input';
 import Skeleton from '@/components/ui-v2/Skeleton';
 import Kbd from '@/components/ui-v2/Kbd';
 import Button from '@/components/ui-v2/Button';
+import SectionRule from '@/components/ui-v2/SectionRule';
 import SmartImage from '@/components/SmartImage';
 import { fadeUp, staggerChildren } from '@/design/motion';
-import { parseQuery, rankAndMerge } from '@/lib/search-rank';
+import { parseQuery } from '@/lib/search-rank';
+import { useRankedSearch } from '@/hooks/use-ranked-search';
 import { artistSlugOf, isUsableArtistSlug } from '@/lib/slug';
 import { cachePolicy, queryKeys } from '@/lib/query-keys';
 import { useEditorialMeta } from '@/hooks/use-editorial-meta';
 import { useHoverPrefetch } from '@/hooks/use-route-prefetch';
+import { useSearchSuggestions } from '@/hooks/use-search-suggestions';
+import { usePersonalizationSignals } from '@/hooks/use-personalization-signals';
+import { SearchFilters } from '@/components/search/SearchFilters';
+import { ActiveFilterChips } from '@/components/search/ActiveFilterChips';
+import { RelatedRail } from '@/components/search/RelatedRail';
+import SearchHighlight from '@/components/SearchHighlight';
+import VoiceSearchButton from '@/components/search/VoiceSearchButton';
 import { cn } from '@/lib/utils';
 
 const RECENT_KEY = 'octavia.recent-searches.v1';
@@ -116,6 +125,7 @@ const SearchPage = () => {
   const { playlists } = usePlaylists();
   const { masthead } = useEditorialMeta();
   const { onAlbum: prefetchAlbumRoute, onArtist: prefetchArtistRoute } = useHoverPrefetch();
+  const { historyArtistCounts, recentSearchTerms } = usePersonalizationSignals();
 
   const debouncedQuery = useDebouncedValue(query.trim(), 250);
 
@@ -136,6 +146,7 @@ const SearchPage = () => {
   }, [searchParams.get('q')]);
 
   const parsedQuery = useMemo(() => parseQuery(debouncedQuery), [debouncedQuery]);
+  const highlightTokens = parsedQuery.tokens || [];
   const chipType = filter === 'playlist' ? null : filter;
   const operatorType = parsedQuery.filters?.type || null;
   const serverType = chipType === null ? null : operatorType || chipType;
@@ -146,19 +157,31 @@ const SearchPage = () => {
     '';
   const shouldFetchServer = Boolean(serverQuery) && serverType !== null;
 
+  // SearchPage requests the richer 60-row payload so its 5-up grids fill in.
+  // The TopBar's typing-pause prefetch in `useInstantSearch` warms exactly
+  // this key so the page renders instantly when you press Enter / View all.
+  const SEARCH_LIMIT = 60;
   const {
     data: results = [],
     isLoading,
     isError,
     refetch,
   } = useQuery({
-    queryKey: queryKeys.search(serverQuery, serverType || 'all'),
-    queryFn: () => searchMusic(serverQuery, serverType || 'all'),
+    queryKey: queryKeys.search(serverQuery, serverType || 'all', SEARCH_LIMIT),
+    queryFn: () =>
+      searchMusic(serverQuery, serverType || 'all', { limit: SEARCH_LIMIT }),
     enabled: shouldFetchServer,
     ...cachePolicy.search,
     // v5: keep the prior results painted while the next query resolves so the
     // list never flashes to empty as the user types / switches filters.
     placeholderData: keepPreviousData,
+  });
+
+  // Real YTM autocomplete. Used to power a richer "Did you mean?" banner
+  // that prefers YTM's official suggestion over our local Levenshtein
+  // fallback (better at handling typos / partials / phonetic variations).
+  const { suggestions: serverSuggestions } = useSearchSuggestions(debouncedQuery, {
+    enabled: Boolean(debouncedQuery),
   });
 
   useEffect(() => {
@@ -173,18 +196,22 @@ const SearchPage = () => {
     });
   }, [debouncedQuery]);
 
-  const ranked = useMemo(() => {
+  const rankParams = useMemo(() => {
     const displayFilter = filter === 'playlist' ? filter : operatorType || filter;
     const includeLibrary = displayFilter === 'all' || displayFilter === 'song';
-    return rankAndMerge({
+    return {
       query: parsedQuery,
       serverResults: results,
       favorites: includeLibrary ? favorites : [],
       history: includeLibrary ? history : [],
       playlists: includeLibrary ? playlists : [],
       currentArtist: currentTrack?.artist || '',
-      limit: 80,
-    });
+      // Higher than the upstream payload (60) so library + history + playlists
+      // can layer on without crowding out server hits.
+      limit: 120,
+      historyArtistCounts,
+      recentSearchTerms,
+    };
   }, [
     filter,
     operatorType,
@@ -194,7 +221,13 @@ const SearchPage = () => {
     history,
     playlists,
     currentTrack?.artist,
+    historyArtistCounts,
+    recentSearchTerms,
   ]);
+
+  // Worker-backed ranker. Falls back to sync `rankAndMerge` for small
+  // payloads and in environments without Worker support (jsdom tests).
+  const ranked = useRankedSearch(rankParams);
 
   const displayFilter = filter === 'playlist' ? filter : operatorType || filter;
 
@@ -308,6 +341,32 @@ const SearchPage = () => {
     grouped.library.length;
   const isEmpty = hasSearched && !isLoading && totalHits === 0;
   const isPlaylistFilter = filter === 'playlist';
+
+  // Suggestion strip: top 5 YTM autocompletes (excluding the current query).
+  // The first hit also drives the "Did you mean?" banner when the local
+  // Levenshtein fallback wouldn't otherwise show one.
+  const lowerQuery = debouncedQuery.toLowerCase();
+  const filteredSuggestions = useMemo(() => {
+    const seen = new Set();
+    const out = [];
+    for (const raw of serverSuggestions) {
+      const trimmed = String(raw || '').trim();
+      if (!trimmed) continue;
+      const key = trimmed.toLowerCase();
+      if (key === lowerQuery) continue;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(trimmed);
+      if (out.length >= 5) break;
+    }
+    return out;
+  }, [serverSuggestions, lowerQuery]);
+
+  const topResultScore = grouped.top?._score ?? 0;
+  const showSuggestionStrip =
+    filteredSuggestions.length > 0 &&
+    (totalHits === 0 || topResultScore < 220);
+  const didYouMean = grouped.didYouMean || filteredSuggestions[0] || null;
   const librarySourceLabel = (entry) => {
     const sources = entry?._librarySources || [];
     if (sources.includes('favorite') && sources.includes('history')) {
@@ -326,8 +385,10 @@ const SearchPage = () => {
       onClick={() => playTrack(toTrack(track))}
       onMouseEnter={() => setSelectedIdx(globalIndex)}
       className={cn(
-        'group flex items-center gap-4 p-3 cursor-pointer border-b border-white/[0.05] last:border-0 transition-colors',
-        selectedIdx === globalIndex ? 'bg-track/[0.10]' : 'hover:bg-white/[0.035]',
+        'group flex items-center gap-4 p-3 cursor-pointer border-b border-white/[0.05] last:border-0',
+        // Active row keeps its accent fill; idle rows pick up the
+        // universal `.row-hover` slide-in.
+        selectedIdx === globalIndex ? 'bg-track/[0.10]' : 'row-hover',
       )}
     >
       <div className="relative w-12 h-12 flex-shrink-0">
@@ -350,22 +411,23 @@ const SearchPage = () => {
             selectedIdx === globalIndex ? 'text-accent' : 'text-ink',
           )}
         >
-          {track.title}
+          <SearchHighlight text={track.title} tokens={highlightTokens} />
         </p>
         <p className="font-editorial text-[12.5px] text-ink-3 truncate mt-0.5">
           by{' '}
           {(() => {
             const slug = artistSlugOf(track);
+            const artistName = track.artist || 'Unknown artist';
             return isUsableArtistSlug(slug) ? (
               <Link
                 to={`/artist/${slug}`}
                 onClick={(e) => e.stopPropagation()}
                 className="hover:text-ink hover:underline underline-offset-2 focus-ring rounded-sharp"
               >
-                {track.artist || 'Unknown artist'}
+                <SearchHighlight text={artistName} tokens={highlightTokens} />
               </Link>
             ) : (
-              track.artist || 'Unknown artist'
+              <SearchHighlight text={artistName} tokens={highlightTokens} />
             );
           })()}
         </p>
@@ -407,7 +469,7 @@ const SearchPage = () => {
           <span className="w-6 h-px bg-track" />
           The index
         </p>
-        <h1 className="font-display text-display-xl text-ink leading-[0.92] mask-rise">
+        <h1 className="font-display text-display-xl text-ink leading-[0.92] mask-rise headline-balance">
           <span>
             What do you{' '}
             <em className="font-editorial text-track not-italic">want to hear?</em>
@@ -425,16 +487,30 @@ const SearchPage = () => {
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Songs, artists, albums, lyrics…"
           leftIcon={<SearchIcon className="w-4 h-4" />}
-          rightIcon={query ? (
-            <button
-              type="button"
-              onClick={() => { setQuery(''); inputRef.current?.focus(); }}
-              className="text-ink-3 hover:text-ink focus-ring rounded-sharp p-1"
-              aria-label="Clear"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          ) : null}
+          rightIcon={
+            <div className="flex items-center gap-1.5">
+              <VoiceSearchButton
+                size="sm"
+                onTranscript={(text) => {
+                  setQuery(text);
+                  inputRef.current?.focus();
+                }}
+              />
+              {query ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuery('');
+                    inputRef.current?.focus();
+                  }}
+                  className="text-ink-3 hover:text-ink focus-ring rounded-sharp p-1"
+                  aria-label="Clear"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              ) : null}
+            </div>
+          }
         />
       </motion.div>
 
@@ -463,7 +539,12 @@ const SearchPage = () => {
       </div>
 
       <div className="mb-7 flex flex-wrap items-center gap-1.5">
-        <span className="mr-1 text-[10px] font-mono uppercase tracking-[0.14em] text-ink-4">
+        <SearchFilters
+          query={query}
+          parsed={parsedQuery}
+          onChange={(next) => setQuery(next)}
+        />
+        <span className="ml-2 mr-1 text-[10px] font-mono uppercase tracking-[0.14em] text-ink-4">
           Power operators
         </span>
         {OPERATOR_HINTS.map((hint) => (
@@ -476,6 +557,14 @@ const SearchPage = () => {
             {hint.label}
           </button>
         ))}
+      </div>
+
+      <div className="mb-7 empty:hidden">
+        <ActiveFilterChips
+          query={query}
+          parsed={parsedQuery}
+          onChange={(next) => setQuery(next)}
+        />
       </div>
 
       <AnimatePresence mode="wait">
@@ -519,13 +608,11 @@ const SearchPage = () => {
         ) : showRecents ? (
           <motion.div key="recents" {...fadeUp}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-4">
-                Recent searches
-              </h2>
+              <h2 className="eyebrow">Recent searches</h2>
               <button
                 type="button"
                 onClick={() => { setRecents([]); writeRecents([]); }}
-                className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-3 hover:text-ink focus-ring rounded-sharp px-2 py-1"
+                className="eyebrow hover:text-ink focus-ring rounded-sharp px-2 py-1 transition-colors"
               >
                 Clear all
               </button>
@@ -560,12 +647,34 @@ const SearchPage = () => {
             </div>
           </motion.div>
         ) : isEmpty ? (
-          <motion.div key="empty" {...fadeUp}>
+          <motion.div key="empty" {...fadeUp} className="space-y-5">
             <EmptyState
               icon={SearchIcon}
               title={`No results for "${query}"`}
               description="Try a different spelling, or broaden your filter."
             />
+            {filteredSuggestions.length > 0 ? (
+              <div>
+                <p className="eyebrow mb-3">Did you mean</p>
+
+                <div className="flex flex-wrap gap-2">
+                  {filteredSuggestions.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => {
+                        setQuery(s);
+                        inputRef.current?.focus();
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-sharp border border-white/[0.10] bg-white/[0.02] text-[13px] text-ink-2 hover:text-ink hover:bg-white/[0.06] hover:border-white/[0.22] transition-colors focus-ring"
+                    >
+                      <SearchIcon className="w-3 h-3 text-ink-3" />
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </motion.div>
         ) : hasSearched ? (
           <motion.div
@@ -575,38 +684,56 @@ const SearchPage = () => {
             animate="animate"
             className="space-y-12"
           >
-            {grouped.didYouMean ? (
+            {didYouMean ? (
               <motion.div variants={fadeUp} className="rounded-sharp border border-track/25 bg-track/[0.08] px-4 py-3">
                 <p className="text-[13px] text-ink-2">
                   Did you mean{' '}
                   <button
                     type="button"
                     onClick={() => {
-                      setQuery(grouped.didYouMean);
+                      setQuery(didYouMean);
                       inputRef.current?.focus();
                     }}
                     className="text-accent hover:underline underline-offset-2 focus-ring rounded-sharp"
                   >
-                    {grouped.didYouMean}
+                    {didYouMean}
                   </button>
                   ?
                 </p>
               </motion.div>
             ) : null}
 
+            {showSuggestionStrip ? (
+              <motion.div variants={fadeUp} className="flex flex-wrap items-center gap-2">
+                <span className="eyebrow mr-1">Try</span>
+
+                {filteredSuggestions.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => {
+                      setQuery(s);
+                      inputRef.current?.focus();
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-sharp border border-white/[0.10] bg-white/[0.02] text-[12.5px] text-ink-2 hover:text-ink hover:bg-white/[0.06] hover:border-white/[0.22] transition-colors focus-ring"
+                  >
+                    <SearchIcon className="w-3 h-3 text-ink-3" />
+                    {s}
+                  </button>
+                ))}
+              </motion.div>
+            ) : null}
+
             {(filter === 'all' || filter === 'song') && grouped.library.length > 0 ? (
               <div>
-                <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-4 mb-3 flex items-center gap-2">
-                  <span className="w-4 h-px bg-ink-4/40" />
-                  From your library
-                </h2>
+                <SectionRule ordinal="01" label="From your library" className="mb-3 mt-0" />
                 <div className="rounded-sharp border border-white/[0.06] bg-surface-2/35 backdrop-blur-md overflow-hidden">
                   {grouped.library.map((r, i) => (
                     <motion.div
                       variants={fadeUp}
                       key={`lib-${r.id || r.videoId}-${i}`}
                       onClick={() => playTrack(toTrack(r))}
-                      className="group flex items-center gap-4 p-3 cursor-pointer border-b border-white/[0.05] last:border-0 transition-colors hover:bg-white/[0.035]"
+                      className="group flex items-center gap-4 p-3 cursor-pointer border-b border-white/[0.05] last:border-0 row-hover"
                     >
                       <div className="relative w-11 h-11 flex-shrink-0">
                         <SmartImage
@@ -622,7 +749,9 @@ const SearchPage = () => {
                         </div>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[14px] font-medium truncate text-ink">{r.title}</p>
+                        <p className="text-[14px] font-medium truncate text-ink">
+                          <SearchHighlight text={r.title} tokens={highlightTokens} />
+                        </p>
                         <p className="text-[12px] text-ink-3 truncate mt-0.5">
                           {librarySourceLabel(r)}
                         </p>
@@ -641,12 +770,11 @@ const SearchPage = () => {
               <div className={cn('grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8', songs.length === 0 && 'lg:grid-cols-1')}>
                 {topResult ? (
                   <motion.div variants={fadeUp} className="lg:col-span-1">
-                    <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-4 mb-3 flex items-center gap-2">
-                      <span className="w-4 h-px bg-ink-4/40" />
-                      Top result
-                    </h2>
+                    <SectionRule ordinal="02" label="Top result" tone="accent" className="mb-3 mt-0" />
+
                     <TopResultCard
                       result={topResult}
+                      tokens={highlightTokens}
                       onPlay={() =>
                         topResult.type === 'song' || !topResult.type
                           ? playTrack(toTrack(topResult))
@@ -658,33 +786,33 @@ const SearchPage = () => {
                       }
                       onNavigate={(to) => navigate(to)}
                     />
+                    <RelatedRail topResult={topResult} />
                   </motion.div>
                 ) : null}
 
                 {songs.length > 0 ? (
                   <div className="lg:col-span-2 min-w-0 space-y-5">
-                    <div className="flex items-center justify-between mb-3">
-                      <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-4 flex items-center gap-2">
-                        <span className="w-4 h-px bg-ink-4/40" />
-                        Songs
-                      </h2>
-                      <div className="flex items-center gap-3 text-[11px] text-ink-4">
-                        <span className="hidden md:inline-flex items-center gap-1">
-                          <Kbd keys={['\u2191']} />
-                          <Kbd keys={['\u2193']} />
-                          <span className="font-editorial italic text-ink-3 ml-1">navigate</span>
-                        </span>
-                        <span className="hidden md:inline-flex items-center gap-1">
-                          <Kbd keys={['Enter']} />
-                          <span className="font-editorial italic text-ink-3 ml-1">play</span>
-                        </span>
-                      </div>
-                    </div>
+                    <SectionRule
+                      ordinal="03"
+                      label="Songs"
+                      className="mb-3 mt-0"
+                      trailing={
+                        <div className="hidden md:flex items-center gap-3 text-[11px] text-ink-4">
+                          <span className="inline-flex items-center gap-1">
+                            <Kbd keys={['\u2191']} />
+                            <Kbd keys={['\u2193']} />
+                            <span className="font-editorial italic text-ink-3 ml-1">navigate</span>
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <Kbd keys={['Enter']} />
+                            <span className="font-editorial italic text-ink-3 ml-1">play</span>
+                          </span>
+                        </div>
+                      }
+                    />
                     {exactSongs.length > 0 ? (
                       <div>
-                        <h3 className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-4 mb-2 px-1">
-                          Exact matches
-                        </h3>
+                        <h3 className="eyebrow mb-2 px-1">Exact matches</h3>
                         <div className="rounded-sharp border border-white/[0.06] bg-surface-2/40 backdrop-blur-md overflow-hidden">
                           {exactSongs.map((song, i) => renderSongRow(song, i))}
                         </div>
@@ -693,9 +821,7 @@ const SearchPage = () => {
 
                     {relatedSongs.length > 0 ? (
                       <div>
-                        <h3 className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-4 mb-2 px-1">
-                          Related songs
-                        </h3>
+                        <h3 className="eyebrow mb-2 px-1">Related songs</h3>
                         <div className="rounded-sharp border border-white/[0.06] bg-surface-2/35 backdrop-blur-md overflow-hidden">
                           {relatedSongs.map((song, i) => renderSongRow(song, exactSongs.length + i))}
                         </div>
@@ -709,10 +835,8 @@ const SearchPage = () => {
             {/* Artists */}
             {grouped.artists.length > 0 ? (
               <div>
-                <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-4 mb-4 flex items-center gap-2">
-                  <span className="w-4 h-px bg-ink-4/40" />
-                  Artists
-                </h2>
+                <SectionRule ordinal="04" label="Artists" className="mb-4 mt-0" />
+
                 <motion.div
                   variants={staggerChildren(0.03)}
                   initial="initial"
@@ -728,7 +852,7 @@ const SearchPage = () => {
                           aria-disabled={!isUsableArtistSlug(slug)}
                           onMouseEnter={() => prefetchArtistRoute(slug)}
                           onFocus={() => prefetchArtistRoute(slug)}
-                          className="group block text-center rounded-sharp p-4 hover:bg-white/[0.03] transition-colors focus-ring"
+                          className="group block text-center rounded-sharp p-4 hover:bg-white/[0.03] transition-colors focus-ring lift press"
                         >
                           <SmartImage
                             src={a.thumbnail}
@@ -738,7 +862,9 @@ const SearchPage = () => {
                             className="w-full aspect-square ring-1 ring-white/[0.08] mb-3 group-hover:ring-track/50 transition-all shadow-elev-1 group-hover:shadow-elev-3"
                             imgClassName="object-cover"
                           />
-                          <p className="text-[13.5px] font-medium truncate text-ink">{a.name}</p>
+                          <p className="text-[13.5px] font-medium truncate text-ink">
+                            <SearchHighlight text={a.name} tokens={highlightTokens} />
+                          </p>
                           <p className="font-editorial text-[11.5px] text-ink-3">Artist</p>
                         </Link>
                       </motion.div>
@@ -751,10 +877,8 @@ const SearchPage = () => {
             {/* Albums */}
             {grouped.albums.length > 0 ? (
               <div>
-                <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-4 mb-4 flex items-center gap-2">
-                  <span className="w-4 h-px bg-ink-4/40" />
-                  Albums
-                </h2>
+                <SectionRule ordinal="05" label="Albums" className="mb-4 mt-0" />
+
                 <motion.div
                   variants={staggerChildren(0.03)}
                   initial="initial"
@@ -767,7 +891,7 @@ const SearchPage = () => {
                         to={`/album/${a.id}?from=search&autoplay=1`}
                         onMouseEnter={() => prefetchAlbumRoute(a.id)}
                         onFocus={() => prefetchAlbumRoute(a.id)}
-                        className="group block rounded-sharp overflow-hidden focus-ring border border-white/[0.06] hover:border-white/[0.18] transition-colors"
+                        className="group block rounded-sharp overflow-hidden focus-ring border border-white/[0.06] hover:border-white/[0.18] transition-colors lift press"
                       >
                         <div className="aspect-square overflow-hidden">
                           <SmartImage
@@ -780,9 +904,13 @@ const SearchPage = () => {
                           />
                         </div>
                         <div className="p-3">
-                          <p className="text-[13.5px] font-medium truncate text-ink">{a.title}</p>
+                          <p className="text-[13.5px] font-medium truncate text-ink">
+                            <SearchHighlight text={a.title} tokens={highlightTokens} />
+                          </p>
                           <p className="font-editorial text-[12px] text-ink-3 truncate mt-0.5">
-                            by {a.artist}{a.year ? ` \u00b7 ${a.year}` : ''}
+                            by{' '}
+                            <SearchHighlight text={a.artist || ''} tokens={highlightTokens} />
+                            {a.year ? ` \u00b7 ${a.year}` : ''}
                           </p>
                         </div>
                       </Link>
@@ -806,7 +934,7 @@ const SearchPage = () => {
   );
 };
 
-const TopResultCard = ({ result, onPlay, onNavigate }) => {
+const TopResultCard = ({ result, tokens = [], onPlay, onNavigate }) => {
   const isSong = result.type === 'song' || !result.type;
   const isArtist = result.type === 'artist';
   const isAlbum = result.type === 'album';
@@ -825,7 +953,7 @@ const TopResultCard = ({ result, onPlay, onNavigate }) => {
         if (target && !isSong) onNavigate(target);
         else onPlay();
       }}
-      className="relative group block w-full text-left p-5 rounded-sharp bg-surface-2/40 backdrop-blur-md border border-white/[0.06] hover:border-white/[0.18] transition-colors focus-ring shadow-elev-2 hover:shadow-elev-3"
+      className="relative group block w-full text-left p-5 rounded-sharp bg-surface-2/40 backdrop-blur-md border border-white/[0.06] hover:border-white/[0.18] transition-colors focus-ring shadow-elev-2 hover:shadow-elev-3 lift press"
     >
       <SmartImage
         src={thumbnail}
@@ -835,13 +963,13 @@ const TopResultCard = ({ result, onPlay, onNavigate }) => {
         className={`w-24 h-24 shadow-elev-3 mb-4 ring-1 ring-white/10`}
         imgClassName="object-cover"
       />
-      <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-4 mb-2">
-        {subtype}
+      <p className="eyebrow mb-2">{subtype}</p>
+      <p className="font-display text-2xl text-ink leading-tight truncate headline-balance">
+        <SearchHighlight text={title} tokens={tokens} />
       </p>
-      <p className="font-display text-2xl text-ink leading-tight truncate">{title}</p>
       {!isArtist ? (
         <p className="font-editorial text-[13px] text-ink-3 mt-1 truncate">
-          by {result.artist}
+          by <SearchHighlight text={result.artist || ''} tokens={tokens} />
         </p>
       ) : null}
       {isSong ? (

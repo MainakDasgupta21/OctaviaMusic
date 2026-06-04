@@ -155,8 +155,19 @@ const LyricsPanel = () => {
               onClick={() => seekTo(line.time)}
               animate={{
                 opacity: isActive ? 1 : isPast ? 0.22 : isAdjacent ? 0.55 : 0.35,
+                scale: isActive ? 1.04 : 1,
               }}
-              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              style={{
+                // Soft ember glow on the active line — a gentle text-shadow
+                // tinted by the album accent. Quietly turned off for the
+                // non-active rows. Pairs with the 1.04× scale above so the
+                // current line truly "reads" as the focal point.
+                textShadow: isActive
+                  ? '0 0 14px hsl(var(--track-accent) / 0.45), 0 0 30px hsl(var(--track-accent) / 0.20)'
+                  : undefined,
+                transformOrigin: 'left center',
+              }}
               className={cn(
                 'block w-full text-left px-2 py-2 rounded-lg font-display tracking-tight leading-[1.18] focus-ring transition-colors',
                 isActive

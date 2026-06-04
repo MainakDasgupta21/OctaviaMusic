@@ -7,11 +7,13 @@ import { cn } from '@/lib/utils';
 const button = cva(
   [
     'inline-flex items-center justify-center gap-2 select-none whitespace-nowrap',
-    'font-medium rounded-full focus-ring',
+    // Pick up the new premium focus-ring language for every variant.
+    'font-medium rounded-full focus-premium',
     'transition-[transform,background,box-shadow,opacity,border-color]',
     'duration-short ease-emphasis',
-    'disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100',
-    'active:scale-[0.98]',
+    // Standardised disabled state — visible but unmistakably inert.
+    'disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none disabled:active:scale-100',
+    'active:scale-[0.985]',
   ],
   {
     variants: {
@@ -22,6 +24,18 @@ const button = cva(
           'text-track-fg shadow-accent ring-1 ring-white/15',
           'bg-[radial-gradient(circle_at_30%_25%,hsl(var(--ink-primary)/0.22),transparent_55%),linear-gradient(135deg,hsl(var(--track-accent)),hsl(var(--track-accent-strong)))]',
           'hover:brightness-[1.06] hover:ring-white/25',
+        ],
+        // PREMIUM — the canonical hero CTA. Solid base + rim-light +
+        // an inner radial glow that "lifts" the surface. Used for the
+        // primary call-to-action on hero pages.
+        premium: [
+          'text-track-fg ring-1 ring-white/20',
+          'bg-[radial-gradient(120%_80%_at_30%_15%,hsl(var(--ink-primary)/0.28),transparent_55%),linear-gradient(135deg,hsl(var(--track-accent)),hsl(var(--track-accent-strong)))]',
+          // Rim-light + accent shadow + inner glow stack. The inset 1px
+          // white is the "premium" tell — every world-class CTA has one.
+          'shadow-[inset_0_1px_0_hsl(var(--ink-primary)/0.32),0_10px_28px_-6px_hsl(var(--track-accent)/0.55),0_0_0_1px_hsl(var(--ink-primary)/0.10)]',
+          'hover:brightness-[1.08] hover:ring-white/30',
+          'hover:shadow-[inset_0_1px_0_hsl(var(--ink-primary)/0.38),0_14px_36px_-6px_hsl(var(--track-accent)/0.70),0_0_0_1px_hsl(var(--ink-primary)/0.14)]',
         ],
         ghost: [
           'bg-transparent text-ink hover:bg-white/[0.04]',

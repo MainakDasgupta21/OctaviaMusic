@@ -35,10 +35,17 @@ import { useSettings } from '@/contexts/SettingsContext';
 import { usePlaylists } from '@/contexts/PlaylistContext';
 import { usePlayer } from '@/contexts/PlayerContext';
 import { useInstantSearch } from '@/hooks/use-instant-search';
+import { useSearchSuggestions } from '@/hooks/use-search-suggestions';
+import { useTrendingSearches } from '@/hooks/use-trending-searches';
 import { useHoverPrefetch } from '@/hooks/use-route-prefetch';
 import { normalize } from '@/lib/search-rank';
 import { artistSlugFromName, artistSlugOf, isUsableArtistSlug } from '@/lib/slug';
 import SmartImage from '@/components/SmartImage';
+import TrendingChips from '@/components/search/TrendingChips';
+import SearchHighlight from '@/components/SearchHighlight';
+import VoiceSearchButton from '@/components/search/VoiceSearchButton';
+import { withViewTransition } from '@/lib/view-transition';
+import { useSounds } from '@/contexts/SoundContext';
 import { cn } from '@/lib/utils';
 
 const isMac =
@@ -144,11 +151,16 @@ const SearchSection = ({ title, children }) => (
 );
 
 const TopBar = () => {
-  const navigate = useNavigate();
+  const rawNavigate = useNavigate();
+  const navigate = useCallback(
+    (to, opts) => withViewTransition(() => rawNavigate(to, opts)),
+    [rawNavigate],
+  );
   const location = useLocation();
   const { searchInputRef, openPalette, openMobileDrawer } = useUI();
   const { settings } = useSettings();
   const { isPlaying, currentTrack, playTrack, addToQueue } = usePlayer();
+  const { play: playSfx } = useSounds();
   const [searchValue, setSearchValue] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
 
@@ -193,6 +205,7 @@ const TopBar = () => {
   const {
     status: instantStatus,
     results: instantResults,
+    query: parsedSearchQuery,
     flatResults,
     selected,
     setSelectedIndex,
@@ -204,6 +217,45 @@ const TopBar = () => {
     limit: 30,
     onPick: runSearchRow,
   });
+
+  const highlightTokens = parsedSearchQuery?.tokens || [];
+
+  // Real YTM autocomplete. We only render chips when the main results look
+  // weak (low top-score, no top item, or status='empty'); strong matches
+  // shouldn't push the actual results down the list.
+  const { suggestions: rawSuggestions } = useSearchSuggestions(searchValue, {
+    enabled: hasSearchValue,
+  });
+  const lowerQuery = searchValue.trim().toLowerCase();
+  const suggestionsList = useMemo(() => {
+    const seen = new Set();
+    const out = [];
+    for (const raw of rawSuggestions) {
+      const trimmed = String(raw || '').trim();
+      if (!trimmed) continue;
+      const key = trimmed.toLowerCase();
+      // Drop the suggestion that exactly matches the input (it's noise).
+      if (key === lowerQuery) continue;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(trimmed);
+      if (out.length >= 4) break;
+    }
+    return out;
+  }, [rawSuggestions, lowerQuery]);
+
+  const topScore = instantResults.top?._score ?? 0;
+  const showSuggestions =
+    suggestionsList.length > 0 &&
+    (instantStatus === 'empty' || topScore < 220 || !instantResults.top);
+
+  // Trending strip — surfaced when the input is open & empty so users
+  // discover hot content without typing first. Lazy-fetches the cached
+  // weekly charts on first focus.
+  const { terms: trendingTerms } = useTrendingSearches({
+    enabled: searchOpen && !hasSearchValue,
+  });
+  const showTrending = !hasSearchValue && trendingTerms.length > 0;
 
   const selectedKey = selected?.key || null;
 
@@ -254,7 +306,10 @@ const TopBar = () => {
     [indexByKey, setSelectedIndex, prefetchAlbumRoute, prefetchArtistRoute],
   );
 
-  const isSearchPopoverOpen = searchOpen && hasSearchValue;
+  // The popover surfaces in two modes:
+  //   1. With a search value — shows live results + suggestions
+  //   2. Empty + focused — shows the trending strip (when we have data)
+  const isSearchPopoverOpen = searchOpen && (hasSearchValue || showTrending);
 
   const handleSubmit = useCallback(
     (e) => {
@@ -399,7 +454,7 @@ const TopBar = () => {
 
           <Popover
             open={isSearchPopoverOpen}
-            onOpenChange={(open) => setSearchOpen(open && hasSearchValue)}
+            onOpenChange={(open) => setSearchOpen(open)}
           >
             <PopoverTrigger asChild>
               <div className="hidden md:block relative group">
@@ -408,39 +463,71 @@ const TopBar = () => {
                   ref={searchInputRef}
                   type="search"
                   value={searchValue}
-                  onFocus={() => {
-                    if (searchValue.trim()) setSearchOpen(true);
-                  }}
+                  onFocus={() => setSearchOpen(true)}
                   onChange={(e) => {
                     const next = e.target.value;
                     setSearchValue(next);
-                    setSearchOpen(Boolean(next.trim()));
+                    setSearchOpen(true);
                   }}
                   onKeyDown={handleInputKeyDown}
                   placeholder="Search songs, artists, albums…"
                   className={cn(
-                    'w-full h-10 pl-10 pr-24 rounded-sharp bg-transparent',
+                    'w-full h-10 pl-10 pr-32 rounded-sharp bg-transparent',
                     'border border-white/[0.10] hover:border-white/[0.16]',
                     'text-[13px] text-ink placeholder:text-ink-4 placeholder:italic placeholder:font-editorial',
+                    // On focus the field gains a subtle inset shadow ("sunken
+                    // surface") + an accent rim + a soft glow. Pairs with
+                    // the spectrum bar that fades in just below.
                     'focus:outline-none focus:border-track/60 focus:bg-surface-2/40',
+                    'focus:[box-shadow:inset_0_1px_2px_rgba(0,0,0,0.22),0_0_0_3px_hsl(var(--track-accent)/0.10)]',
                     'transition-[border-color,background,box-shadow] duration-short',
                   )}
                   aria-label="Search"
                 />
-                <button
-                  type="button"
-                  onClick={openPalette}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center gap-1 px-2 py-1 rounded-sharp border border-white/[0.10] bg-surface-0/40 text-[10px] font-medium text-ink-3 font-mono tracking-wider hover:text-ink hover:bg-surface-0/80 hover:border-white/[0.18] transition-colors focus-ring"
-                  aria-label="Open command palette"
-                >
-                  {isMac ? (
-                    <>
-                      <Command className="w-3 h-3" /> K
-                    </>
-                  ) : (
-                    'CTRL K'
+                {/* Focus-only spectrum bar — appears under the field when active,
+                    giving the input a "live mic" feel without changing layout. */}
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    'pointer-events-none absolute left-10 right-32 bottom-[3px] h-2',
+                    'opacity-0 group-focus-within:opacity-100 transition-opacity duration-med',
                   )}
-                </button>
+                >
+                  <span className="search-spectrum w-full">
+                    <span /><span /><span /><span /><span /><span /><span />
+                  </span>
+                </span>
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                  <VoiceSearchButton
+                    size="sm"
+                    onTranscript={(text) => {
+                      setSearchValue(text);
+                      setSearchOpen(true);
+                    }}
+                  />
+                  {/* Sticker-style "/" key hint — soft tilt + bone shadow */}
+                  <span
+                    aria-hidden="true"
+                    className="sticker hidden xl:inline-flex h-6 px-2 items-center justify-center rounded-md border border-white/[0.14] bg-surface-0/60 text-[10px] font-mono tracking-widest text-ink-3"
+                    title="Press / to focus search"
+                  >
+                    /
+                  </span>
+                  <button
+                    type="button"
+                    onClick={openPalette}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-sharp border border-white/[0.10] bg-surface-0/40 text-[10px] font-medium text-ink-3 font-mono tracking-wider hover:text-ink hover:bg-surface-0/80 hover:border-white/[0.18] transition-colors focus-ring"
+                    aria-label="Open command palette"
+                  >
+                    {isMac ? (
+                      <>
+                        <Command className="w-3 h-3" /> K
+                      </>
+                    ) : (
+                      'CTRL K'
+                    )}
+                  </button>
+                </div>
               </div>
             </PopoverTrigger>
 
@@ -452,7 +539,17 @@ const TopBar = () => {
               className="w-[min(44rem,calc(100vw-2rem))] p-0 rounded-sharp border border-white/[0.10] bg-surface-3/95 backdrop-blur-2xl shadow-elev-5"
             >
               <div className="max-h-[70vh] overflow-y-auto custom-scrollbar p-2 space-y-2">
-                {instantStatus === 'loading' ? (
+                {!hasSearchValue && showTrending ? (
+                  <TrendingChips
+                    terms={trendingTerms}
+                    onPick={(label) => {
+                      setSearchValue(label);
+                      setSearchOpen(true);
+                    }}
+                  />
+                ) : null}
+
+                {instantStatus === 'loading' && hasSearchValue ? (
                   <div className="h-28 flex items-center justify-center text-ink-3 text-[13px] gap-2">
                     <Loader2 className="w-4 h-4 animate-spin" />
                     Searching…
@@ -461,8 +558,26 @@ const TopBar = () => {
                   <div className="h-28 flex items-center justify-center text-ink-3 text-[13px]">
                     Search is temporarily unavailable.
                   </div>
-                ) : (
+                ) : !hasSearchValue ? null : (
                   <>
+                    {showSuggestions ? (
+                      <SearchSection title="Suggestions">
+                        <div className="flex flex-wrap gap-1.5 px-1 pt-0.5 pb-1">
+                          {suggestionsList.map((s) => (
+                            <button
+                              key={s}
+                              type="button"
+                              onClick={() => setSearchValue(s)}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-sharp border border-white/[0.10] bg-white/[0.02] text-[12px] text-ink-2 hover:text-ink hover:bg-white/[0.06] hover:border-white/[0.22] transition-colors focus-ring"
+                            >
+                              <SearchIcon className="w-3 h-3 text-ink-3" />
+                              {s}
+                            </button>
+                          ))}
+                        </div>
+                      </SearchSection>
+                    ) : null}
+
                     {topItem ? (
                       <SearchSection title="Top result">
                         {(() => {
@@ -493,11 +608,19 @@ const TopBar = () => {
                               />
                               <div className="flex-1 min-w-0">
                                 <p className="text-[14px] font-medium truncate text-ink">
-                                  {topItem.name || topItem.title}
+                                  <SearchHighlight
+                                    text={topItem.name || topItem.title}
+                                    tokens={highlightTokens}
+                                  />
                                 </p>
                                 <p className="text-[12px] text-ink-3 truncate mt-0.5">
                                   {typeLabel}
-                                  {kind !== 'artist' && topItem.artist ? ` · ${topItem.artist}` : ''}
+                                  {kind !== 'artist' && topItem.artist ? (
+                                    <>
+                                      {' · '}
+                                      <SearchHighlight text={topItem.artist} tokens={highlightTokens} />
+                                    </>
+                                  ) : null}
                                 </p>
                               </div>
                               {kind === 'song' ? (
@@ -539,10 +662,13 @@ const TopBar = () => {
                               />
                               <div className="flex-1 min-w-0">
                                 <p className="text-[13.5px] font-medium truncate text-ink">
-                                  {item.title}
+                                  <SearchHighlight text={item.title} tokens={highlightTokens} />
                                 </p>
                                 <p className="text-[12px] text-ink-3 truncate mt-0.5">
-                                  {item.artist || 'Unknown artist'}
+                                  <SearchHighlight
+                                    text={item.artist || 'Unknown artist'}
+                                    tokens={highlightTokens}
+                                  />
                                 </p>
                               </div>
                             </button>
@@ -577,10 +703,13 @@ const TopBar = () => {
                               />
                               <div className="flex-1 min-w-0">
                                 <p className="text-[13.5px] font-medium truncate text-ink">
-                                  {item.title}
+                                  <SearchHighlight text={item.title} tokens={highlightTokens} />
                                 </p>
                                 <p className="text-[12px] text-ink-3 truncate mt-0.5">
-                                  {item.artist || 'Unknown artist'}
+                                  <SearchHighlight
+                                    text={item.artist || 'Unknown artist'}
+                                    tokens={highlightTokens}
+                                  />
                                 </p>
                               </div>
                             </button>
@@ -615,7 +744,7 @@ const TopBar = () => {
                               />
                               <div className="flex-1 min-w-0">
                                 <p className="text-[13.5px] font-medium truncate text-ink">
-                                  {item.name}
+                                  <SearchHighlight text={item.name} tokens={highlightTokens} />
                                 </p>
                                 <p className="text-[12px] text-ink-3 mt-0.5">Artist</p>
                               </div>
@@ -651,10 +780,13 @@ const TopBar = () => {
                               />
                               <div className="flex-1 min-w-0">
                                 <p className="text-[13.5px] font-medium truncate text-ink">
-                                  {item.title}
+                                  <SearchHighlight text={item.title} tokens={highlightTokens} />
                                 </p>
                                 <p className="text-[12px] text-ink-3 truncate mt-0.5">
-                                  {item.artist || 'Unknown artist'}
+                                  <SearchHighlight
+                                    text={item.artist || 'Unknown artist'}
+                                    tokens={highlightTokens}
+                                  />
                                 </p>
                               </div>
                             </button>
@@ -691,10 +823,13 @@ const TopBar = () => {
                               />
                               <div className="flex-1 min-w-0">
                                 <p className="text-[13px] font-medium truncate text-ink">
-                                  {item.title}
+                                  <SearchHighlight text={item.title} tokens={highlightTokens} />
                                 </p>
                                 <p className="text-[11.5px] text-ink-3 truncate mt-0.5">
-                                  {item.artist || 'Unknown artist'}
+                                  <SearchHighlight
+                                    text={item.artist || 'Unknown artist'}
+                                    tokens={highlightTokens}
+                                  />
                                 </p>
                               </div>
                             </button>
@@ -704,8 +839,13 @@ const TopBar = () => {
                     ) : null}
 
                     {instantStatus === 'empty' ? (
-                      <div className="h-24 flex items-center justify-center text-ink-3 text-[13px]">
-                        No results found.
+                      <div className="px-3 py-5 text-center text-ink-3 text-[13px] space-y-2">
+                        <p>No results found.</p>
+                        {suggestionsList.length > 0 ? (
+                          <p className="text-[11.5px] text-ink-4">
+                            Pick a suggestion above to refine your search.
+                          </p>
+                        ) : null}
                       </div>
                     ) : null}
                   </>
@@ -754,14 +894,14 @@ const TopBar = () => {
 
         <div className="flex-1 md:hidden" />
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 type="button"
                 onClick={() => navigate('/favorites')}
                 className={cn(
-                  'hidden sm:flex p-2 rounded-sharp transition-colors focus-ring',
+                  'hidden sm:flex p-2 rounded-sharp transition-colors focus-ring press',
                   location.pathname === '/favorites'
                     ? 'text-accent'
                     : 'text-ink-3 hover:text-ink hover:bg-white/[0.04]',
@@ -777,7 +917,7 @@ const TopBar = () => {
             <TooltipTrigger asChild>
               <button
                 type="button"
-                className="hidden sm:flex p-2 rounded-sharp text-ink-3 hover:text-ink hover:bg-white/[0.04] transition-colors focus-ring relative"
+                className="hidden sm:flex p-2 rounded-sharp text-ink-3 hover:text-ink hover:bg-white/[0.04] transition-colors focus-ring press relative"
                 aria-label="Notifications"
               >
                 <Bell className="w-[18px] h-[18px]" strokeWidth={1.75} />
@@ -793,7 +933,7 @@ const TopBar = () => {
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="flex items-center gap-2.5 pl-1 pr-2.5 py-1 ml-1 rounded-sharp hover:bg-white/[0.04] transition-colors focus-ring border border-transparent hover:border-white/[0.06]"
+                className="flex items-center gap-2.5 pl-1 pr-2.5 py-1 ml-1 rounded-sharp hover:bg-white/[0.04] transition-colors focus-ring press border border-transparent hover:border-white/[0.06]"
                 aria-label="Account menu"
               >
                 <span

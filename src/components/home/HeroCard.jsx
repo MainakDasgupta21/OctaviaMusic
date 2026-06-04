@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight, Play } from 'lucide-react';
@@ -6,7 +7,17 @@ import Skeleton from '@/components/ui-v2/Skeleton';
 import SmartImage from '@/components/SmartImage';
 import { fadeUp } from '@/design/motion';
 
-const HeroCard = ({ feature, issueNum, onPlay, isPlayable }) => (
+// Split the feature title into per-word spans so .kinetic-headline can stagger
+// each word in via the --i CSS custom property. Whitespace-only fragments are
+// preserved as plain text nodes to keep word breaks visually correct.
+const splitWords = (text) => {
+  if (typeof text !== 'string' || text.length === 0) return [];
+  return text.split(/(\s+)/).filter(Boolean);
+};
+
+const HeroCard = ({ feature, issueNum, onPlay, isPlayable }) => {
+  const words = useMemo(() => splitWords(feature?.title || ''), [feature?.title]);
+  return (
   <motion.section
     {...fadeUp}
     className="relative overflow-hidden rounded-soft ring-1 ring-white/[0.08] shadow-elev-5"
@@ -20,6 +31,7 @@ const HeroCard = ({ feature, issueNum, onPlay, isPlayable }) => (
       rounded="rounded-none"
       className="absolute inset-0 w-full h-full"
       imgClassName="scale-105"
+      interactive
     />
 
     <div className="absolute inset-0 bg-gradient-to-r from-background via-background/82 via-50% to-transparent" />
@@ -50,26 +62,40 @@ const HeroCard = ({ feature, issueNum, onPlay, isPlayable }) => (
       <div className="flex items-center gap-3">
         <span className="issue-pill">
           <span className="w-1.5 h-1.5 rounded-full bg-track" />
-          {feature.eyebrow || 'On Rotation'}
+          <span className="text-iris">{feature.eyebrow || 'On Rotation'}</span>
         </span>
+        {/* Hairline vertical rule separates the editorial sub-label from
+            the issue-pill — magazine-deck rhythm. Only renders when the
+            label exists and we're on >= sm so the eyebrow line stays clean
+            on mobile. */}
+        <span aria-hidden="true" className="hidden sm:inline h-3 w-px bg-ink-4/40" />
         <span className="hidden sm:inline font-editorial text-[13px] text-ink-3">
           {feature.label || 'Daily feature'}
         </span>
       </div>
       <div>
-        <h2 className="font-display text-display-xl text-ink leading-[0.92] mb-4 max-w-2xl">
-          {feature.title}
+        <h2
+          className="kinetic-headline headline-balance font-display text-display-xl text-ink leading-[0.92] mb-4 max-w-2xl"
+          aria-label={feature.title}
+        >
+          {words.map((word, idx) => (
+            <span key={`${word}-${idx}`} aria-hidden="true">
+              <span style={{ '--i': idx }}>{word}</span>
+            </span>
+          ))}
         </h2>
-        <p className="font-editorial text-ink-2 text-base md:text-lg max-w-lg leading-snug">
+        <p className="font-editorial text-ink-2 text-base md:text-lg max-w-lg leading-snug body-pretty">
           {feature.description}
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <Button
+          variant="premium"
           size="lg"
           onClick={onPlay}
           disabled={!isPlayable}
           leftIcon={<Play className="w-5 h-5 fill-current" />}
+          className="btn-juicy"
         >
           Play feature
         </Button>
@@ -86,7 +112,8 @@ const HeroCard = ({ feature, issueNum, onPlay, isPlayable }) => (
       </div>
     </div>
   </motion.section>
-);
+  );
+};
 
 export const HeroSkeleton = () => (
   <div
@@ -94,9 +121,9 @@ export const HeroSkeleton = () => (
     style={{ minHeight: '460px' }}
   >
     <div className="absolute inset-x-0 bottom-0 p-7 md:p-12 space-y-4">
-      <Skeleton className="h-3 w-24" />
-      <Skeleton className="h-12 w-2/3" />
-      <Skeleton className="h-4 w-1/2" />
+      <Skeleton variant="iris" className="h-3 w-24" />
+      <Skeleton variant="iris" className="h-12 w-2/3" />
+      <Skeleton variant="iris" className="h-4 w-1/2" />
     </div>
   </div>
 );

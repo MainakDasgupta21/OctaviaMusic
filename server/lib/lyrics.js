@@ -17,11 +17,28 @@ const CACHE_MISS_MS = num(process.env.LYRICS_CACHE_MISS_MIN, 5) * 60_000;
 const CLIENT_ID = process.env.LYRICS_CLIENT_ID || 'Octavia (https://octavia.local)';
 
 const cache = new Map(); // key -> { value, expires } | { inflight, expires: 0 }
+const CACHE_MAX = num(process.env.LYRICS_CACHE_MAX_ENTRIES, 500);
+
+const touch = (key, entry) => {
+  // Re-insert so this becomes the most-recently used; combined with the size
+  // cap below this is a tiny insertion-order LRU.
+  cache.delete(key);
+  cache.set(key, entry);
+};
+
+const evictIfNeeded = () => {
+  while (cache.size > CACHE_MAX) {
+    const oldest = cache.keys().next().value;
+    if (oldest === undefined) break;
+    cache.delete(oldest);
+  }
+};
 
 const memo = async (key, producer) => {
   const now = Date.now();
   const hit = cache.get(key);
   if (hit && hit.value !== undefined && hit.expires > now) {
+    touch(key, hit);
     return hit.value;
   }
   if (hit && hit.inflight) return hit.inflight;
@@ -30,7 +47,10 @@ const memo = async (key, producer) => {
     try {
       const value = await producer();
       const ttl = value ? CACHE_HIT_MS : CACHE_MISS_MS;
-      cache.set(key, { value, expires: Date.now() + ttl });
+      const entry = { value, expires: Date.now() + ttl };
+      cache.set(key, entry);
+      touch(key, entry);
+      evictIfNeeded();
       return value;
     } catch (err) {
       cache.delete(key);
@@ -180,6 +200,47 @@ const roundedDuration = (value) => {
   return Number.isFinite(n) && n > 0 ? Math.round(n) : undefined;
 };
 
+// Fire every attempt in parallel; resolve with the first non-null hit, or
+// null if every attempt settled empty. Errors are remembered so we can re-
+// throw if NOTHING came back AND there was a provider failure.
+const raceFirstHit = async (attempts) => {
+  let providerError = null;
+  let resolved = false;
+  return new Promise((resolve) => {
+    let pending = attempts.length;
+    if (pending === 0) return resolve(null);
+    for (const attempt of attempts) {
+      Promise.resolve()
+        .then(attempt)
+        .then((value) => {
+          if (resolved) return;
+          if (value) {
+            resolved = true;
+            resolve(value);
+            return;
+          }
+        })
+        .catch((err) => {
+          providerError = providerError || err;
+        })
+        .finally(() => {
+          pending -= 1;
+          if (pending === 0 && !resolved) {
+            if (providerError) {
+              // Reject by throwing — converted to a rejection by the outer
+              // memo caller, mapping to the 502 in the route.
+              resolved = true;
+              resolve(Promise.reject(providerError));
+            } else {
+              resolved = true;
+              resolve(null);
+            }
+          }
+        });
+    }
+  });
+};
+
 const getLyrics = async ({ title, artist, durationSec }) => {
   const titleCandidates = buildTitleCandidates(title);
   const artistCandidates = buildArtistCandidates(artist);
@@ -191,78 +252,52 @@ const getLyrics = async ({ title, artist, durationSec }) => {
   return memo(key, async () => {
     const primaryTitle = titleCandidates[0];
     const primaryArtist = artistCandidates[0];
-    let providerError = null;
 
-    // Strict endpoint first; best case is one fast hit.
+    // Phase 1: race every strict /api/get variant in parallel. First non-
+    // null wins; if every variant 404s we fall through to /api/search.
     const getAttempts = [];
     if (duration) {
-      getAttempts.push({
-        track_name: primaryTitle,
-        artist_name: primaryArtist,
-        duration,
-      });
+      getAttempts.push(() =>
+        tryGet({ track_name: primaryTitle, artist_name: primaryArtist, duration }),
+      );
     }
-    getAttempts.push({
-      track_name: primaryTitle,
-      artist_name: primaryArtist,
-    });
+    getAttempts.push(() => tryGet({ track_name: primaryTitle, artist_name: primaryArtist }));
     for (const candidate of titleCandidates.slice(1, 3)) {
-      getAttempts.push({ track_name: candidate, artist_name: primaryArtist });
+      getAttempts.push(() => tryGet({ track_name: candidate, artist_name: primaryArtist }));
     }
 
-    for (const params of getAttempts) {
-      try {
-        const hit = await tryGet(params);
-        if (hit) return hit;
-      } catch (err) {
-        providerError = providerError || err;
-      }
-    }
+    const strictHit = await raceFirstHit(getAttempts);
+    if (strictHit) return strictHit;
 
-    // Relaxed search endpoint as fallback.
+    // Phase 2: race the relaxed /api/search variants in parallel. Same idea.
+    const searchAttempts = [];
     for (const candidate of titleCandidates.slice(0, 3)) {
-      try {
-        const hit = await trySearch(
+      searchAttempts.push(() =>
+        trySearch(
           { track_name: candidate, artist_name: primaryArtist },
           candidate,
           primaryArtist,
-        );
-        if (hit) return hit;
-      } catch (err) {
-        providerError = providerError || err;
-      }
+        ),
+      );
     }
-
-    try {
-      const qHit = await trySearch(
+    searchAttempts.push(() =>
+      trySearch(
         { q: `${primaryTitle} ${primaryArtist}`.trim() },
         primaryTitle,
         primaryArtist,
-      );
-      if (qHit) return qHit;
-    } catch (err) {
-      providerError = providerError || err;
-    }
-
-    // Last chance: search with a simplified artist token when available.
+      ),
+    );
     if (artistCandidates[1] && artistCandidates[1] !== primaryArtist) {
-      try {
-        const hit = await trySearch(
+      searchAttempts.push(() =>
+        trySearch(
           { track_name: primaryTitle, artist_name: artistCandidates[1] },
           primaryTitle,
           artistCandidates[1],
-        );
-        if (hit) return hit;
-      } catch (err) {
-        providerError = providerError || err;
-      }
+        ),
+      );
     }
 
-    if (providerError) {
-      throw providerError;
-    }
-
-    return null;
+    return raceFirstHit(searchAttempts);
   });
 };
 

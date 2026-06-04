@@ -152,6 +152,16 @@ export default {
           strong: "hsl(var(--oxblood-strong))",
         },
         bone: "hsl(var(--bone))",
+        // Gen Z "play" layer — counter-hues for chips, eyebrows, holo edges.
+        "accent-2": "hsl(var(--accent-2))",
+        lime: "hsl(var(--accent-lime))",
+        violet: "hsl(var(--accent-violet))",
+        pink: "hsl(var(--accent-pink))",
+        iris: {
+          a: "hsl(var(--accent-iris-a))",
+          b: "hsl(var(--accent-iris-b))",
+          c: "hsl(var(--accent-iris-c))",
+        },
         success: "hsl(var(--success))",
         warning: "hsl(var(--warning))",
         danger: "hsl(var(--danger))",
@@ -163,12 +173,14 @@ export default {
         sm: "calc(var(--radius) - 4px)",
         sharp: "var(--radius-sharp)",
         soft: "var(--radius-soft)",
+        blob: "var(--radius-blob)",
       },
       transitionTimingFunction: {
         emphasis: "cubic-bezier(0.22, 1, 0.36, 1)",
         decel: "cubic-bezier(0, 0, 0.2, 1)",
         accel: "cubic-bezier(0.4, 0, 1, 1)",
         spring: "cubic-bezier(0.34, 1.56, 0.64, 1)",
+        bounce: "cubic-bezier(0.34, 1.8, 0.64, 1)",
       },
       transitionDuration: {
         instant: "80ms",

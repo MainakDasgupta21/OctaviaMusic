@@ -10,14 +10,15 @@ const ArtistCircle = ({ artist, sample, slug }) => {
             src={sample}
             alt={artist}
             loading="lazy"
-            rounded="rounded-none"
+            rounded="rounded-full"
             className="w-full h-full"
+            interactive
           />
         ) : (
           <div className="w-full h-full" />
         )}
       </div>
-      <p className="mt-3 text-[13px] font-medium truncate text-ink">{artist}</p>
+      <p className="mt-3 text-[13px] font-medium truncate text-ink tracking-tight">{artist}</p>
       <p className="font-editorial text-[11.5px] text-ink-3">
         {slug ? 'Artist' : 'Artist profile unavailable'}
       </p>
@@ -38,7 +39,7 @@ const ArtistCircle = ({ artist, sample, slug }) => {
   return (
     <Link
       to={`/artist/${slug}`}
-      className="flex-shrink-0 w-36 text-center group snap-start focus-ring rounded-sharp"
+      className="flex-shrink-0 w-36 text-center group snap-start focus-ring rounded-sharp lift press"
     >
       {content}
     </Link>

@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFavorites } from '@/contexts/FavoritesContext';
+import { useSounds } from '@/contexts/SoundContext';
 import notify from '@/lib/notify';
 import { cn } from '@/lib/utils';
 
@@ -19,6 +20,7 @@ const PARTICLES = Array.from({ length: 8 }, (_, i) => {
 
 const HeartButton = ({ track, size = 'md', className }) => {
   const { isFavorite, toggleFavorite } = useFavorites();
+  const { play: playSfx } = useSounds();
   const liked = track?.id ? isFavorite(track.id) : false;
   const dims = SIZE_MAP[size] ?? SIZE_MAP.md;
   const [burst, setBurst] = useState(0);
@@ -33,8 +35,13 @@ const HeartButton = ({ track, size = 'md', className }) => {
     if (wasAdded) {
       tokenRef.current += 1;
       setBurst(tokenRef.current);
+      playSfx('pop');
+      if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+        try { navigator.vibrate(10); } catch { /* noop */ }
+      }
       notify.liked(track.title);
     } else {
+      playSfx('click');
       notify.unliked(track.title);
     }
   };
@@ -82,6 +89,8 @@ const HeartButton = ({ track, size = 'md', className }) => {
               transition={{ duration: 0.5, ease: [0, 0, 0.2, 1] }}
               className="absolute inset-0 rounded-full border border-track/60"
             />
+            {/* Multi-color iridescent confetti burst — CSS-only, sits on top. */}
+            <span className="confetti-burst" aria-hidden="true" />
           </motion.span>
         ) : null}
       </AnimatePresence>

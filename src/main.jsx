@@ -29,6 +29,28 @@ try {
 }
 
 // =============================================================================
+// Preconnect to the backend API origin if it lives on a different host
+// (e.g. a deployed `api.example.com`). For same-origin / relative configs
+// (`/api`), this is a no-op. Done synchronously here so the handshake
+// overlaps with the rest of bootstrap.
+// =============================================================================
+try {
+  const apiBase = import.meta.env?.VITE_API_BASE;
+  if (apiBase) {
+    const url = new URL(apiBase, window.location.href);
+    if (url.origin && url.origin !== window.location.origin) {
+      const link = document.createElement('link');
+      link.rel = 'preconnect';
+      link.href = url.origin;
+      link.crossOrigin = '';
+      document.head.appendChild(link);
+    }
+  }
+} catch {
+  /* malformed VITE_API_BASE; ignore */
+}
+
+// =============================================================================
 // Lenis smooth scroll. Off when user prefers reduced motion.
 // =============================================================================
 const prefersReduced =

@@ -11,7 +11,7 @@ export const LogoMark = ({ size = 40, className, animated = false }) => (
       'inline-flex items-center justify-center rounded-2xl shadow-elev-3 gradient-accent',
       className,
     )}
-    style={{ width: size, height: size }}
+    style={{ width: size, height: size, viewTransitionName: 'vt-logo' }}
     aria-hidden="true"
   >
     <svg

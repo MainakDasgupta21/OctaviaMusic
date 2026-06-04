@@ -22,6 +22,11 @@ const formatDuration = (seconds) => {
   return `${mins}:${String(secs).padStart(2, '0')}`;
 };
 
+// Coerce the upstream `_rank` decoration into a number-or-null. The frontend
+// search-rank popularity term reads this directly.
+const finiteOr = (value, fallback = null) =>
+  Number.isFinite(value) ? value : fallback;
+
 // YouTube Music thumbnails arrive sorted ascending. Pick the largest one and
 // rewrite the size hint so the CDN serves a 544px asset (matches the upgrade
 // the frontend api.js used to do on its own).
@@ -73,9 +78,17 @@ const toTrackDTO = (src, ctx = {}) => {
   const thumbnail =
     pickThumbnail(src.thumbnails) || ctx.thumbnail || ytImage(src.videoId);
 
+  // YTM tags rows as either SONG or VIDEO. SONG entries are official catalog
+  // tracks (album metadata, cleaner thumbnails); VIDEO entries can include
+  // covers/lyric vids/uploads. We expose this so the client ranker can prefer
+  // SONG hits when both exist for the same query.
+  const rawType = String(src.type || '').toUpperCase();
+  const kind = rawType === 'VIDEO' ? 'video' : 'song';
+
   return {
     id: src.videoId,
     type: 'song',
+    kind,
     videoId: src.videoId,
     title: src.name || 'Untitled',
     artist: artistName,
@@ -87,10 +100,12 @@ const toTrackDTO = (src, ctx = {}) => {
     album: albumName,
     albumId,
     duration: formatDuration(src.duration),
+    durationSec: finiteOr(src.duration),
     thumbnail,
     playable: true,
     plays: null,
     releaseDate: null,
+    rank: finiteOr(src._rank),
   };
 };
 
@@ -118,6 +133,11 @@ const toAlbumSummaryDTO = (src) => {
     artistHumanSlug: slugifyName(artistName),
     year: src.year ?? null,
     thumbnail,
+    // YTM albums sometimes ship a `playlistId` (the auto-generated playlist
+    // that plays the whole album). Forward it so the player can play the
+    // album with one upstream call instead of fanning out per-track.
+    playlistId: src.playlistId || null,
+    rank: finiteOr(src._rank),
   };
 };
 
@@ -165,6 +185,7 @@ const toAlbumDetailDTO = async (src, { resolveVideoId } = {}) => {
     return {
       id: `${src.albumId}-track-${idx}`,
       type: 'song',
+      kind: 'song',
       videoId: null,
       title: song?.name || 'Untitled',
       artist: artistName,
@@ -174,10 +195,12 @@ const toAlbumDetailDTO = async (src, { resolveVideoId } = {}) => {
       album: src.name || null,
       albumId: src.albumId,
       duration: formatDuration(song?.duration),
+      durationSec: finiteOr(song?.duration),
       thumbnail: albumCover || null,
       playable: false,
       plays: null,
       releaseDate: null,
+      rank: null,
     };
   });
 
@@ -212,6 +235,7 @@ const toArtistSummaryDTO = (src) => {
     verified: false,
     monthly: null,
     thumbnail: pickThumbnail(src.thumbnails) || ytImage(fallbackVideoId) || null,
+    rank: finiteOr(src._rank),
   };
 };
 

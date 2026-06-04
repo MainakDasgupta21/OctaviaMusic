@@ -60,13 +60,32 @@ const getYTMusic = () => {
 // -----------------------------------------------------------------------------
 // In-memory TTL cache. Coalesces concurrent in-flight requests so a burst of
 // page mounts only triggers one upstream call.
+// Bounded with insertion-order LRU eviction so a long-running process can't
+// leak memory through unique queries / IDs.
 // -----------------------------------------------------------------------------
 const cache = new Map(); // key -> { expires, value? , inflight? }
+const CACHE_MAX = num(process.env.YTM_CACHE_MAX_ENTRIES, 500);
+
+const touch = (key, entry) => {
+  // Re-insert so this key becomes the most-recently used (Map iterates in
+  // insertion order). Combined with the size cap below this is a tiny LRU.
+  cache.delete(key);
+  cache.set(key, entry);
+};
+
+const evictIfNeeded = () => {
+  while (cache.size > CACHE_MAX) {
+    const oldest = cache.keys().next().value;
+    if (oldest === undefined) break;
+    cache.delete(oldest);
+  }
+};
 
 const memo = async (key, ttlMs, producer) => {
   const now = Date.now();
   const hit = cache.get(key);
   if (hit && hit.value !== undefined && hit.expires > now) {
+    touch(key, hit);
     return hit.value;
   }
   if (hit && hit.inflight) return hit.inflight;
@@ -74,7 +93,10 @@ const memo = async (key, ttlMs, producer) => {
   const inflight = (async () => {
     try {
       const value = await producer();
-      cache.set(key, { value, expires: Date.now() + ttlMs });
+      const entry = { value, expires: Date.now() + ttlMs };
+      cache.set(key, entry);
+      touch(key, entry);
+      evictIfNeeded();
       return value;
     } catch (err) {
       cache.delete(key);
@@ -120,26 +142,35 @@ const isLikelySong = (row) => {
   return d > 30 && d < 720;
 };
 
-const searchSongs = (q, limit = 30) =>
-  memo(`search:vid:${q}`, TTL.search, async () => {
+// Cache keys deliberately do NOT include `limit` — we always fetch the full
+// upstream result and slice afterwards. That way a TopBar 10-row search and a
+// SearchPage 60-row search for the same query share one upstream call.
+const searchSongs = async (q, limit = 30) => {
+  const rows = await memo(`search:vid:${q}`, TTL.search, async () => {
     const yt = await getYTMusic();
-    const rows = await withRetry(() => yt.searchVideos(q));
-    return Array.isArray(rows) ? rows.filter(isLikelySong).slice(0, limit) : [];
+    const result = await withRetry(() => yt.searchVideos(q));
+    return Array.isArray(result) ? result.filter(isLikelySong) : [];
   });
+  return rows.slice(0, limit);
+};
 
-const searchArtists = (q, limit = 20) =>
-  memo(`search:artist:${q}`, TTL.search, async () => {
+const searchArtists = async (q, limit = 20) => {
+  const rows = await memo(`search:artist:${q}`, TTL.search, async () => {
     const yt = await getYTMusic();
-    const rows = await withRetry(() => yt.searchArtists(q));
-    return Array.isArray(rows) ? rows.slice(0, limit) : [];
+    const result = await withRetry(() => yt.searchArtists(q));
+    return Array.isArray(result) ? result : [];
   });
+  return rows.slice(0, limit);
+};
 
-const searchAlbums = (q, limit = 20) =>
-  memo(`search:album:${q}`, TTL.search, async () => {
+const searchAlbums = async (q, limit = 20) => {
+  const rows = await memo(`search:album:${q}`, TTL.search, async () => {
     const yt = await getYTMusic();
-    const rows = await withRetry(() => yt.searchAlbums(q));
-    return Array.isArray(rows) ? rows.slice(0, limit) : [];
+    const result = await withRetry(() => yt.searchAlbums(q));
+    return Array.isArray(result) ? result : [];
   });
+  return rows.slice(0, limit);
+};
 
 // Resolve a playable videoId for a (songName, artistName) pair by running a
 // targeted `searchVideos` and picking the first hit. Heavily cached because
@@ -160,20 +191,46 @@ const logFail = (label, q) => (err) => {
   return [];
 };
 
-const searchByType = async (q, type, limit) => {
+// Default per-bucket caps for the 'all' branch. The TopBar / SearchPage can
+// raise these via the `limits` argument; the SearchPage typically wants more
+// breathing room (40+) so the 80-row client display has enough fuel.
+const DEFAULT_ALL_LIMITS = { songs: 25, artists: 12, albums: 12 };
+
+// Stamp the upstream array index onto each row so the frontend can use
+// "popularity from YTM ordering" as a real ranking signal. We can't get
+// numeric play counts / monthly listeners from ytmusic-api v5.3.1 (the parser
+// drops them), but the order YTM returns IS a popularity signal — top
+// artists / songs come first.
+const stampRanks = (rows, base = 0) => {
+  if (!Array.isArray(rows)) return [];
+  for (let i = 0; i < rows.length; i += 1) {
+    if (rows[i] && typeof rows[i] === 'object' && rows[i]._rank == null) {
+      rows[i]._rank = base + i;
+    }
+  }
+  return rows;
+};
+
+const searchByType = async (q, type, limit, options = {}) => {
+  const { limits } = options;
   switch (type) {
-    case 'song':   return searchSongs(q, limit);
-    case 'artist': return searchArtists(q, limit);
-    case 'album':  return searchAlbums(q, limit);
+    case 'song':   return stampRanks(await searchSongs(q, limit));
+    case 'artist': return stampRanks(await searchArtists(q, limit));
+    case 'album':  return stampRanks(await searchAlbums(q, limit));
     case 'all':
     default: {
+      const caps = { ...DEFAULT_ALL_LIMITS, ...(limits || {}) };
       // Run all three in parallel — they each share the same cache so this is
       // cheap when the user toggles filters back to 'all'.
       const [songs, artists, albums] = await Promise.all([
-        searchSongs(q, 15).catch(logFail('searchSongs', q)),
-        searchArtists(q, 8).catch(logFail('searchArtists', q)),
-        searchAlbums(q, 8).catch(logFail('searchAlbums', q)),
+        searchSongs(q, caps.songs).catch(logFail('searchSongs', q)),
+        searchArtists(q, caps.artists).catch(logFail('searchArtists', q)),
+        searchAlbums(q, caps.albums).catch(logFail('searchAlbums', q)),
       ]);
+
+      stampRanks(songs);
+      stampRanks(artists);
+      stampRanks(albums);
 
       // Fallback: when the per-query album endpoint returns nothing but we
       // *did* find matching artists, derive albums from the top artists'
@@ -183,7 +240,7 @@ const searchByType = async (q, type, limit) => {
         const candidates = artists.slice(0, 2).filter((a) => a?.artistId);
         const groups = await Promise.all(
           candidates.map((a) =>
-            getArtistAlbums(a.artistId, 8).catch(
+            getArtistAlbums(a.artistId, caps.albums).catch(
               logFail(`getArtistAlbums(${a.artistId})`, q),
             ),
           ),
@@ -193,10 +250,14 @@ const searchByType = async (q, type, limit) => {
           for (const al of group) {
             if (!al?.albumId || seen.has(al.albumId)) continue;
             seen.add(al.albumId);
+            // Fallback albums get a higher rank index than direct hits would
+            // have; since direct hits are empty here we start at 0 + offset
+            // for visual consistency across queries.
+            al._rank = albums.length;
             albums.push(al);
-            if (albums.length >= 8) break;
+            if (albums.length >= caps.albums) break;
           }
-          if (albums.length >= 8) break;
+          if (albums.length >= caps.albums) break;
         }
       }
 
@@ -204,6 +265,24 @@ const searchByType = async (q, type, limit) => {
     }
   }
 };
+
+// Real YTM autocomplete. Returns the user-friendly query strings YTM would
+// suggest as you type (e.g. "michael jackson", "michael bolton" for "mich").
+// Used by the frontend as both a UI affordance (suggestion chips) and a
+// typo-correction fallback when the main search returns nothing.
+const getSearchSuggestions = (q) =>
+  memo(`suggestions:${q}`, TTL.search, async () => {
+    const yt = await getYTMusic();
+    const rows = await withRetry(() => yt.getSearchSuggestions(q));
+    if (!Array.isArray(rows)) return [];
+    // Defensive normalization: `getSearchSuggestions` returns `string[]` in
+    // v5.3.1, but if a future version starts returning objects we don't want
+    // to crash callers — coerce to strings and drop empties.
+    return rows
+      .map((row) => (typeof row === 'string' ? row : row?.query || row?.text || ''))
+      .map((s) => String(s).trim())
+      .filter(Boolean);
+  });
 
 const getAlbum = (albumId) =>
   memo(`album:${albumId}`, TTL.detail, async () => {
@@ -245,13 +324,15 @@ const getPlaylistTracks = (playlistId) =>
 // to a broad video search if every playlist id fails.
 // -----------------------------------------------------------------------------
 
-// Try each playlist id in order; return the first that yields tracks.
-const firstPlaylistWithTracks = async (ids, limit) => {
+// Try each playlist id in order; return the FULL first set that yields
+// tracks. Callers slice to their requested limit so different limits share
+// one upstream playlist fetch via the per-id memo cache.
+const firstPlaylistWithTracks = async (ids) => {
   for (const id of ids) {
     if (!id) continue;
     try {
       const rows = await getPlaylistTracks(id);
-      if (rows.length) return rows.slice(0, limit);
+      if (rows.length) return rows;
     } catch {
       /* try the next id */
     }
@@ -259,26 +340,33 @@ const firstPlaylistWithTracks = async (ids, limit) => {
   return [];
 };
 
-const getChartsLive = (limit = 50) =>
-  memo(`charts:${CHARTS_PLAYLIST || 'def'}:${limit}`, TTL.charts, async () => {
-    const rows = await firstPlaylistWithTracks(
-      [CHARTS_PLAYLIST, DEFAULT_CHARTS_PLAYLIST, DEFAULT_TRENDING_PLAYLIST],
-      limit,
-    );
-    if (rows.length) return rows;
+const getChartsLive = async (limit = 50) => {
+  const rows = await memo(`charts:${CHARTS_PLAYLIST || 'def'}`, TTL.charts, async () => {
+    const playlistRows = await firstPlaylistWithTracks([
+      CHARTS_PLAYLIST,
+      DEFAULT_CHARTS_PLAYLIST,
+      DEFAULT_TRENDING_PLAYLIST,
+    ]);
+    if (playlistRows.length) return playlistRows;
     // Last-resort live source: a single filtered video search (no fan-out).
-    return searchSongs('top hits official music video', limit);
+    // Cache a generous size so smaller-limit callers can re-use the slice.
+    return searchSongs('top hits official music video', 100);
   });
+  return rows.slice(0, limit);
+};
 
-const getTrendingLive = (limit = 20) =>
-  memo(`trending:${TRENDING_PLAYLIST || 'def'}:${limit}`, TTL.charts, async () => {
-    const rows = await firstPlaylistWithTracks(
-      [TRENDING_PLAYLIST, DEFAULT_TRENDING_PLAYLIST, DEFAULT_CHARTS_PLAYLIST],
-      limit,
-    );
-    if (rows.length) return rows;
-    return searchSongs('new songs official music video', limit);
+const getTrendingLive = async (limit = 20) => {
+  const rows = await memo(`trending:${TRENDING_PLAYLIST || 'def'}`, TTL.charts, async () => {
+    const playlistRows = await firstPlaylistWithTracks([
+      TRENDING_PLAYLIST,
+      DEFAULT_TRENDING_PLAYLIST,
+      DEFAULT_CHARTS_PLAYLIST,
+    ]);
+    if (playlistRows.length) return playlistRows;
+    return searchSongs('new songs official music video', 100);
   });
+  return rows.slice(0, limit);
+};
 
 const getGenreSample = (label) =>
   memo(`genre:${label}`, TTL.genres, async () => {
@@ -296,6 +384,7 @@ module.exports = {
   getAlbum,
   getArtist,
   getArtistAlbums,
+  getSearchSuggestions,
   getPlaylistTracks,
   getChartsLive,
   getTrendingLive,

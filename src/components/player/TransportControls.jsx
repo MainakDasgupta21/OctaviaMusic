@@ -9,6 +9,7 @@ import {
   Repeat1,
 } from 'lucide-react';
 import { usePlayer, usePlayerProgress } from '@/contexts/PlayerContext';
+import { useSounds } from '@/contexts/SoundContext';
 import { isReducedMotion } from '@/design/motion';
 import { cn } from '@/lib/utils';
 
@@ -47,13 +48,26 @@ const TransportControls = () => {
   } = usePlayer();
   const { canGoPrevious } = usePlayerProgress();
   const reduceMotion = isReducedMotion();
+  const { play: playSfx } = useSounds();
+
+  const handleTogglePlay = () => {
+    playSfx('pop');
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      try { navigator.vibrate(8); } catch { /* noop */ }
+    }
+    togglePlay();
+  };
+  const handleNext = () => { if (canGoNext) playSfx('click'); playNext(); };
+  const handlePrev = () => { if (canGoPrevious) playSfx('click'); playPrevious(); };
+  const handleShuffle = () => { playSfx('tick'); toggleShuffle(); };
+  const handleRepeat = () => { playSfx('tick'); toggleRepeat(); };
 
   return (
     <div className="flex items-center justify-center gap-6 lg:gap-8 w-full py-1.5">
       <motion.button
         type="button"
         whileTap={reduceMotion ? undefined : { scale: 0.92 }}
-        onClick={toggleShuffle}
+        onClick={handleShuffle}
         className={toggleBtn(shuffle)}
         aria-label="Toggle shuffle"
         aria-pressed={shuffle}
@@ -65,7 +79,7 @@ const TransportControls = () => {
       <motion.button
         type="button"
         whileTap={reduceMotion || !canGoPrevious ? undefined : { scale: 0.92 }}
-        onClick={playPrevious}
+        onClick={handlePrev}
         disabled={!canGoPrevious}
         className={skipBtn(!canGoPrevious)}
         aria-label="Previous track"
@@ -75,10 +89,11 @@ const TransportControls = () => {
 
       <motion.button
         type="button"
-        whileHover={reduceMotion ? undefined : { scale: 1.05 }}
-        whileTap={reduceMotion ? undefined : { scale: 0.95 }}
-        onClick={togglePlay}
-        className="relative w-[68px] h-[68px] rounded-full text-track-fg flex items-center justify-center ring-1 ring-white/25 focus-ring"
+        onClick={handleTogglePlay}
+        className={cn(
+          'btn-juicy relative w-[68px] h-[68px] rounded-full text-track-fg flex items-center justify-center ring-1 ring-white/25 focus-ring',
+          isPlaying && 'pulse-glow',
+        )}
         style={{
           backgroundImage:
             'radial-gradient(circle at 30% 22%, hsl(var(--ink-primary) / 0.26), transparent 55%), linear-gradient(135deg, hsl(var(--track-accent)), hsl(var(--track-accent-strong)))',
@@ -99,7 +114,7 @@ const TransportControls = () => {
       <motion.button
         type="button"
         whileTap={reduceMotion || !canGoNext ? undefined : { scale: 0.92 }}
-        onClick={playNext}
+        onClick={handleNext}
         disabled={!canGoNext}
         className={skipBtn(!canGoNext)}
         aria-label="Next track"
@@ -110,7 +125,7 @@ const TransportControls = () => {
       <motion.button
         type="button"
         whileTap={reduceMotion ? undefined : { scale: 0.92 }}
-        onClick={toggleRepeat}
+        onClick={handleRepeat}
         className={toggleBtn(repeat !== 'off')}
         aria-label={
           repeat === 'one' ? 'Repeat one' : repeat === 'all' ? 'Repeat all' : 'Repeat off'

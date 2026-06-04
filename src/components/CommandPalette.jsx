@@ -35,13 +35,16 @@ import { usePlayer } from '@/contexts/PlayerContext';
 import { useFavorites } from '@/contexts/FavoritesContext';
 import { usePlaylists } from '@/contexts/PlaylistContext';
 import { searchMusic } from '@/lib/api';
-import { parseQuery, rankAndMerge } from '@/lib/search-rank';
+import { parseQuery } from '@/lib/search-rank';
+import { useRankedSearch } from '@/hooks/use-ranked-search';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import Kbd from '@/components/ui-v2/Kbd';
 import SmartImage from '@/components/SmartImage';
+import SearchHighlight from '@/components/SearchHighlight';
 import { cachePolicy, queryKeys } from '@/lib/query-keys';
 import { artistSlugFromName, artistSlugOf, isUsableArtistSlug } from '@/lib/slug';
 import { useHoverPrefetch } from '@/hooks/use-route-prefetch';
+import { useSearchSuggestions } from '@/hooks/use-search-suggestions';
 import notify from '@/lib/notify';
 import { cn } from '@/lib/utils';
 
@@ -173,6 +176,7 @@ const CommandPalette = () => {
     () => parseQuery(effectiveQuery.trim()),
     [effectiveQuery],
   );
+  const highlightTokens = parsed.tokens || [];
   const serverQuery =
     parsed.terms || parsed.filters?.artist || parsed.filters?.album || '';
   const serverType = parsed.filters?.type || 'all';
@@ -185,17 +189,29 @@ const CommandPalette = () => {
   const enabled =
     paletteOpen && scopeAllowsSearch && Boolean(serverQuery) && serverQuery.length >= 2;
 
+  // Match the SearchPage limit so the palette and SearchPage share one cache
+  // entry (palette opens, then user navigates to SearchPage → no refetch).
+  const PALETTE_SEARCH_LIMIT = 60;
+
   const { data: rawResults = [], isFetching: searching } = useQuery({
-    queryKey: queryKeys.search(serverQuery, serverType),
-    queryFn: () => searchMusic(serverQuery, serverType),
+    queryKey: queryKeys.search(serverQuery, serverType, PALETTE_SEARCH_LIMIT),
+    queryFn: () => searchMusic(serverQuery, serverType, { limit: PALETTE_SEARCH_LIMIT }),
     enabled,
     ...cachePolicy.search,
     placeholderData: keepPreviousData,
   });
 
-  const searchBuckets = useMemo(() => {
-    if (!enabled) return EMPTY_SEARCH_BUCKETS;
-    const ranked = rankAndMerge({
+  // Real YTM autocomplete — used as a "Did you mean?" affordance when the
+  // user mistypes (the main search returns nothing or weak hits).
+  const { suggestions: rawSuggestions } = useSearchSuggestions(effectiveQuery, {
+    enabled: paletteOpen && scopeAllowsSearch,
+  });
+
+  // Delegate ranking to the shared `useRankedSearch` hook so the palette's
+  // 60-row payload gets the worker treatment automatically (the threshold is
+  // 50). The TopBar's smaller pool stays on the main thread.
+  const rankedSearchParams = useMemo(
+    () => ({
       query: parsed,
       serverResults: rawResults,
       favorites: favoritesList,
@@ -203,7 +219,12 @@ const CommandPalette = () => {
       playlists,
       currentArtist: currentTrack?.artist || '',
       limit: 24,
-    });
+    }),
+    [parsed, rawResults, favoritesList, history, playlists, currentTrack?.artist],
+  );
+  const ranked = useRankedSearch(rankedSearchParams, { workerEnabled: enabled });
+  const searchBuckets = useMemo(() => {
+    if (!enabled) return EMPTY_SEARCH_BUCKETS;
     const topSongIdentity =
       ranked.top && ranked.top._kind === 'song' ? songIdentity(ranked.top) : null;
     return {
@@ -215,12 +236,40 @@ const CommandPalette = () => {
         .slice(0, 4),
       albums: ranked.albums.slice(0, 4),
     };
-  }, [enabled, parsed, rawResults, favoritesList, history, playlists, currentTrack?.artist]);
+  }, [enabled, ranked]);
 
   const searchResults = useMemo(
     () => [...searchBuckets.songExact, ...searchBuckets.songRelated],
     [searchBuckets.songExact, searchBuckets.songRelated],
   );
+
+  // Filter the suggestions to those that don't trivially match the input,
+  // cap to 5, and only show them when the main search doesn't have a strong
+  // top result (keeps the palette tidy when results are good).
+  const lowerEffective = effectiveQuery.trim().toLowerCase();
+  const suggestionItems = useMemo(() => {
+    if (!enabled) return [];
+    const seen = new Set();
+    const out = [];
+    for (const raw of rawSuggestions) {
+      const trimmed = String(raw || '').trim();
+      if (!trimmed) continue;
+      const key = trimmed.toLowerCase();
+      if (key === lowerEffective) continue;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(trimmed);
+      if (out.length >= 5) break;
+    }
+    return out;
+  }, [enabled, rawSuggestions, lowerEffective]);
+
+  const totalSearchHits =
+    searchBuckets.songExact.length +
+    searchBuckets.songRelated.length +
+    searchBuckets.albums.length;
+  const showSuggestionGroup =
+    suggestionItems.length > 0 && (totalSearchHits === 0 || totalSearchHits < 3);
 
   const runAndClose = useCallback(
     (fn, recent) => () => {
@@ -398,6 +447,24 @@ const CommandPalette = () => {
               </Command.Group>
             ) : null}
 
+            {showSuggestionGroup ? (
+              <Command.Group heading="Suggestions" className={GROUP_HEADING}>
+                {suggestionItems.map((s) => (
+                  <Command.Item
+                    key={`sug-${s}`}
+                    value={`suggestion ${s}`}
+                    onSelect={() => setQuery(s)}
+                    className={ITEM_BASE}
+                  >
+                    <SelectedBar />
+                    <SearchIcon className="w-4 h-4 text-ink-3" strokeWidth={1.75} />
+                    <span className="flex-1 truncate">{s}</span>
+                    <ArrowRight className="w-3.5 h-3.5 text-ink-4" />
+                  </Command.Item>
+                ))}
+              </Command.Group>
+            ) : null}
+
             {showRecents ? (
               <Command.Group heading="Recent" className={GROUP_HEADING}>
                 {recents.map((r) => (
@@ -540,9 +607,15 @@ const CommandPalette = () => {
                       imgClassName="object-cover"
                     />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13.5px]">{r.title}</p>
+                      <p className="truncate text-[13.5px]">
+                        <SearchHighlight text={r.title} tokens={highlightTokens} />
+                      </p>
                       <p className="font-editorial text-[11.5px] text-ink-3 truncate mt-0.5">
-                        by {r.artist || 'Unknown artist'}
+                        by{' '}
+                        <SearchHighlight
+                          text={r.artist || 'Unknown artist'}
+                          tokens={highlightTokens}
+                        />
                       </p>
                     </div>
                     <Play className="w-4 h-4 text-ink-3" />
@@ -573,9 +646,15 @@ const CommandPalette = () => {
                       imgClassName="object-cover"
                     />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13.5px]">{r.title}</p>
+                      <p className="truncate text-[13.5px]">
+                        <SearchHighlight text={r.title} tokens={highlightTokens} />
+                      </p>
                       <p className="font-editorial text-[11.5px] text-ink-3 truncate mt-0.5">
-                        by {r.artist || 'Unknown artist'}
+                        by{' '}
+                        <SearchHighlight
+                          text={r.artist || 'Unknown artist'}
+                          tokens={highlightTokens}
+                        />
                       </p>
                     </div>
                     <Play className="w-4 h-4 text-ink-3" />
@@ -610,9 +689,15 @@ const CommandPalette = () => {
                       imgClassName="object-cover"
                     />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13.5px]">{album.title}</p>
+                      <p className="truncate text-[13.5px]">
+                        <SearchHighlight text={album.title} tokens={highlightTokens} />
+                      </p>
                       <p className="font-editorial text-[11.5px] text-ink-3 truncate mt-0.5">
-                        by {album.artist || 'Unknown artist'}
+                        by{' '}
+                        <SearchHighlight
+                          text={album.artist || 'Unknown artist'}
+                          tokens={highlightTokens}
+                        />
                       </p>
                     </div>
                     <Disc className="w-4 h-4 text-ink-3" />

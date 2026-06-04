@@ -1,15 +1,13 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect, useRef } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { usePlayer } from '@/contexts/PlayerContext';
 import { useSettings } from '@/contexts/SettingsContext';
+import { useUI } from '@/contexts/UIContext';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
-import MobileDrawer from './MobileDrawer';
 import MobileNav from './MobileNav';
 import FooterPlayer from './FooterPlayer';
-import CommandPalette from '@/components/CommandPalette';
-import ExpandedPlayer from '@/components/ExpandedPlayer';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import RouteProgress from '@/components/RouteProgress';
 import PlayerAnnouncer from '@/components/PlayerAnnouncer';
@@ -18,10 +16,33 @@ import { useFirstRunHints } from '@/hooks/use-first-run-hints';
 import { pagePush } from '@/design/motion';
 import { cn } from '@/lib/utils';
 
+// Overlays that aren't visible on first paint. We gate their IMPORT on the
+// owning UI state so the cmdk + ExpandedPlayer subtree (lyrics/queue panels,
+// dialog primitives) stays out of the initial bundle until the user opens
+// them. After the first open we keep the component mounted (sticky flag
+// below) so the Radix/shadcn open->close exit animations can still play.
+const CommandPalette = lazy(() => import('@/components/CommandPalette'));
+const ExpandedPlayer = lazy(() => import('@/components/ExpandedPlayer'));
+const MobileDrawer = lazy(() => import('./MobileDrawer'));
+
+// Latches a boolean to `true` once it has been true, then stays true. We use
+// this to keep an overlay mounted after the user has opened it once so that
+// the close animation has something to animate out of.
+const useStickyTrue = (value) => {
+  const ref = useRef(false);
+  if (value) ref.current = true;
+  return ref.current;
+};
+
 const MainLayout = () => {
   const { currentTrack } = usePlayer();
   const { settings } = useSettings();
+  const { paletteOpen, expandedPlayerOpen, mobileDrawerOpen } = useUI();
   const location = useLocation();
+
+  const paletteEverOpened = useStickyTrue(paletteOpen);
+  const expandedEverOpened = useStickyTrue(expandedPlayerOpen);
+  const drawerEverOpened = useStickyTrue(mobileDrawerOpen);
 
   useKeyboardShortcuts();
   useFirstRunHints();
@@ -48,7 +69,11 @@ const MainLayout = () => {
       </a>
 
       <Sidebar />
-      <MobileDrawer />
+      {drawerEverOpened ? (
+        <Suspense fallback={null}>
+          <MobileDrawer />
+        </Suspense>
+      ) : null}
 
       <div
         className={cn(
@@ -97,8 +122,16 @@ const MainLayout = () => {
 
       <FooterPlayer />
       <MobileNav />
-      <CommandPalette />
-      <ExpandedPlayer />
+      {paletteEverOpened ? (
+        <Suspense fallback={null}>
+          <CommandPalette />
+        </Suspense>
+      ) : null}
+      {expandedEverOpened ? (
+        <Suspense fallback={null}>
+          <ExpandedPlayer />
+        </Suspense>
+      ) : null}
       <PlayerAnnouncer />
     </div>
   );

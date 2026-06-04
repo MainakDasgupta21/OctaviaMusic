@@ -14,13 +14,14 @@ import { useFavorites } from '@/contexts/FavoritesContext';
 import { useSettings } from '@/contexts/SettingsContext';
 import Button from '@/components/ui-v2/Button';
 import SectionHeader from '@/components/ui-v2/SectionHeader';
+import SectionRule from '@/components/ui-v2/SectionRule';
 import SmartImage from '@/components/SmartImage';
 import HeroCard, { HeroSkeleton } from '@/components/home/HeroCard';
 import HorizontalRail from '@/components/home/HorizontalRail';
 import TileCard, { TileSkeleton } from '@/components/home/TileCard';
 import ArtistCircle from '@/components/home/ArtistCircle';
 import { getHomeFeed, isNetworkError } from '@/lib/api';
-import { queryKeys } from '@/lib/query-keys';
+import { cachePolicy, queryKeys } from '@/lib/query-keys';
 import { sanitizeTrack } from '@/lib/media-sanitize';
 import { fadeUp, staggerChildren } from '@/design/motion';
 import { useEditorialMeta } from '@/hooks/use-editorial-meta';
@@ -62,7 +63,7 @@ const HomePage = () => {
   const homeQuery = useQuery({
     queryKey: queryKeys.homeFeed(TRENDING_LIMIT),
     queryFn: () => getHomeFeed({ limit: TRENDING_LIMIT }),
-    staleTime: 3_600_000,
+    ...cachePolicy.homeFeed,
   });
 
   const featured = homeQuery.data?.featured ?? [];
@@ -108,7 +109,7 @@ const HomePage = () => {
             <span className="w-6 h-px bg-track" />
             {greeting}, {firstName}
           </p>
-          <h1 className="font-display text-display-xl text-ink leading-[0.92]">
+          <h1 className="font-display text-display-xl text-ink leading-[0.92] headline-balance">
             Today, the music <span className="font-editorial text-track">listens back.</span>
           </h1>
         </div>
@@ -242,7 +243,11 @@ const HomePage = () => {
               <motion.div variants={fadeUp} key={mix.id} className="relative">
                 <Link
                   to={mix.to}
-                  className="relative block aspect-square rounded-sharp overflow-hidden card-hover focus-ring group ring-1 ring-white/[0.06]"
+                  className="relative block aspect-square rounded-sharp overflow-hidden lift press focus-ring group"
+                  style={{
+                    boxShadow:
+                      'inset 0 1px 0 hsl(var(--ink-primary)/0.07), var(--shadow-2), inset 0 0 0 1px hsl(var(--ink-primary)/0.05)',
+                  }}
                 >
                   <SmartImage
                     src={mix.thumbnail}
@@ -296,6 +301,12 @@ const HomePage = () => {
         </section>
       )}
 
+      <SectionRule
+        ordinal={ordinals.dailyMixes && ordinals.topArtists ? '05' : '04'}
+        label="The world today"
+        tone="accent"
+        className="mb-6"
+      />
       <section className="mb-12">
         <Link
           to="/charts"
@@ -315,7 +326,7 @@ const HomePage = () => {
                 Millions of listeners <br />
                 <span className="font-editorial text-bone">shape the charts every day.</span>
               </p>
-              <p className="font-editorial text-[14px] text-ink-2 mt-4 max-w-md leading-relaxed">
+              <p className="font-editorial text-[14px] text-ink-2 mt-4 max-w-md leading-relaxed body-pretty">
                 Charts update every hour — sorted by region, genre, and the window of time that
                 matters to you.
               </p>

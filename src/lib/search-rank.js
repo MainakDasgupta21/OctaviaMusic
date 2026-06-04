@@ -3,7 +3,55 @@
 // One place decides "what is a good hit" across TopBar, /search and Cmd+K.
 // =============================================================================
 
-const SCORE_FLOOR = 60;
+import {
+  emptyIntent,
+  expandIntent,
+  stripSortHints,
+} from './search-intent';
+
+// =============================================================================
+// Tunable weights. Keeping these in one block makes it easy to A/B-test the
+// balance between lexical relevance and global popularity without hunting
+// through the scoring fn.
+// =============================================================================
+const WEIGHTS = {
+  // Songs that score below `SCORE_FLOOR` lexically AND below
+  // `POPULARITY_RESCUE` for popularity get filtered out. Famous songs whose
+  // titles barely overlap the query (e.g. typos) survive the floor when their
+  // popularity term is strong enough.
+  SCORE_FLOOR: 60,
+  POPULARITY_RESCUE: 80,
+
+  // Popularity contributors. Sigmoid on rank means rank=0 ≈ +180 (top hit),
+  // rank=8 ≈ +66, rank=20 ≈ +13 — gracefully decaying so the second-place
+  // result still gets a meaningful boost without dominating an exact title
+  // match (1000pt).
+  RANK_AT_ZERO: 180,
+  RANK_DECAY_K: 8,
+  PLAYS_LOG_FACTOR: 12,
+  PLAYS_CAP: 120,
+  MONTHLY_LOG_FACTOR: 14,
+  MONTHLY_CAP: 140,
+  VERIFIED: 60,
+  // SONG-vs-VIDEO bias: `kind:'song'` is YTM's official catalog (album metadata
+  // present, cleaner thumbnails). When both exist for the same query, prefer
+  // the SONG entry.
+  OFFICIAL_SONG_BONUS: 25,
+
+  // Intent / personalization signals (slice 2/3). Tuned to be additive on
+  // top of lexical without dethroning an exact title match.
+  INTENT_HIT: 35,
+  ALIAS_HIT: 80,
+  ABBREVIATION_HIT: 28,
+  RECENT_RELEASE: 24,
+  ARTIST_AFFINITY_CAP: 60,
+  RECENT_SEARCH_HIT: 18,
+  EXPLICIT_PENALTY: 200,
+  KIND_DUP_BIAS: 80,
+  PLAYABLE_PENALTY: 35,
+};
+
+const SCORE_FLOOR = WEIGHTS.SCORE_FLOOR;
 const DEFAULT_LIMIT = 24;
 const TYPE_VALUES = new Set(['song', 'artist', 'album']);
 const EXACT_SONG_MATCH_TIERS = new Set(['exact', 'prefix']);
@@ -11,6 +59,71 @@ const EXACT_SONG_MATCH_TIERS = new Set(['exact', 'prefix']);
 const isFiniteNumber = (v) => Number.isFinite(v);
 
 const firstFinite = (...values) => values.find((v) => isFiniteNumber(v));
+
+// =============================================================================
+// Popularity parsing. `ytmusic-api` v5.3.1 doesn't expose numeric play counts
+// or monthly listeners, but the catalog fallback does (e.g. "78.4M monthly
+// listeners", "6_200_000_000" plays). Both shapes parse here.
+// =============================================================================
+const SUFFIX_MULTIPLIERS = {
+  k: 1e3,
+  m: 1e6,
+  b: 1e9,
+  t: 1e12,
+};
+
+// Extract the first number-with-optional-suffix from a string. Examples:
+//   "78.4M monthly listeners" → 78_400_000
+//   "1.2B plays"              → 1_200_000_000
+//   6_200_000_000             → 6_200_000_000 (already numeric)
+const parseHumanCount = (raw) => {
+  if (raw == null) return null;
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw >= 0 ? raw : null;
+  const str = String(raw).trim();
+  if (!str) return null;
+  const m = str.match(/(\d+(?:[.,]\d+)?)\s*([kmbt])?/i);
+  if (!m) return null;
+  const n = Number(m[1].replace(',', '.'));
+  if (!Number.isFinite(n)) return null;
+  const mul = m[2] ? SUFFIX_MULTIPLIERS[m[2].toLowerCase()] || 1 : 1;
+  return n * mul;
+};
+
+export const parsePlaysCount = parseHumanCount;
+export const parseMonthly = parseHumanCount;
+
+// Combine every available popularity signal into a single additive boost.
+// Returns 0 when no signals are present so unranked items aren't penalised
+// — and crucially are NOT treated as the top hit by accident (a missing
+// `rank` is null, not 0).
+export const popularityScore = (item) => {
+  if (!item || typeof item !== 'object') return 0;
+
+  // `Number.isFinite(item.rank)` rejects `null` / `undefined` / `NaN`. Without
+  // this, Number(null) === 0 would treat every unranked item as the #1 hit.
+  const fromRank = Number.isFinite(item.rank) && item.rank >= 0
+    ? Math.round(WEIGHTS.RANK_AT_ZERO * Math.exp(-item.rank / WEIGHTS.RANK_DECAY_K))
+    : 0;
+
+  const plays = parsePlaysCount(item.plays);
+  const fromPlays = plays
+    ? Math.min(WEIGHTS.PLAYS_CAP, Math.log10(plays + 1) * WEIGHTS.PLAYS_LOG_FACTOR)
+    : 0;
+
+  const monthly = parseMonthly(item.monthly);
+  const fromMonthly = monthly
+    ? Math.min(WEIGHTS.MONTHLY_CAP, Math.log10(monthly + 1) * WEIGHTS.MONTHLY_LOG_FACTOR)
+    : 0;
+
+  const fromVerified = item.verified ? WEIGHTS.VERIFIED : 0;
+  // Only award the SONG-vs-VIDEO bonus when there's already at least one
+  // *signal* present — otherwise an upstream entry that just defaults to
+  // `kind: 'song'` would silently float above unranked rivals on no merit.
+  const hasAnySignal = fromRank > 0 || fromPlays > 0 || fromMonthly > 0 || fromVerified > 0;
+  const fromOfficial = hasAnySignal && item.kind === 'song' ? WEIGHTS.OFFICIAL_SONG_BONUS : 0;
+
+  return Math.round(fromRank + fromPlays + fromMonthly + fromVerified + fromOfficial);
+};
 
 const emptyResult = () => ({
   top: null,
@@ -23,7 +136,16 @@ const emptyResult = () => ({
   didYouMean: null,
   all: [],
   activeFilters: {},
+  intent: emptyIntent(),
 });
+
+const SORT_HINTS = new Set(['relevance', 'popularity', 'newest', 'shortest']);
+
+const normalizeSortHint = (value) => {
+  if (!value) return null;
+  const lower = String(value).toLowerCase();
+  return SORT_HINTS.has(lower) ? lower : null;
+};
 
 export const normalize = (value) =>
   (value || '')
@@ -141,13 +263,30 @@ const consumeComparatorFilter = (source, key, parser) => {
   };
 };
 
+// Collect every comparator-style operator for `key` (e.g. both `year>=2020`
+// and `year<=2024` from the same query). Returns an array of `{op, value, raw}`
+// entries plus the leftover source string.
+const consumeAllComparatorFilters = (source, key, parser) => {
+  let working = source;
+  const values = [];
+  // Hard cap iterations so a malformed parser never spins forever.
+  for (let i = 0; i < 8; i += 1) {
+    const next = consumeComparatorFilter(working, key, parser);
+    if (!next.value) break;
+    values.push(next.value);
+    working = next.rest;
+  }
+  return { values, rest: working };
+};
+
 const hasFilterValues = (filters) =>
   Boolean(
     filters?.artist ||
       filters?.album ||
       filters?.type ||
       filters?.year ||
-      filters?.duration,
+      filters?.duration ||
+      filters?.sort,
   );
 
 export const parseQuery = (raw) => {
@@ -163,11 +302,15 @@ export const parseQuery = (raw) => {
       filters: {},
       filtersNormalized: {},
       hasFilters: false,
+      intent: emptyIntent(),
     };
   }
 
   const filters = {};
-  let rest = source;
+  // Strip `sort:*` pseudo-operators up-front so the tokenizer below doesn't
+  // ingest them as positive lexical tokens. The detected hint lives on the
+  // returned `intent` object so the ranker can use it without re-parsing.
+  let rest = stripSortHints(source);
 
   const artistFilter = consumeStringFilter(rest, 'artist');
   if (artistFilter.value) {
@@ -187,16 +330,16 @@ export const parseQuery = (raw) => {
     rest = typeFilter.rest;
   }
 
-  const yearFilter = consumeComparatorFilter(rest, 'year', parseYearValue);
-  if (yearFilter.value) {
-    filters.year = yearFilter.value;
-    rest = yearFilter.rest;
+  const yearFilters = consumeAllComparatorFilters(rest, 'year', parseYearValue);
+  if (yearFilters.values.length > 0) {
+    filters.year = yearFilters.values;
+    rest = yearFilters.rest;
   }
 
-  const durationFilter = consumeComparatorFilter(rest, 'duration', parseDurationSeconds);
-  if (durationFilter.value) {
-    filters.duration = durationFilter.value;
-    rest = durationFilter.rest;
+  const durationFilters = consumeAllComparatorFilters(rest, 'duration', parseDurationSeconds);
+  if (durationFilters.values.length > 0) {
+    filters.duration = durationFilters.values;
+    rest = durationFilters.rest;
   }
 
   const phraseMatches = Array.from(rest.matchAll(/"([^"]+)"/g))
@@ -229,6 +372,19 @@ export const parseQuery = (raw) => {
     album: normalize(filters.album || ''),
   };
 
+  // Intent expansion (aliases, abbreviations, sort hint, explicit handling).
+  // Computed once here so consumers can read `parsed.intent.*` without paying
+  // the cost on every scoreItem call.
+  const intent = expandIntent({
+    tokens,
+    terms,
+    raw: source,
+  });
+
+  if (intent.sortHint) {
+    filters.sort = intent.sortHint;
+  }
+
   return {
     raw: source,
     terms,
@@ -239,6 +395,7 @@ export const parseQuery = (raw) => {
     filters,
     filtersNormalized,
     hasFilters: hasFilterValues(filters),
+    intent,
   };
 };
 
@@ -383,6 +540,106 @@ const normalizeCandidate = (raw, source, sourceMeta = {}) => {
   };
 };
 
+const intentMatchesCandidate = (intentToken, item, kind) => {
+  if (!intentToken) return false;
+  const t = String(intentToken).toLowerCase();
+  // Special-case `feat`: matches when the title carries a "(feat. X)" suffix
+  // OR the candidate already declares a `featuring` flag.
+  if (t === 'feat') {
+    const title = (item?.title || item?.name || '').toLowerCase();
+    if (/\b(feat|featuring|ft)\b/.test(title)) return true;
+    if (item?.featuring || (Array.isArray(item?.featuredArtists) && item.featuredArtists.length)) {
+      return true;
+    }
+    return false;
+  }
+
+  const haystack = normalize(
+    [
+      item?.title,
+      item?.name,
+      item?.album,
+      item?.albumTitle,
+      item?.subtitle,
+    ]
+      .filter(Boolean)
+      .join(' '),
+  );
+  if (haystack.includes(t)) return true;
+  // YT entries occasionally carry a `kind` of "video" that maps to the same
+  // semantic ("official video" intent) — use it as a soft heuristic.
+  if (t === 'official' && (item?.kind === 'song' || item?.official)) return true;
+  if (t === 'live' && (item?.kind === 'video' && /live/.test(haystack))) return true;
+  return false;
+};
+
+const aliasMatchScore = (aliasTerms, nameNorm, artistNorm) => {
+  if (!aliasTerms?.length) return 0;
+  let bonus = 0;
+  for (const term of aliasTerms) {
+    const t = normalize(term);
+    if (!t) continue;
+    if (artistNorm && (artistNorm === t || artistNorm.includes(t))) {
+      bonus += WEIGHTS.ALIAS_HIT;
+    } else if (nameNorm && nameNorm.includes(t)) {
+      bonus += WEIGHTS.ALIAS_HIT * 0.6;
+    } else if (nameNorm) {
+      // Fall back to fuzzy on the name — handles "MJ" -> "Michael Jackson"
+      // when the candidate is a song titled with "MJ" in the haystack.
+      const { distance, threshold } = bestFuzzyDistance(t, [nameNorm, artistNorm].filter(Boolean));
+      if (distance <= threshold) bonus += WEIGHTS.ALIAS_HIT * 0.4;
+    }
+  }
+  return bonus;
+};
+
+const abbreviationMatchScore = (abbreviationTokens, nameNorm, albumNorm) => {
+  if (!abbreviationTokens?.length) return 0;
+  let bonus = 0;
+  for (const token of abbreviationTokens) {
+    const t = normalize(token);
+    if (!t) continue;
+    if (nameNorm.includes(t)) bonus += WEIGHTS.ABBREVIATION_HIT;
+    else if (albumNorm.includes(t)) bonus += WEIGHTS.ABBREVIATION_HIT * 0.5;
+  }
+  return bonus;
+};
+
+const artistAffinityBoost = (artistNorm, historyArtistCounts) => {
+  if (!historyArtistCounts || !artistNorm) return 0;
+  const count =
+    typeof historyArtistCounts.get === 'function'
+      ? historyArtistCounts.get(artistNorm) || 0
+      : historyArtistCounts[artistNorm] || 0;
+  if (count <= 0) return 0;
+  return Math.min(WEIGHTS.ARTIST_AFFINITY_CAP, 12 + count * 4);
+};
+
+const recentReleaseBoost = (item, currentYear) => {
+  const year = parseItemYear(item);
+  if (!Number.isFinite(year)) return 0;
+  if (year > currentYear + 1) return 0; // mis-tagged future date, ignore
+  if (year >= currentYear - 2) return WEIGHTS.RECENT_RELEASE;
+  if (year >= currentYear - 5) return Math.round(WEIGHTS.RECENT_RELEASE * 0.4);
+  return 0;
+};
+
+const recentSearchBoost = (recentSearchTerms, nameNorm, artistNorm) => {
+  if (!recentSearchTerms?.size || !nameNorm) return 0;
+  const haystack = `${nameNorm} ${artistNorm}`;
+  for (const term of recentSearchTerms) {
+    const t = normalize(term);
+    if (t && haystack.includes(t)) return WEIGHTS.RECENT_SEARCH_HIT;
+  }
+  return 0;
+};
+
+const isExplicit = (item) =>
+  Boolean(item?.explicit === true || item?.isExplicit === true);
+
+const isPlayableSong = (item) =>
+  Boolean(item?.videoId || item?.id || item?.url || item?.permalink);
+
 // Returns both the score and the dominant match tier (for did-you-mean UX).
 export const scoreItem = ({
   item,
@@ -391,11 +648,15 @@ export const scoreItem = ({
   isFavorite = false,
   recencyIndex = -1,
   currentArtist = '',
+  historyArtistCounts = null,
+  recentSearchTerms = null,
+  currentYear = new Date().getFullYear(),
 }) => {
   const parsed = typeof query === 'string' ? parseQuery(query) : query;
   const qNorm = parsed?.termsNormalized || '';
   const qTokens = parsed?.tokens || [];
   const qPhrases = parsed?.phrases || [];
+  const intent = parsed?.intent || emptyIntent();
 
   const nameNorm = normalize(getPrimaryText(item, kind));
   const artistNorm = normalize(getArtistText(item, kind));
@@ -463,6 +724,38 @@ export const scoreItem = ({
     match = 'filter';
   }
 
+  // Aliases ("MJ" -> "Michael Jackson") and abbreviations ("rmx" -> "remix")
+  // widen lexical matching so the user's shorthand still surfaces the
+  // canonical content. The boost mostly helps when the original lexical
+  // pass missed; clamp it well below an exact-title match.
+  const aliasBonus = aliasMatchScore(intent.aliasTerms, nameNorm, artistNorm);
+  if (aliasBonus > 0) {
+    score += aliasBonus;
+    if (match === 'none') match = 'alias';
+  }
+  const abbreviationBonus = abbreviationMatchScore(
+    intent.abbreviationTokens,
+    nameNorm,
+    albumNorm,
+  );
+  if (abbreviationBonus > 0) {
+    score += abbreviationBonus;
+    if (match === 'none') match = 'abbreviation';
+  }
+
+  // Intent boosts (live / acoustic / remix / official / etc). Each unique hit
+  // adds INTENT_HIT, capped at 3 hits to prevent stacking.
+  if (intent.intentTokens?.length) {
+    let hits = 0;
+    for (const token of intent.intentTokens) {
+      if (intentMatchesCandidate(token, item, kind)) {
+        hits += 1;
+        if (hits >= 3) break;
+      }
+    }
+    if (hits > 0) score += hits * WEIGHTS.INTENT_HIT;
+  }
+
   if (isFavorite) score += 90;
   if (isFiniteNumber(recencyIndex) && recencyIndex >= 0) {
     score += Math.max(0, 80 - recencyIndex * 2);
@@ -473,10 +766,43 @@ export const scoreItem = ({
     score += 30;
   }
 
+  // Personalization: artists the user listens to often + queries they've run
+  // recently get a small upweight. Popular evergreen hits aren't penalized;
+  // these signals merely break ties in the user's favor.
+  const affinity = artistAffinityBoost(artistNorm, historyArtistCounts);
+  if (affinity > 0) score += affinity;
+  const recentSearch = recentSearchBoost(recentSearchTerms, nameNorm, artistNorm);
+  if (recentSearch > 0) score += recentSearch;
+
+  // Year recency: songs / albums released in the last ~24 months get a mild
+  // boost; older catalog hits stay neutral so we don't bury timeless tracks.
+  if (kind !== 'artist') {
+    const yearBoost = recentReleaseBoost(item, currentYear);
+    if (yearBoost > 0) score += yearBoost;
+  }
+
+  // Playable / explicit handling (slice 3).
+  if (kind === 'song' && !isPlayableSong(item)) {
+    score -= WEIGHTS.PLAYABLE_PENALTY;
+  }
+  if (intent.blockExplicit && isExplicit(item)) {
+    score -= WEIGHTS.EXPLICIT_PENALTY;
+  } else if (intent.requireExplicit && isExplicit(item)) {
+    score += 25;
+  }
+
   if (kind === 'song') score += 5;
   if (kind === 'artist') score += 2;
 
-  return { score, match };
+  // Popularity is purely additive — it boosts famous content but doesn't
+  // override a strong lexical match (an `exact` title is still 1000pt). The
+  // returned `popularity` is preserved alongside `score` so the rescue
+  // logic in `rankAndMerge` can rescue famous songs from the score floor and
+  // tie-breaks can lean on it.
+  const popularity = popularityScore(item);
+  score += popularity;
+
+  return { score, match, popularity };
 };
 
 const withDecorators = (candidate) => ({
@@ -484,6 +810,7 @@ const withDecorators = (candidate) => ({
   _score: candidate.score,
   _match: candidate.match,
   _kind: candidate.kind,
+  _popularity: candidate.popularity || 0,
   _fromLibrary: candidate.isFromLibrary,
   _librarySources: Array.from(candidate.librarySources),
 });
@@ -560,16 +887,30 @@ const matchesTypeFilter = (candidate, typeFilter) => {
   return candidate.kind === typeFilter;
 };
 
+const matchesAllComparators = (value, filterOrArray) => {
+  if (!filterOrArray) return true;
+  const list = Array.isArray(filterOrArray) ? filterOrArray : [filterOrArray];
+  for (const f of list) {
+    if (!compareNumeric(value, f)) return false;
+  }
+  return true;
+};
+
 const matchesYearFilter = (candidate, yearFilter) => {
   if (!yearFilter) return true;
   const year = parseItemYear(candidate.item);
-  return compareNumeric(year, yearFilter);
+  // Year metadata is missing on a lot of upstream tracks. Don't drop them
+  // when the user has set a year filter — only drop items whose declared
+  // year is outside the range.
+  if (!isFiniteNumber(year)) return true;
+  return matchesAllComparators(year, yearFilter);
 };
 
 const matchesDurationFilter = (candidate, durationFilter) => {
   if (!durationFilter) return true;
   const seconds = parseItemDuration(candidate.item);
-  return compareNumeric(seconds, durationFilter);
+  if (!isFiniteNumber(seconds)) return true;
+  return matchesAllComparators(seconds, durationFilter);
 };
 
 const matchesNegativeTokens = (candidate, negativeTokens) => {
@@ -607,6 +948,34 @@ const toFavoriteSet = (favorites) => {
 const numericRecency = (idx) =>
   isFiniteNumber(idx) && idx >= 0 ? idx : Number.POSITIVE_INFINITY;
 
+// Build a bias key used by the SONG-vs-VIDEO de-dup pass. Two candidates with
+// the same `(title, artist)` but different `kind` only differ by source
+// (catalog vs UGC). The video version is suppressed when its song twin is
+// present so the user doesn't see noisy lyric / cover videos pushed up.
+const kindDupKey = (item) => {
+  const title = normalize(item?.title || item?.name || '');
+  const artist = normalize(item?.artist || '');
+  return `${title}::${artist}`;
+};
+
+const SORT_TIE_BREAKERS = {
+  relevance: (a, b) => 0,
+  popularity: (a, b) => (b.popularity || 0) - (a.popularity || 0),
+  newest: (a, b) => {
+    const ay = parseItemYear(a.item) || 0;
+    const by = parseItemYear(b.item) || 0;
+    return by - ay;
+  },
+  shortest: (a, b) => {
+    const ad = parseItemDuration(a.item);
+    const bd = parseItemDuration(b.item);
+    if (!isFiniteNumber(ad) && !isFiniteNumber(bd)) return 0;
+    if (!isFiniteNumber(ad)) return 1;
+    if (!isFiniteNumber(bd)) return -1;
+    return ad - bd;
+  },
+};
+
 export const rankAndMerge = ({
   query,
   serverResults = [],
@@ -615,6 +984,10 @@ export const rankAndMerge = ({
   playlists = [],
   currentArtist = '',
   limit = DEFAULT_LIMIT,
+  historyArtistCounts = null,
+  recentSearchTerms = null,
+  sortHint = null,
+  currentYear = new Date().getFullYear(),
 } = {}) => {
   const parsed = typeof query === 'string' ? parseQuery(query) : query;
   const hasQuery = Boolean(
@@ -669,6 +1042,8 @@ export const rankAndMerge = ({
   const yearFilter = parsed?.filters?.year || null;
   const durationFilter = parsed?.filters?.duration || null;
   const negativeTokens = parsed?.negativeTokens || [];
+  const intent = parsed?.intent || emptyIntent();
+  const blockExplicit = Boolean(intent.blockExplicit);
 
   const scored = [];
   for (const candidate of candidates) {
@@ -678,22 +1053,67 @@ export const rankAndMerge = ({
     if (!matchesYearFilter(candidate, yearFilter)) continue;
     if (!matchesDurationFilter(candidate, durationFilter)) continue;
     if (!matchesNegativeTokens(candidate, negativeTokens)) continue;
+    // `clean` keyword filters explicit content out entirely (a pure score
+    // penalty would still leak the row near the top when the lexical match
+    // was very strong). Hard filter is the user-friendlier behavior.
+    if (blockExplicit && isExplicit(candidate.item)) continue;
 
-    const { score, match } = scoreItem({
+    const { score, match, popularity } = scoreItem({
       item: candidate.item,
       query: parsed,
       kind: candidate.kind,
       isFavorite: candidate.isFavorite,
       recencyIndex: candidate.recencyIndex,
       currentArtist,
+      historyArtistCounts,
+      recentSearchTerms,
+      currentYear,
     });
     candidate.score = score;
     candidate.match = match;
+    candidate.popularity = popularity || 0;
+    // Lexical-only score for the soft floor calculation: subtract popularity
+    // so the floor is applied to "did the text actually match" without being
+    // gamed by famous-but-irrelevant items.
+    candidate.lexicalScore = score - (popularity || 0);
     scored.push(candidate);
   }
 
+  // SONG > VIDEO de-dup: when a candidate's twin (same title, same artist)
+  // exists as a `kind:'song'` row, suppress the video version so we don't
+  // surface lyric / fan-cover videos above the official catalog entry.
+  const songKindKeys = new Set();
+  for (const c of scored) {
+    if (c.kind === 'song' && c.item?.kind === 'song') {
+      songKindKeys.add(kindDupKey(c.item));
+    }
+  }
+  if (songKindKeys.size) {
+    for (const c of scored) {
+      if (
+        c.kind === 'song' &&
+        c.item?.kind === 'video' &&
+        songKindKeys.has(kindDupKey(c.item))
+      ) {
+        c.score = Math.max(0, c.score - WEIGHTS.KIND_DUP_BIAS);
+      }
+    }
+  }
+
+  const effectiveSort = normalizeSortHint(sortHint || intent.sortHint) || 'relevance';
+  const tieBreaker = SORT_TIE_BREAKERS[effectiveSort] || SORT_TIE_BREAKERS.relevance;
+
   scored.sort((a, b) => {
+    if (effectiveSort === 'popularity' || effectiveSort === 'newest' || effectiveSort === 'shortest') {
+      const primary = tieBreaker(a, b);
+      if (primary !== 0) return primary;
+    }
     if (b.score !== a.score) return b.score - a.score;
+    // Popularity is the next strongest tie-breaker so two items with equal
+    // total score (e.g. both `tokens` matches) order by global fame.
+    if ((b.popularity || 0) !== (a.popularity || 0)) {
+      return (b.popularity || 0) - (a.popularity || 0);
+    }
     if (Number(b.isFromLibrary) !== Number(a.isFromLibrary)) {
       return Number(b.isFromLibrary) - Number(a.isFromLibrary);
     }
@@ -743,10 +1163,15 @@ export const rankAndMerge = ({
     // even when the user's query (e.g. a song title) doesn't lexically match
     // the artist or album name. Songs still go through the floor since they
     // can come from many noisier sources (history, playlists, broad video
-    // search) where relevance can't be assumed.
-    filtered = deduped.filter(
-      (c) => c.kind !== 'song' || c.score >= SCORE_FLOOR,
-    );
+    // search) where relevance can't be assumed — but we rescue songs whose
+    // *popularity* signal is strong enough (top YTM hits, famous tracks)
+    // so a typo like "blindng lights" still surfaces "Blinding Lights".
+    filtered = deduped.filter((c) => {
+      if (c.kind !== 'song') return true;
+      if ((c.lexicalScore ?? c.score) >= SCORE_FLOOR) return true;
+      // Popularity rescue: famous songs that survive lexical-floor failure.
+      return (c.popularity || 0) >= WEIGHTS.POPULARITY_RESCUE;
+    });
     if (filtered.length === 0 && deduped.length > 0) filtered = [deduped[0]];
   }
 
@@ -791,7 +1216,12 @@ export const rankAndMerge = ({
       type: parsed?.filters?.type || null,
       year: parsed?.filters?.year || null,
       duration: parsed?.filters?.duration || null,
+      sort: effectiveSort !== 'relevance' ? effectiveSort : null,
+      cleanOnly: intent.blockExplicit ? true : null,
+      explicitOnly: intent.requireExplicit ? true : null,
     },
+    intent,
+    sortHint: effectiveSort,
   };
 };
 

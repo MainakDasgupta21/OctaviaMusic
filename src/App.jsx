@@ -63,7 +63,15 @@ registerPrefetch('/genres', GenresPageImport);
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { retry: 1, refetchOnWindowFocus: false, staleTime: 60_000 },
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+      staleTime: 60_000,
+      // Default RQ gcTime is 5 minutes, which drops warm data too aggressively
+      // when the user bounces between routes. Hold cached payloads for an hour
+      // (per-resource overrides in `cachePolicy` already extend this further).
+      gcTime: 60 * 60 * 1000,
+    },
   },
 });
 

@@ -66,23 +66,26 @@ const AmbientBackdrop = ({ track, reduceMotion }) => {
           transition: { duration: reduceMotion ? 0 : 0.3, ease: [0.4, 0, 1, 1] },
         }}
         className="absolute inset-0 w-full h-full object-cover np-cover-kenburns"
-        style={{ filter: 'blur(20px) saturate(1.08)' }}
+        style={{ filter: 'blur(20px) saturate(1.08)', viewTransitionName: 'vt-now-cover' }}
       />
     </AnimatePresence>
 
-    {/* Album-tinted top wash so the page picks up the song's colour. */}
+    {/* Album-tinted halo — a wider, softer wash than the prior crisp ramp
+        so the song's colour reads as ambient atmosphere rather than a
+        gradient band. 20% peak opacity blends into the cinematic stack
+        without competing with the title. */}
     <div
       aria-hidden="true"
       className="absolute inset-0"
       style={{
         backgroundImage:
-          'linear-gradient(180deg, hsl(var(--track-accent) / 0.22) 0%, transparent 38%)',
+          'radial-gradient(120% 80% at 50% 8%, hsl(var(--track-accent) / 0.20) 0%, transparent 60%)',
       }}
     />
 
     {/* Cinematic atmosphere stack:
         dim → vignette → album-color bloom → diagonal light leak → film grain → AA scrim. */}
-    <div aria-hidden="true" className="absolute inset-0 bg-black/45" />
+    <div aria-hidden="true" className="absolute inset-0 bg-black/40" />
     <div aria-hidden="true" className="absolute inset-0 now-playing-vignette" />
     <div aria-hidden="true" className="absolute inset-0 np-bloom" />
     <div aria-hidden="true" className="absolute inset-0 np-light-leak" />

@@ -42,6 +42,20 @@
     --bone: 38 25% 88%;
 
     /* =======================================================================
+       Gen Z "play" layer — saturated counter-hues that pop against the ember
+       editorial base. Used sparingly: chips, eyebrows, holographic edges,
+       confetti. Never on body copy.
+       ======================================================================= */
+    --accent-2:      188 84% 60%;   /* cool cyan, the ember's counter-hue */
+    --accent-lime:   84  82% 62%;
+    --accent-violet: 268 78% 66%;
+    --accent-pink:   330 86% 68%;
+    /* Iridescent ramp: warm -> cool -> violet, used by .text-iris/.holo-chip */
+    --accent-iris-a: 16  82% 60%;   /* ember */
+    --accent-iris-b: 188 84% 60%;   /* cyan */
+    --accent-iris-c: 268 78% 66%;   /* violet */
+
+    /* =======================================================================
        Dynamic per-track accent — driven by use-color-extraction.
        Falls back to the ember ramp.
        ======================================================================= */
@@ -89,6 +103,7 @@
     --radius: 0.875rem;
     --radius-sharp: 0.25rem;
     --radius-soft: 1.25rem;
+    --radius-blob: 1.75rem;   /* sticker / squircle shapes */
 
     --sidebar-bg: 30 14% 4%;
     --sidebar-active: var(--track-accent);
@@ -100,6 +115,7 @@
     --ease-decel:    cubic-bezier(0, 0, 0.2, 1);
     --ease-accel:    cubic-bezier(0.4, 0, 1, 1);
     --ease-spring:   cubic-bezier(0.34, 1.56, 0.64, 1);
+    --ease-bounce:   cubic-bezier(0.34, 1.8, 0.64, 1);
 
     --dur-instant: 80ms;
     --dur-short:   140ms;
@@ -117,6 +133,16 @@
     --shadow-5: 0 14px 44px rgba(0,0,0,0.46), 0 40px 100px rgba(0,0,0,0.40);
     --shadow-accent: 0 10px 36px hsl(var(--track-accent) / 0.32),
                      0 2px 8px hsl(var(--track-accent) / 0.20);
+
+    /* Rim-light: a 1px ivory inset along the top edge of elevated surfaces.
+       Every premium product does this — it sells the idea that the surface
+       is a physical card catching key light. Pairs with --shadow-N to make
+       a layered token (`--elev-card`) used by `.card-premium`. */
+    --rim-1: inset 0 1px 0 hsl(var(--ink-primary) / 0.06);
+    --rim-2: inset 0 1px 0 hsl(var(--ink-primary) / 0.09);
+    --elev-card:       var(--rim-1), var(--shadow-2);
+    --elev-card-hover: var(--rim-2), var(--shadow-3);
+    --elev-overlay:    var(--rim-2), var(--shadow-4);
 
     /* =======================================================================
        Gradients — warmer, less "tech."
@@ -165,6 +191,12 @@
     @apply bg-background text-foreground font-sans antialiased;
     background: var(--gradient-main);
     min-height: 100vh;
+    /* Paragraph rhythm: Roboto 400 reads slightly cool at 1.5 line-height;
+       1.55 with a hair of positive tracking pushes it into magazine
+       territory without bloating each row. Small but every paragraph in
+       the app benefits. */
+    line-height: 1.55;
+    letter-spacing: 0.003em;
     -webkit-font-feature-settings: 'kern' 1, 'liga' 1;
             font-feature-settings: 'kern' 1, 'liga' 1;
   }
@@ -242,9 +274,28 @@
     color: hsl(var(--ink-primary));
   }
 
-  /* Refined focus visible — accent + ivory inner ring for clarity. */
+  /* Refined focus visible — a single accent + ivory ring vocabulary used
+     everywhere. The default browser outline gets removed and replaced by a
+     2px ring with a 2px offset (inner surface gap) and a soft accent glow.
+     `:focus-visible` only triggers on keyboard navigation, not mouse, so
+     pointer users never see it. */
   :focus-visible {
     outline: none;
+    box-shadow:
+      0 0 0 2px hsl(var(--surface-1)),
+      0 0 0 4px hsl(var(--track-accent) / 0.78),
+      0 0 18px hsl(var(--track-accent) / 0.30);
+    border-radius: var(--radius-sharp);
+  }
+  /* Inputs / sliders already manage their own ring; the global rule above
+     would double-stack. Re-disable for form controls; their components
+     opt in to `.focus-premium` explicitly when they want the language. */
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible,
+  [role="slider"]:focus-visible,
+  button:focus-visible {
+    box-shadow: none;
   }
 }
 
@@ -290,6 +341,34 @@
   .surface-2 { background: hsl(var(--surface-2)); }
   .surface-3 { background: hsl(var(--surface-3)); }
 
+  /* The canonical "premium card" surface. Rim-light along the top edge +
+     a 1px hairline ring + a measured drop shadow. Drop in wherever a card
+     surface needs to feel intentional, not just rounded. */
+  .card-premium {
+    background: hsl(var(--surface-2));
+    border-radius: var(--radius);
+    box-shadow:
+      var(--rim-1),
+      var(--shadow-2),
+      inset 0 0 0 1px hsl(var(--ink-primary) / 0.04);
+    transition:
+      box-shadow var(--dur-med) var(--ease-emphasis),
+      transform var(--dur-med) var(--ease-emphasis);
+  }
+  .card-premium:hover {
+    box-shadow:
+      var(--rim-2),
+      var(--shadow-3),
+      inset 0 0 0 1px hsl(var(--ink-primary) / 0.06);
+  }
+  /* Lighter cousin that sits on top of an already-glassy surface (e.g.
+     the FooterPlayer, ExpandedPlayer): drops the second background so the
+     blur underneath can read through. */
+  .card-premium-ghost {
+    border-radius: var(--radius);
+    box-shadow: var(--rim-1), var(--shadow-2);
+  }
+
   /* =======================================================================
      Ink helpers
      ======================================================================= */
@@ -299,6 +378,143 @@
   .text-ink-4     { color: hsl(var(--ink-quaternary)); }
   .text-bone      { color: hsl(var(--bone)); }
   .text-oxblood   { color: hsl(var(--oxblood-strong)); }
+
+  /* =======================================================================
+     Type rhythm — utilities that codify the editorial patterns scattered
+     across the codebase. Pick the one whose name matches your intent;
+     don't reach for arbitrary `[10.5px] tracking-[0.22em]` again.
+     ======================================================================= */
+
+  /* Drop-in tabular numerals (durations, counters, page-numbers, prices).
+     `slashed-zero` keeps 0 distinct from O in small mono settings. */
+  .tabular {
+    font-variant-numeric: tabular-nums slashed-zero;
+  }
+
+  /* The signature small-caps label that introduces sections, eyebrows above
+     headlines, and feature tags. ~10.5px, +0.22em tracking, ink-3 weight.
+     Pair with a `text-accent` override for "live"/"now" eyebrows. */
+  .eyebrow {
+    font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 10.5px;
+    line-height: 1;
+    font-weight: 500;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: hsl(var(--ink-tertiary));
+  }
+  .eyebrow-accent {
+    color: hsl(var(--track-accent));
+  }
+
+  /* CSS `text-wrap` primitives. `balance` redistributes a headline across
+     lines so no orphan trails alone; `pretty` does the same for paragraphs
+     but biases the LAST few lines. Both are progressive enhancements —
+     browsers without support fall back to default wrap. */
+  .headline-balance { text-wrap: balance; }
+  .body-pretty      { text-wrap: pretty; }
+
+  /* Editorial paragraph: lighter ink, generous leading, capped at ~58ch
+     so the eye doesn't have to scan a full-width column. Use sparingly,
+     for actual prose (descriptions, empty states), never UI labels. */
+  .lead {
+    color: hsl(var(--ink-secondary));
+    line-height: 1.65;
+    font-size: 0.9375rem;
+    max-width: 58ch;
+    text-wrap: pretty;
+  }
+
+  /* =======================================================================
+     Micro-interactions — the connective tissue. Three primitives that
+     codify the hover/press/row-hover patterns used across the app.
+     All three are gated by prefers-reduced-motion (and the user's
+     data-reduce-motion='true' override) so accessibility is preserved.
+     ======================================================================= */
+
+  /* `.lift` — lift -2px and bump elevation on hover. Pair with
+     `.card-premium` for the canonical card. */
+  .lift {
+    transition:
+      transform var(--dur-med) var(--ease-emphasis),
+      box-shadow var(--dur-med) var(--ease-emphasis);
+  }
+  .lift:hover {
+    transform: translateY(-2px);
+  }
+  .lift:active {
+    transform: translateY(0);
+    transition-duration: var(--dur-instant);
+  }
+
+  /* `.press` — standardised tactile feedback for buttons / interactive
+     surfaces. Pair with `.lift` for "rises on hover, sinks on press". */
+  .press {
+    transition: transform var(--dur-short) var(--ease-emphasis);
+  }
+  .press:active {
+    transform: scale(0.985);
+  }
+
+  /* `.row-hover` — tinted slide-in for list rows (search results, queue,
+     playlist tracks). Replaces ad-hoc `hover:bg-white/[0.04]` patterns. */
+  .row-hover {
+    position: relative;
+    transition: background-color var(--dur-short) var(--ease-emphasis);
+  }
+  .row-hover::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 0;
+    background: linear-gradient(
+      90deg,
+      hsl(var(--track-accent) / 0.10),
+      transparent 70%
+    );
+    transition: width var(--dur-med) var(--ease-emphasis);
+    pointer-events: none;
+    border-radius: inherit;
+  }
+  .row-hover:hover {
+    background-color: hsl(var(--ink-primary) / 0.035);
+  }
+  .row-hover:hover::before {
+    width: 32%;
+  }
+
+  /* Reduced-motion: keep the color change (it's not motion) but kill the
+     transforms and the sliding ::before width. */
+  @media (prefers-reduced-motion: reduce) {
+    .lift, .lift:hover, .lift:active,
+    .press, .press:active {
+      transform: none;
+      transition: none;
+    }
+    .row-hover, .row-hover::before {
+      transition: none;
+    }
+    .row-hover:hover::before {
+      width: 0;
+    }
+  }
+  :root[data-reduce-motion='true'] .lift,
+  :root[data-reduce-motion='true'] .lift:hover,
+  :root[data-reduce-motion='true'] .lift:active,
+  :root[data-reduce-motion='true'] .press,
+  :root[data-reduce-motion='true'] .press:active {
+    transform: none;
+    transition: none;
+  }
+  :root[data-reduce-motion='true'] .row-hover,
+  :root[data-reduce-motion='true'] .row-hover::before {
+    transition: none;
+  }
+  :root[data-reduce-motion='true'] .row-hover:hover::before {
+    width: 0;
+  }
 
   /* =======================================================================
      Track-accent helpers
@@ -493,11 +709,29 @@
   /* =======================================================================
      Focus ring (uses track-accent so brand always feels consistent)
      ======================================================================= */
+  /* Two related primitives:
+     • `.focus-ring` — the original quiet ring (2px accent, no glow). Still
+       used by dense rows / chips where a glow would be noisy.
+     • `.focus-premium` — the new headline focus: 2px ivory inset gap,
+       2px accent ring, soft 18px accent glow. Opt-in for buttons /
+       hero CTAs / search input. Mirrors the global `:focus-visible`
+       rule above but as a class so component authors can apply it
+       to things the global rule explicitly excludes (buttons / inputs). */
   .focus-ring {
     @apply outline-none;
   }
   .focus-ring:focus-visible {
     box-shadow: 0 0 0 2px hsl(var(--surface-1)), 0 0 0 4px hsl(var(--track-accent) / 0.7);
+    outline: none;
+  }
+  .focus-premium {
+    @apply outline-none;
+  }
+  .focus-premium:focus-visible {
+    box-shadow:
+      0 0 0 2px hsl(var(--surface-1)),
+      0 0 0 4px hsl(var(--track-accent) / 0.78),
+      0 0 18px hsl(var(--track-accent) / 0.30);
     outline: none;
   }
 
@@ -1077,6 +1311,347 @@
   .np-breathe-ring--delay {
     animation-delay: 1.2s;
   }
+
+  /* =======================================================================
+     GEN Z "PLAY" LAYER — utilities the editorial system can opt into.
+     Each one is keyboard/touch friendly and respects reduce-motion at the
+     bottom of this file.
+     ======================================================================= */
+
+  /* Iridescent gradient text. Falls back to a solid accent on browsers that
+     don't support background-clip:text. */
+  .text-iris {
+    color: hsl(var(--accent-iris-b));
+    background: linear-gradient(
+      100deg,
+      hsl(var(--accent-iris-a)) 0%,
+      hsl(var(--accent-iris-b)) 50%,
+      hsl(var(--accent-iris-c)) 100%
+    );
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+            background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: iris-shift 9s linear infinite;
+  }
+  @keyframes iris-shift {
+    0%   { background-position: 0% 50%; }
+    100% { background-position: 200% 50%; }
+  }
+  @supports not (background-clip: text) {
+    .text-iris {
+      -webkit-text-fill-color: hsl(var(--accent-iris-b));
+      color: hsl(var(--accent-iris-b));
+    }
+  }
+
+  /* Holographic chip — iridescent hairline border over the existing chip body.
+     Use sparingly (1-2 per row); collapses to a flat warm border under
+     reduced-transparency. */
+  .holo-chip {
+    position: relative;
+    isolation: isolate;
+  }
+  .holo-chip::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: conic-gradient(
+      from 140deg,
+      hsl(var(--accent-iris-a)),
+      hsl(var(--accent-iris-b)),
+      hsl(var(--accent-iris-c)),
+      hsl(var(--accent-iris-a))
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+            mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    pointer-events: none;
+    opacity: 0.85;
+    animation: holo-spin 6s linear infinite;
+    z-index: 1;
+  }
+  @keyframes holo-spin {
+    to { transform: rotate(360deg); }
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    .holo-chip::before {
+      background: linear-gradient(180deg,
+        hsl(var(--accent-iris-a) / 0.6),
+        hsl(var(--accent-iris-c) / 0.6));
+      animation: none;
+    }
+  }
+
+  /* Sticker — a tiny rotation + lift; clicks "settle" via bounce ease.
+     Perfect for chips, badges, or the EmptyState CTA. */
+  .sticker {
+    display: inline-flex;
+    align-items: center;
+    transform: rotate(-2deg);
+    transition: transform var(--dur-med) var(--ease-bounce),
+                box-shadow var(--dur-med) var(--ease-emphasis);
+    box-shadow:
+      0 4px 0 hsl(0 0% 0% / 0.35),
+      0 12px 22px hsl(0 0% 0% / 0.28);
+  }
+  .sticker:hover {
+    transform: rotate(0deg) translateY(-2px) scale(1.03);
+  }
+  .sticker:active {
+    transform: rotate(-1deg) translateY(1px) scale(0.98);
+  }
+
+  /* Kinetic headline — split into per-word <span>s; each rises in with
+     stagger via --i. Add `style={{'--i':idx}}` on each span. */
+  .kinetic-headline {
+    overflow: visible;
+  }
+  .kinetic-headline > span {
+    display: inline-block;
+    overflow: hidden;
+    line-height: 1.05;
+  }
+  .kinetic-headline > span > span {
+    display: inline-block;
+    transform: translateY(110%);
+    opacity: 0;
+    animation: kinetic-rise 720ms var(--ease-emphasis) both;
+    animation-delay: calc(var(--i, 0) * 70ms);
+  }
+  @keyframes kinetic-rise {
+    from { transform: translateY(110%); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+  }
+
+  /* Juicy button — press-scale, hover lift, expanding ring on :active.
+     Sound + haptic come from useSounds; this is the visual half. */
+  .btn-juicy {
+    position: relative;
+    isolation: isolate;
+    transition:
+      transform var(--dur-short) var(--ease-bounce),
+      box-shadow var(--dur-med)   var(--ease-emphasis),
+      filter     var(--dur-short) var(--ease-emphasis);
+    will-change: transform;
+  }
+  .btn-juicy:hover {
+    transform: translateY(-1px) scale(1.03);
+    filter: brightness(1.06);
+  }
+  .btn-juicy:active {
+    transform: translateY(0) scale(0.94);
+    transition-duration: var(--dur-instant);
+  }
+  .btn-juicy::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    border: 1.5px solid hsl(var(--track-accent) / 0.55);
+    opacity: 0;
+    transform: scale(1);
+    pointer-events: none;
+    z-index: -1;
+  }
+  .btn-juicy:active::after {
+    animation: btn-juicy-ring 520ms var(--ease-decel) both;
+  }
+  @keyframes btn-juicy-ring {
+    0%   { opacity: 0.7; transform: scale(1);    }
+    100% { opacity: 0;   transform: scale(1.55); }
+  }
+
+  /* Card magnetic — pairs with .card-hover (translate-y up) but adds a
+     conic chromatic edge that "lights up" on hover. */
+  .card-magnetic {
+    position: relative;
+    isolation: isolate;
+    transition:
+      transform var(--dur-med) var(--ease-emphasis),
+      box-shadow var(--dur-med) var(--ease-emphasis);
+  }
+  .card-magnetic::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: conic-gradient(
+      from 0deg,
+      hsl(var(--accent-iris-a) / 0.0),
+      hsl(var(--accent-iris-a) / 0.85),
+      hsl(var(--accent-iris-b) / 0.85),
+      hsl(var(--accent-iris-c) / 0.85),
+      hsl(var(--accent-iris-a) / 0.0)
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+            mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    opacity: 0;
+    transition: opacity var(--dur-med) var(--ease-emphasis);
+    pointer-events: none;
+    z-index: 2;
+  }
+  .card-magnetic:hover::before,
+  .card-magnetic:focus-within::before {
+    opacity: 0.9;
+    animation: holo-spin 5s linear infinite;
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    .card-magnetic::before { background: hsl(var(--track-accent) / 0.45); animation: none; }
+  }
+
+  /* Snap-pop — gives a scroll-snapped tile a tiny entrance bounce. */
+  .snap-pop {
+    scroll-snap-stop: always;
+    animation: snap-pop-in 520ms var(--ease-bounce) both;
+  }
+  @keyframes snap-pop-in {
+    from { transform: translateY(8px) scale(0.96); opacity: 0; }
+    to   { transform: translateY(0)   scale(1);    opacity: 1; }
+  }
+
+  /* Confetti burst — 8 particles fly out via box-shadow keyframe. Pair with
+     a brief mount via React state (render the element for ~700ms). */
+  .confetti-burst {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 6px;
+    height: 6px;
+    border-radius: 9999px;
+    pointer-events: none;
+    background: hsl(var(--accent-iris-a));
+    transform: translate(-50%, -50%);
+    box-shadow:
+       0 0 0 hsl(var(--accent-iris-a)),
+       0 0 0 hsl(var(--accent-iris-b)),
+       0 0 0 hsl(var(--accent-iris-c)),
+       0 0 0 hsl(var(--accent-lime)),
+       0 0 0 hsl(var(--accent-pink)),
+       0 0 0 hsl(var(--accent-violet)),
+       0 0 0 hsl(var(--track-accent)),
+       0 0 0 hsl(var(--bone));
+    animation: confetti-burst 640ms var(--ease-decel) forwards;
+  }
+  @keyframes confetti-burst {
+    0% {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(1.1);
+      box-shadow:
+         22px -16px 0 hsl(var(--accent-iris-a)),
+        -24px -10px 0 hsl(var(--accent-iris-b)),
+         18px  20px 0 hsl(var(--accent-iris-c)),
+        -16px  22px 0 hsl(var(--accent-lime)),
+          2px -28px 0 hsl(var(--accent-pink)),
+          0px  28px 0 hsl(var(--accent-violet)),
+         28px   2px 0 hsl(var(--track-accent)),
+        -28px   0px 0 hsl(var(--bone));
+    }
+  }
+
+  /* CSS-only marquee — wrap two copies of the content in .marquee__track. */
+  .marquee {
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 6%, #000 94%, transparent 100%);
+            mask-image: linear-gradient(90deg, transparent 0, #000 6%, #000 94%, transparent 100%);
+  }
+  .marquee__track {
+    display: inline-flex;
+    gap: 2rem;
+    white-space: nowrap;
+    animation: marquee-scroll 28s linear infinite;
+    will-change: transform;
+  }
+  .marquee:hover .marquee__track,
+  .marquee[data-paused='true'] .marquee__track {
+    animation-play-state: paused;
+  }
+  @keyframes marquee-scroll {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+  }
+
+  /* Skeleton — iris-tinted shimmer for hero loaders only. */
+  .skeleton-pulse-iris {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--surface-2)) 25%,
+      hsl(var(--accent-iris-b) / 0.18) 50%,
+      hsl(var(--surface-2)) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.8s linear infinite;
+  }
+
+  /* Search "spectrum" — a tiny equaliser strip under TopBar's input on focus. */
+  .search-spectrum {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 8px;
+  }
+  .search-spectrum > span {
+    width: 2px;
+    height: 100%;
+    border-radius: 2px;
+    background: linear-gradient(180deg, hsl(var(--accent-iris-b)), hsl(var(--track-accent)));
+    transform-origin: center bottom;
+    animation: search-spectrum-bar 900ms ease-in-out infinite;
+  }
+  .search-spectrum > span:nth-child(2) { animation-delay: 80ms;  }
+  .search-spectrum > span:nth-child(3) { animation-delay: 160ms; }
+  .search-spectrum > span:nth-child(4) { animation-delay: 240ms; }
+  .search-spectrum > span:nth-child(5) { animation-delay: 320ms; }
+  .search-spectrum > span:nth-child(6) { animation-delay: 400ms; }
+  .search-spectrum > span:nth-child(7) { animation-delay: 480ms; }
+  @keyframes search-spectrum-bar {
+    0%, 100% { transform: scaleY(0.3); opacity: 0.65; }
+    50%      { transform: scaleY(1);   opacity: 1; }
+  }
+
+  /* Sidebar moving pill — positioned by Sidebar.jsx via CSS variables
+     --pill-top, --pill-height, --pill-left, --pill-width. */
+  .sidebar-pill {
+    position: absolute;
+    pointer-events: none;
+    top: var(--pill-top, 0);
+    left: var(--pill-left, 0);
+    height: var(--pill-height, 44px);
+    width: var(--pill-width, 100%);
+    border-radius: var(--radius);
+    background:
+      linear-gradient(135deg,
+        hsl(var(--track-accent) / 0.22),
+        hsl(var(--accent-iris-c) / 0.18));
+    box-shadow:
+      inset 0 0 0 1px hsl(var(--track-accent) / 0.32),
+      0 8px 22px hsl(var(--track-accent) / 0.22);
+    transition:
+      top    var(--dur-med) var(--ease-emphasis),
+      left   var(--dur-med) var(--ease-emphasis),
+      width  var(--dur-med) var(--ease-emphasis),
+      height var(--dur-med) var(--ease-emphasis),
+      opacity var(--dur-short) var(--ease-emphasis);
+  }
+  .sidebar-pill[data-armed='false'] { opacity: 0; }
 }
 
 /* Reduced transparency: drop the heavy blur/bloom for an opaque, high-contrast
@@ -1156,6 +1731,88 @@
 }
 
 /* =========================================================================
+   Gen Z "play" layer — reduced motion + transparency guards
+   ========================================================================= */
+@media (prefers-reduced-motion: reduce) {
+  .text-iris       { animation: none !important; background-position: 0 50% !important; }
+  .holo-chip::before,
+  .card-magnetic::before { animation: none !important; }
+  .kinetic-headline > span > span { animation: none !important; transform: none !important; opacity: 1 !important; }
+  .btn-juicy:hover,
+  .btn-juicy:active { transform: none !important; }
+  .btn-juicy::after { animation: none !important; opacity: 0 !important; }
+  .snap-pop         { animation: none !important; }
+  .confetti-burst   { animation: none !important; opacity: 0 !important; }
+  .marquee__track   { animation: none !important; }
+  .skeleton-pulse-iris { animation: none !important; }
+  .search-spectrum > span { animation: none !important; transform: scaleY(0.55) !important; }
+  .sticker          { transform: none !important; }
+  .sticker:hover,
+  .sticker:active   { transform: none !important; }
+}
+:root[data-reduce-motion='true'] .text-iris,
+:root[data-reduce-motion='true'] .holo-chip::before,
+:root[data-reduce-motion='true'] .card-magnetic::before,
+:root[data-reduce-motion='true'] .marquee__track,
+:root[data-reduce-motion='true'] .skeleton-pulse-iris,
+:root[data-reduce-motion='true'] .btn-juicy::after,
+:root[data-reduce-motion='true'] .confetti-burst,
+:root[data-reduce-motion='true'] .snap-pop,
+:root[data-reduce-motion='true'] .search-spectrum > span {
+  animation: none !important;
+}
+:root[data-reduce-motion='true'] .kinetic-headline > span > span {
+  animation: none !important;
+  transform: none !important;
+  opacity: 1 !important;
+}
+:root[data-reduce-motion='true'] .btn-juicy:hover,
+:root[data-reduce-motion='true'] .btn-juicy:active,
+:root[data-reduce-motion='true'] .sticker,
+:root[data-reduce-motion='true'] .sticker:hover,
+:root[data-reduce-motion='true'] .sticker:active {
+  transform: none !important;
+}
+
+/* =========================================================================
+   View Transitions API — global SPA route morph
+   ========================================================================= */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 280ms;
+    animation-timing-function: var(--ease-emphasis);
+  }
+  ::view-transition-old(root) {
+    animation-name: vt-fade-out;
+  }
+  ::view-transition-new(root) {
+    animation-name: vt-fade-in;
+  }
+}
+@keyframes vt-fade-out {
+  to { opacity: 0; transform: translateY(-4px); }
+}
+@keyframes vt-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+}
+:root[data-reduce-motion='true'] ::view-transition-old(root),
+:root[data-reduce-motion='true'] ::view-transition-new(root) {
+  animation: none !important;
+}
+
+/* The logo + now-playing cover get the default morph (no custom animation),
+   so the View Transitions API will cross-fade and tween their position/size
+   between routes. */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-group(vt-logo),
+  ::view-transition-group(vt-now-cover) {
+    animation-duration: 360ms;
+    animation-timing-function: var(--ease-emphasis);
+  }
+}
+
+/* =========================================================================
    Theme variants
    ========================================================================= */
 :root[data-theme='oled'] {
@@ -1185,6 +1842,14 @@
     radial-gradient(ellipse 80% 60% at 25% -5%, hsl(var(--track-accent) / 0.10) 0%, transparent 55%),
     radial-gradient(ellipse 70% 50% at 90% 110%, hsl(var(--oxblood) / 0.10) 0%, transparent 55%),
     hsl(var(--surface-1));
+  /* Dim the iris ramp on cream paper — saturated cyans/violets read garish
+     over a light background; pull them toward the print palette. */
+  --accent-iris-a: 16  72% 48%;
+  --accent-iris-b: 188 60% 42%;
+  --accent-iris-c: 268 52% 50%;
+  --accent-lime:   84  62% 38%;
+  --accent-violet: 268 52% 50%;
+  --accent-pink:   330 68% 52%;
 }
 :root[data-theme='hicontrast'] {
   --surface-0: 0 0% 0%;
@@ -1196,6 +1861,15 @@
   --ink-tertiary:  0 0% 80%;
   --border: 0 0% 50%;
   --brand-500: 30 100% 65%;
+  /* Collapse the Gen Z iris ramp to the high-contrast brand so chips and
+     headlines don't lose contrast on the AA/AAA target. */
+  --accent-iris-a: 30 100% 65%;
+  --accent-iris-b: 0  0%   100%;
+  --accent-iris-c: 30 100% 65%;
+  --accent-2:      0  0%   100%;
+  --accent-lime:   60 100% 85%;
+  --accent-violet: 0  0%   100%;
+  --accent-pink:   0  0%   100%;
 }
 
 /* Sonner toasts: pull our tokens. */
