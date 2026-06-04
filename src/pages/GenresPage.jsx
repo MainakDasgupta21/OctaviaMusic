@@ -1,29 +1,23 @@
-import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
 import Skeleton from '@/components/ui-v2/Skeleton';
 import EmptyState from '@/components/ui-v2/EmptyState';
+import Button from '@/components/ui-v2/Button';
+import SmartImage from '@/components/SmartImage';
 import { getGenres } from '@/lib/api';
+import { cachePolicy, queryKeys } from '@/lib/query-keys';
 import { fadeUp, staggerChildren } from '@/design/motion';
-
-const formatMasthead = () => {
-  const d = new Date();
-  return new Intl.DateTimeFormat('en-US', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(d).toUpperCase();
-};
+import { useEditorialMeta } from '@/hooks/use-editorial-meta';
 
 const GenresPage = () => {
-  const { data: genres = [], isLoading, isError } = useQuery({
-    queryKey: ['genres'],
+  const { data: genres = [], isLoading, isError, refetch } = useQuery({
+    queryKey: queryKeys.genres(),
     queryFn: getGenres,
+    ...cachePolicy.genres,
   });
-  const masthead = useMemo(() => formatMasthead(), []);
+  const { masthead } = useEditorialMeta();
 
   return (
     <div className="p-5 md:p-10 max-w-[1600px] mx-auto pb-12">
@@ -35,7 +29,7 @@ const GenresPage = () => {
         <span>{masthead}</span>
         <span className="flex items-center gap-3">
           <span className="text-ink-3">✦</span>
-          <span>The Harmony Hub Daily · The Atlas</span>
+          <span>The Octavia Daily · The Atlas</span>
           <span className="text-ink-3">✦</span>
         </span>
         <span>Genres &amp; moods</span>
@@ -65,6 +59,11 @@ const GenresPage = () => {
           icon={AlertTriangle}
           title="Genres unavailable"
           description="We couldn't reach the catalog service. Try again in a moment."
+          action={
+            <Button onClick={() => refetch()} size="md">
+              Try again
+            </Button>
+          }
         />
       ) : (
         <motion.div
@@ -87,10 +86,13 @@ const GenresPage = () => {
                     >
                       {/* Background — image preferred, otherwise the editorial mix */}
                       {g.thumbnail ? (
-                        <img
+                        <SmartImage
                           src={g.thumbnail}
                           alt=""
-                          className="absolute inset-0 w-full h-full object-cover opacity-70 group-hover:opacity-85 group-hover:scale-[1.04] transition-all duration-long ease-emphasis"
+                          kind="genre"
+                          rounded="rounded-none"
+                          className="absolute inset-0 w-full h-full opacity-70 group-hover:opacity-85 group-hover:scale-[1.04] transition-all duration-long ease-emphasis"
+                          imgClassName="object-cover"
                         />
                       ) : (
                         <div

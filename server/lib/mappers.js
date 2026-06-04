@@ -39,9 +39,20 @@ const pickThumbnail = (thumbnails) => {
 };
 
 // YT thumbnail fallback when we only have a videoId (e.g. for tracks that come
-// from a playlist where the thumbnail array might be sparse).
+// from a playlist where the thumbnail array might be sparse). We use
+// hqdefault (always available) instead of maxresdefault (often 404s).
 const ytImage = (videoId) =>
-  videoId ? `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg` : null;
+  videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : null;
+
+// Slug rule must mirror src/lib/slug.js to keep frontend/backend aligned.
+const slugifyName = (value) =>
+  String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 
 // -----------------------------------------------------------------------------
 // Track / song
@@ -59,7 +70,8 @@ const toTrackDTO = (src, ctx = {}) => {
   const artistId = src.artist?.artistId || ctx.artistId || null;
   const albumName = src.album?.name ?? ctx.albumName ?? null;
   const albumId = src.album?.albumId ?? ctx.albumId ?? null;
-  const thumbnail = pickThumbnail(src.thumbnails) || ctx.thumbnail || ytImage(src.videoId);
+  const thumbnail =
+    pickThumbnail(src.thumbnails) || ctx.thumbnail || ytImage(src.videoId);
 
   return {
     id: src.videoId,
@@ -68,13 +80,15 @@ const toTrackDTO = (src, ctx = {}) => {
     title: src.name || 'Untitled',
     artist: artistName,
     artistId,
-    // Slug doubles as the URL segment for /artist/:slug — using the YTM channel
-    // id keeps the round-trip to getArtist(slug) working.
+    // Channel id keeps the YTM round-trip working; the human slug is what
+    // search/library cards actually link to.
     artistSlug: artistId,
+    artistHumanSlug: slugifyName(artistName),
     album: albumName,
     albumId,
     duration: formatDuration(src.duration),
     thumbnail,
+    playable: true,
     plays: null,
     releaseDate: null,
   };
@@ -88,6 +102,12 @@ const toAlbumSummaryDTO = (src) => {
   if (!src || !src.albumId) return null;
   const artistName = src.artist?.name || 'Unknown artist';
   const artistId = src.artist?.artistId || null;
+  // Albums sometimes ship with empty thumbnails arrays; reach into the cover
+  // videoId or any songs[0].videoId to back-fill so the UI never sees null.
+  const fallbackVideoId =
+    src.coverVideoId || src.songs?.find((s) => s?.videoId)?.videoId || null;
+  const thumbnail =
+    pickThumbnail(src.thumbnails) || ytImage(fallbackVideoId) || null;
   return {
     id: src.albumId,
     type: 'album',
@@ -95,8 +115,9 @@ const toAlbumSummaryDTO = (src) => {
     artist: artistName,
     artistId,
     artistSlug: artistId,
+    artistHumanSlug: slugifyName(artistName),
     year: src.year ?? null,
-    thumbnail: pickThumbnail(src.thumbnails),
+    thumbnail,
   };
 };
 
@@ -128,17 +149,37 @@ const toAlbumDetailDTO = async (src, { resolveVideoId } = {}) => {
     }),
   );
 
-  const tracks = resolved
-    .map((song) =>
-      toTrackDTO(song, {
+  const tracks = resolved.map((song, idx) => {
+    if (song?.videoId) {
+      const dto = toTrackDTO(song, {
         albumName: src.name,
         albumId: src.albumId,
         artistName: src.artist?.name,
         artistId: src.artist?.artistId,
         thumbnail: albumCover,
-      }),
-    )
-    .filter(Boolean);
+      });
+      if (dto) return dto;
+    }
+    // Unresolvable rows are kept visible but disabled so the album page is honest.
+    const artistName = song?.artist?.name || src.artist?.name || 'Unknown artist';
+    return {
+      id: `${src.albumId}-track-${idx}`,
+      type: 'song',
+      videoId: null,
+      title: song?.name || 'Untitled',
+      artist: artistName,
+      artistId: src.artist?.artistId || null,
+      artistSlug: src.artist?.artistId || null,
+      artistHumanSlug: slugifyName(artistName),
+      album: src.name || null,
+      albumId: src.albumId,
+      duration: formatDuration(song?.duration),
+      thumbnail: albumCover || null,
+      playable: false,
+      plays: null,
+      releaseDate: null,
+    };
+  });
 
   return {
     ...summary,
@@ -154,14 +195,23 @@ const toAlbumDetailDTO = async (src, { resolveVideoId } = {}) => {
 
 const toArtistSummaryDTO = (src) => {
   if (!src || !src.artistId) return null;
+  const name = src.name || 'Unknown artist';
+  // Same fallback pattern as albums: pull a thumbnail from a known videoId
+  // when YTM omits the artwork (common on smaller artist pages).
+  const fallbackVideoId =
+    src.coverVideoId
+    || src.topSongs?.find((s) => s?.videoId)?.videoId
+    || src.topVideos?.find((v) => v?.videoId)?.videoId
+    || null;
   return {
     id: src.artistId,
     type: 'artist',
     slug: src.artistId,
-    name: src.name || 'Unknown artist',
+    humanSlug: slugifyName(name),
+    name,
     verified: false,
     monthly: null,
-    thumbnail: pickThumbnail(src.thumbnails),
+    thumbnail: pickThumbnail(src.thumbnails) || ytImage(fallbackVideoId) || null,
   };
 };
 

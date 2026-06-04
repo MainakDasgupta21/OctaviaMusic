@@ -9,6 +9,7 @@ import Button from '@/components/ui-v2/Button';
 import EmptyState from '@/components/ui-v2/EmptyState';
 import Tabs from '@/components/ui-v2/Tabs';
 import Kbd from '@/components/ui-v2/Kbd';
+import SmartImage from '@/components/SmartImage';
 import { useListNavigation } from '@/hooks/use-list-navigation';
 import notify from '@/lib/notify';
 import { fadeUp, staggerChildren } from '@/design/motion';
@@ -170,10 +171,13 @@ const FavoritesPage = () => {
                     </span>
 
                     <div className="relative">
-                      <img
+                      <SmartImage
                         src={track.thumbnail}
                         alt=""
-                        className="w-12 h-12 rounded-sharp object-cover ring-1 ring-white/10"
+                        kind="track"
+                        rounded="rounded-sharp"
+                        className="w-12 h-12 ring-1 ring-white/10"
+                        imgClassName="object-cover"
                       />
                       <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-sharp">
                         <Play className="w-4 h-4 text-white fill-current" />
@@ -190,7 +194,7 @@ const FavoritesPage = () => {
                         {track.title}
                       </h4>
                       <p className="font-editorial text-[12.5px] text-ink-3 truncate mt-0.5">
-                        by {track.artist}
+                        by {track.artist || 'Unknown artist'}
                       </p>
                     </div>
 

@@ -264,7 +264,7 @@ const SettingsPage = () => {
             </span>
           </h1>
           <p className="font-editorial text-[14px] text-ink-3 mt-3 max-w-md leading-snug">
-            Make Harmony Hub look, sound, and behave exactly how you want.
+            Make Octavia look, sound, and behave exactly how you want.
           </p>
         </div>
         <Button
@@ -527,7 +527,7 @@ const SettingsPage = () => {
           <div className="space-y-3 font-editorial text-[13px] text-ink-2 leading-relaxed">
             <p>
               <span className="font-display text-base text-ink not-italic">
-                Harmony Hub — Volume 1.
+                Octavia — Volume 1.
               </span>{' '}
               An editorial product for listening, slow-built with care.
             </p>

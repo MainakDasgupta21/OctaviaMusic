@@ -153,6 +153,13 @@ const resolveVideoId = (songName, artistName) =>
     return hit || null;
   });
 
+// Build a logged catch handler so upstream failures are visible in server
+// logs instead of silently producing an empty bucket.
+const logFail = (label, q) => (err) => {
+  console.warn(`[ytm] ${label}(${q}) failed:`, err?.message || err);
+  return [];
+};
+
 const searchByType = async (q, type, limit) => {
   switch (type) {
     case 'song':   return searchSongs(q, limit);
@@ -163,10 +170,36 @@ const searchByType = async (q, type, limit) => {
       // Run all three in parallel — they each share the same cache so this is
       // cheap when the user toggles filters back to 'all'.
       const [songs, artists, albums] = await Promise.all([
-        searchSongs(q, 15).catch(() => []),
-        searchArtists(q, 8).catch(() => []),
-        searchAlbums(q, 8).catch(() => []),
+        searchSongs(q, 15).catch(logFail('searchSongs', q)),
+        searchArtists(q, 8).catch(logFail('searchArtists', q)),
+        searchAlbums(q, 8).catch(logFail('searchAlbums', q)),
       ]);
+
+      // Fallback: when the per-query album endpoint returns nothing but we
+      // *did* find matching artists, derive albums from the top artists'
+      // discographies. v5.3.1's `searchAlbums` is fragile but `getArtistAlbums`
+      // reliably returns the real catalog once we have an artistId.
+      if (albums.length === 0 && artists.length > 0) {
+        const candidates = artists.slice(0, 2).filter((a) => a?.artistId);
+        const groups = await Promise.all(
+          candidates.map((a) =>
+            getArtistAlbums(a.artistId, 8).catch(
+              logFail(`getArtistAlbums(${a.artistId})`, q),
+            ),
+          ),
+        );
+        const seen = new Set();
+        for (const group of groups) {
+          for (const al of group) {
+            if (!al?.albumId || seen.has(al.albumId)) continue;
+            seen.add(al.albumId);
+            albums.push(al);
+            if (albums.length >= 8) break;
+          }
+          if (albums.length >= 8) break;
+        }
+      }
+
       return { songs, artists, albums };
     }
   }
@@ -183,6 +216,21 @@ const getArtist = (artistId) =>
     const yt = await getYTMusic();
     return withRetry(() => yt.getArtist(artistId));
   });
+
+// Direct fan-out to an artist's full album list. We use this as a fallback in
+// `searchByType('all')` because v5.3.1's `searchAlbums(query)` is unreliable
+// for many queries (parsing returns empty rows or rows missing `albumId`).
+// Once we have a matching artistId, `getArtistAlbums` reliably returns the
+// real discography in `AlbumDetailed[]` shape. The full list is memoised by
+// artistId so repeated lookups (different `limit`) share the same cache.
+const getArtistAlbums = async (artistId, limit = 20) => {
+  const rows = await memo(`artistAlbums:${artistId}`, TTL.detail, async () => {
+    const yt = await getYTMusic();
+    const result = await withRetry(() => yt.getArtistAlbums(artistId));
+    return Array.isArray(result) ? result : [];
+  });
+  return rows.slice(0, limit);
+};
 
 const getPlaylistTracks = (playlistId) =>
   memo(`playlist:${playlistId}`, TTL.charts, async () => {
@@ -247,6 +295,7 @@ module.exports = {
   resolveVideoId,
   getAlbum,
   getArtist,
+  getArtistAlbums,
   getPlaylistTracks,
   getChartsLive,
   getTrendingLive,

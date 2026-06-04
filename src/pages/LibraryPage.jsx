@@ -19,10 +19,12 @@ import Stat from '@/components/ui-v2/Stat';
 import Tabs from '@/components/ui-v2/Tabs';
 import SectionHeader from '@/components/ui-v2/SectionHeader';
 import EmptyState from '@/components/ui-v2/EmptyState';
+import SmartImage from '@/components/SmartImage';
 import { fadeUp, staggerChildren } from '@/design/motion';
+import { artistSlugOf, isUsableArtistSlug } from '@/lib/slug';
 import { cn } from '@/lib/utils';
 
-const RECENT_SEARCHES_KEY = 'harmony.recent-searches.v1';
+const RECENT_SEARCHES_KEY = 'octavia.recent-searches.v1';
 
 const readRecentSearches = () => {
   if (typeof window === 'undefined') return [];
@@ -103,7 +105,8 @@ const LibraryPage = () => {
         const sample =
           favorites.find((t) => t.artist === artist) ||
           history.find((t) => t.artist === artist);
-        return { artist, count, thumbnail: sample?.thumbnail, slug: sample?.artistSlug };
+        const slug = sample ? artistSlugOf(sample) : '';
+        return { artist, count, thumbnail: sample?.thumbnail, slug };
       });
   }, [history, favorites]);
 
@@ -131,7 +134,7 @@ const LibraryPage = () => {
         <span>{masthead}</span>
         <span className="flex items-center gap-3">
           <span className="text-ink-3">✦</span>
-          <span>The Harmony Hub Daily · Library</span>
+          <span>The Octavia Daily · Library</span>
           <span className="text-ink-3">✦</span>
         </span>
         <span>Vol. 01 · No. {issueNum}</span>
@@ -271,23 +274,21 @@ const Overview = ({
           {topArtists.map((a) => (
             <Link
               key={a.artist}
-              to={a.slug ? `/artist/${a.slug}` : '#'}
+              to={isUsableArtistSlug(a.slug) ? `/artist/${a.slug}` : '#'}
+              aria-disabled={!isUsableArtistSlug(a.slug)}
               className="group block text-center focus-ring rounded-sharp"
             >
-              <div className="aspect-square rounded-full overflow-hidden mb-3 bg-surface-2 ring-1 ring-white/[0.08] group-hover:ring-track/50 transition-all shadow-elev-1 group-hover:shadow-elev-3">
-                {a.thumbnail ? (
-                  <img
-                    src={a.thumbnail}
-                    alt={a.artist}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-long ease-emphasis"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Music2 className="w-7 h-7 text-ink-3" />
-                  </div>
-                )}
+              <div className="aspect-square mb-3 bg-surface-2 group-hover:ring-track/50 transition-all shadow-elev-1 group-hover:shadow-elev-3">
+                <SmartImage
+                  src={a.thumbnail}
+                  alt={a.artist || 'Artist'}
+                  kind="artist"
+                  rounded="rounded-full"
+                  className="w-full h-full ring-1 ring-white/[0.08]"
+                  imgClassName="object-cover group-hover:scale-105 transition-transform duration-long ease-emphasis"
+                />
               </div>
-              <p className="text-[13px] font-medium truncate text-ink">{a.artist}</p>
+              <p className="text-[13px] font-medium truncate text-ink">{a.artist || 'Unknown artist'}</p>
               <p className="font-editorial text-[11.5px] text-ink-3">
                 {a.count} {a.count === 1 ? 'play' : 'plays'}
               </p>
@@ -347,10 +348,13 @@ const CompactTrack = ({ track, index, onPlay, isCurrent, isPlaying }) => (
     )}
   >
     <div className="relative flex-shrink-0">
-      <img
+      <SmartImage
         src={track.thumbnail}
         alt=""
-        className="w-14 h-14 rounded-sharp object-cover ring-1 ring-white/10"
+        kind="track"
+        rounded="rounded-sharp"
+        className="w-14 h-14 ring-1 ring-white/10"
+        imgClassName="object-cover"
       />
       {typeof index === 'number' ? (
         <span
@@ -366,7 +370,7 @@ const CompactTrack = ({ track, index, onPlay, isCurrent, isPlaying }) => (
         {track.title}
       </p>
       <p className="font-editorial text-[12.5px] text-ink-3 truncate mt-0.5">
-        by {track.artist}
+        by {track.artist || 'Unknown artist'}
       </p>
     </div>
     <div className="w-9 h-9 rounded-full flex items-center justify-center transition-colors text-ink-3 group-hover:text-accent">
@@ -436,10 +440,13 @@ const TrackList = ({
                   </span>
                 )}
               </span>
-              <img
+              <SmartImage
                 src={track.thumbnail}
                 alt=""
-                className="w-12 h-12 rounded-sharp object-cover ring-1 ring-white/10"
+                kind="track"
+                rounded="rounded-sharp"
+                className="w-12 h-12 ring-1 ring-white/10"
+                imgClassName="object-cover"
               />
               <div className="flex-1 min-w-0">
                 <h4
@@ -451,7 +458,7 @@ const TrackList = ({
                   {track.title}
                 </h4>
                 <p className="font-editorial text-[12.5px] text-ink-3 truncate mt-0.5">
-                  by {track.artist}
+                  by {track.artist || 'Unknown artist'}
                 </p>
               </div>
               <div

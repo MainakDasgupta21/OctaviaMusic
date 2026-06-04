@@ -5,7 +5,9 @@
 // unless the album defines an explicit cover.
 // =============================================================================
 
-const thumb = (videoId) => `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`;
+// hqdefault is broadly available on every YouTube video; maxresdefault 404s for
+// many older/short uploads and produces broken-image states downstream.
+const thumb = (videoId) => `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 
 // Artists -----------------------------------------------------------------
 const artists = [

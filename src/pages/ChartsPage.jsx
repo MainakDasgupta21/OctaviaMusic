@@ -15,7 +15,11 @@ import Tabs from '@/components/ui-v2/Tabs';
 import Button from '@/components/ui-v2/Button';
 import Skeleton from '@/components/ui-v2/Skeleton';
 import EmptyState from '@/components/ui-v2/EmptyState';
+import SmartImage from '@/components/SmartImage';
 import { getCharts } from '@/lib/api';
+import { cachePolicy, queryKeys } from '@/lib/query-keys';
+import { useEditorialMeta } from '@/hooks/use-editorial-meta';
+import { formatPlays } from '@/lib/player-format';
 import { fadeUp, staggerChildren } from '@/design/motion';
 import { cn } from '@/lib/utils';
 
@@ -33,24 +37,6 @@ const WINDOWS = [
   { id: 'monthly', label: 'This month' },
   { id: 'alltime', label: 'All time' },
 ];
-
-const formatPlays = (n) => {
-  if (!Number.isFinite(n)) return '—';
-  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return `${n}`;
-};
-
-const formatMasthead = () => {
-  const d = new Date();
-  return new Intl.DateTimeFormat('en-US', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(d).toUpperCase();
-};
 
 // Editorial rank-delta dingbats: thin arrow + diff in mono.
 const RankDelta = ({ current, prev }) => {
@@ -110,15 +96,23 @@ const ChartsPage = () => {
   const { playTrack, addToQueue, currentTrack, isPlaying } = usePlayer();
   const [region, setRegion] = useState('global');
   const [chartWindow, setChartWindow] = useState('weekly');
-  const masthead = useMemo(() => formatMasthead(), []);
+  const { masthead } = useEditorialMeta();
 
-  const { data: charts = [], isLoading, isError } = useQuery({
-    queryKey: ['charts', region, chartWindow],
-    queryFn: () => getCharts({ limit: 50 }),
-    // v5: keep the current chart visible while a new region/window loads
-    // instead of collapsing to the loading skeleton on every toggle.
+  const { data: chartsResponse, isLoading, isError, refetch } = useQuery({
+    queryKey: queryKeys.charts(region, chartWindow, 50),
+    queryFn: () => getCharts({ region, window: chartWindow, limit: 50 }),
+    ...cachePolicy.charts,
     placeholderData: keepPreviousData,
   });
+
+  const charts = useMemo(() => {
+    if (Array.isArray(chartsResponse)) return chartsResponse;
+    if (Array.isArray(chartsResponse?.items)) return chartsResponse.items;
+    return [];
+  }, [chartsResponse]);
+
+  const meta = chartsResponse?.meta || null;
+  const isLiveSource = meta?.source === 'live';
 
   const handlePlayAll = () => {
     if (!charts.length) return;
@@ -141,10 +135,10 @@ const ChartsPage = () => {
         <span>{masthead}</span>
         <span className="flex items-center gap-3">
           <span className="text-ink-3">✦</span>
-          <span>The Harmony Hub Daily · Charts</span>
+          <span>The Octavia Daily · Charts</span>
           <span className="text-ink-3">✦</span>
         </span>
-        <span>Top 100</span>
+        <span>Top 50</span>
       </div>
 
       {/* Page header */}
@@ -152,7 +146,7 @@ const ChartsPage = () => {
         <div>
           <p className="eyebrow eyebrow-accent mb-3 flex items-center gap-2">
             <span className="w-6 h-px bg-track" />
-            Top 100
+            Top 50
           </p>
           <h1 className="font-display text-display-xl text-ink leading-[0.92] mask-rise">
             <span>
@@ -192,6 +186,11 @@ const ChartsPage = () => {
           icon={AlertTriangle}
           title="Charts unavailable"
           description="We couldn't reach the catalog service. Please try again in a moment."
+          action={
+            <Button onClick={() => refetch()} size="md">
+              Try again
+            </Button>
+          }
         />
       ) : (
         <motion.div
@@ -205,7 +204,7 @@ const ChartsPage = () => {
             <span className="text-center">Rank</span>
             <span aria-hidden="true" />
             <span>Title</span>
-            <span className="hidden md:block text-right">Plays</span>
+            <span className="hidden md:block text-right">{isLiveSource ? '' : 'Plays'}</span>
             <span className="w-8" aria-hidden="true" />
             <span className="text-right">
               <Clock className="w-3.5 h-3.5 inline" />
@@ -242,14 +241,19 @@ const ChartsPage = () => {
                           {track.rank}
                         </p>
                       )}
-                      <div className="mt-1 flex justify-center">
-                        <RankDelta current={track.rank} prev={track.prev} />
-                      </div>
+                      {!isLiveSource && Number.isFinite(track.prev) ? (
+                        <div className="mt-1 flex justify-center">
+                          <RankDelta current={track.rank} prev={track.prev} />
+                        </div>
+                      ) : null}
                     </div>
-                    <img
+                    <SmartImage
                       src={track.thumbnail}
                       alt=""
-                      className="w-12 h-12 rounded-sharp object-cover ring-1 ring-white/10"
+                      kind="track"
+                      rounded="rounded-sharp"
+                      className="w-12 h-12 ring-1 ring-white/10"
+                      imgClassName="object-cover"
                     />
                     <div className="min-w-0">
                       <h4
@@ -261,11 +265,11 @@ const ChartsPage = () => {
                         {track.title}
                       </h4>
                       <p className="font-editorial text-[12.5px] text-ink-3 truncate mt-0.5">
-                        by {track.artist}
+                        by {track.artist || 'Unknown artist'}
                       </p>
                     </div>
                     <span className="hidden md:block font-mono text-[12px] text-ink-3 tabular-nums text-right tracking-tight">
-                      {formatPlays(track.plays)}
+                      {isLiveSource ? '' : formatPlays(track.plays)}
                     </span>
                     <div
                       onClick={(e) => e.stopPropagation()}

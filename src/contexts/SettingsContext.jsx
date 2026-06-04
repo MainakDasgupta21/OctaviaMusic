@@ -7,10 +7,10 @@ import {
   useState,
 } from 'react';
 
-const STORAGE_KEY = 'harmony.settings.v1';
+const STORAGE_KEY = 'octavia.settings.v1';
 
 const defaults = {
-  highQualityAudio: false,
+  highQualityAudio: true,
   crossfadeSeconds: 0,
   autoplay: true,
   reduceMotion: false,

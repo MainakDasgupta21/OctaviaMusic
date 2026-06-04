@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Command } from 'cmdk';
 import {
@@ -17,6 +17,7 @@ import {
   VolumeX,
   Volume2,
   Music,
+  Disc,
   Search as SearchIcon,
   Loader2,
   User,
@@ -34,7 +35,13 @@ import { usePlayer } from '@/contexts/PlayerContext';
 import { useFavorites } from '@/contexts/FavoritesContext';
 import { usePlaylists } from '@/contexts/PlaylistContext';
 import { searchMusic } from '@/lib/api';
+import { parseQuery, rankAndMerge } from '@/lib/search-rank';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import Kbd from '@/components/ui-v2/Kbd';
+import SmartImage from '@/components/SmartImage';
+import { cachePolicy, queryKeys } from '@/lib/query-keys';
+import { artistSlugFromName, artistSlugOf, isUsableArtistSlug } from '@/lib/slug';
+import { useHoverPrefetch } from '@/hooks/use-route-prefetch';
 import notify from '@/lib/notify';
 import { cn } from '@/lib/utils';
 
@@ -67,7 +74,7 @@ const navItems = [
   { id: 'nav-settings', label: 'Open Settings', path: '/settings', icon: Settings },
 ];
 
-const RECENT_KEY = 'harmony.palette.recent.v1';
+const RECENT_KEY = 'octavia.palette.recent.v1';
 const MAX_RECENTS = 6;
 
 const loadRecents = () => {
@@ -94,6 +101,15 @@ const detectScope = (query) => {
   return s ? { scope: s, rest: query.slice(1).trim() } : null;
 };
 
+const EMPTY_SEARCH_BUCKETS = {
+  songExact: [],
+  songRelated: [],
+  albums: [],
+};
+
+const songIdentity = (item) =>
+  item?.videoId || item?.id || `${item?.title || ''}::${item?.artist || ''}`;
+
 // Shared editorial heading classes for cmdk groups + selected style with hairline indicator
 const GROUP_HEADING =
   'px-1 mb-1 [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-2 [&_[cmdk-group-heading]]:font-editorial [&_[cmdk-group-heading]]:italic [&_[cmdk-group-heading]]:text-[12px] [&_[cmdk-group-heading]]:text-ink-4 [&_[cmdk-group-heading]]:tracking-wide';
@@ -114,6 +130,7 @@ const CommandPalette = () => {
   const { paletteOpen, closePalette } = useUI();
   const {
     currentTrack,
+    history,
     isPlaying,
     togglePlay,
     playNext,
@@ -128,58 +145,82 @@ const CommandPalette = () => {
   } = usePlayer();
   const { list: favoritesList } = useFavorites();
   const { playlists } = usePlaylists();
+  const { onAlbum: prefetchAlbumRoute, onArtist: prefetchArtistRoute } = useHoverPrefetch();
 
   const [query, setQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [searching, setSearching] = useState(false);
+  const [debounced, setDebounced] = useState('');
   const [recents, setRecents] = useState(() => loadRecents());
-  const debounceRef = useRef(null);
 
   useEffect(() => {
     if (!paletteOpen) {
       setQuery('');
-      setSearchResults([]);
-      setSearching(false);
+      setDebounced('');
     } else {
       setRecents(loadRecents());
     }
   }, [paletteOpen]);
 
-  const scopeInfo = useMemo(() => detectScope(query), [query]);
-  const effectiveQuery = scopeInfo ? scopeInfo.rest : query;
-
+  // Debounce input → React Query handles caching, cancellation, deduping.
   useEffect(() => {
-    if (!paletteOpen) return;
-    const q = effectiveQuery.trim();
-    if (q.length < 2) {
-      setSearchResults([]);
-      setSearching(false);
-      return;
-    }
-    if (
-      scopeInfo &&
-      scopeInfo.scope.prefix !== ':' &&
-      scopeInfo.scope.prefix !== '>' &&
-      scopeInfo.scope.prefix !== '?'
-    ) {
-      setSearchResults([]);
-      setSearching(false);
-      return;
-    }
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    setSearching(true);
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const results = await searchMusic(q, 'song');
-        setSearchResults(results.slice(0, 6));
-      } catch {
-        setSearchResults([]);
-      } finally {
-        setSearching(false);
-      }
-    }, 250);
-    return () => debounceRef.current && clearTimeout(debounceRef.current);
-  }, [effectiveQuery, paletteOpen, scopeInfo]);
+    const t = setTimeout(() => setDebounced(query), 200);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  const scopeInfo = useMemo(() => detectScope(debounced), [debounced]);
+  const effectiveQuery = scopeInfo ? scopeInfo.rest : debounced;
+
+  const parsed = useMemo(
+    () => parseQuery(effectiveQuery.trim()),
+    [effectiveQuery],
+  );
+  const serverQuery =
+    parsed.terms || parsed.filters?.artist || parsed.filters?.album || '';
+  const serverType = parsed.filters?.type || 'all';
+
+  const scopeAllowsSearch =
+    !scopeInfo ||
+    scopeInfo.scope.prefix === ':' ||
+    scopeInfo.scope.prefix === '>' ||
+    scopeInfo.scope.prefix === '?';
+  const enabled =
+    paletteOpen && scopeAllowsSearch && Boolean(serverQuery) && serverQuery.length >= 2;
+
+  const { data: rawResults = [], isFetching: searching } = useQuery({
+    queryKey: queryKeys.search(serverQuery, serverType),
+    queryFn: () => searchMusic(serverQuery, serverType),
+    enabled,
+    ...cachePolicy.search,
+    placeholderData: keepPreviousData,
+  });
+
+  const searchBuckets = useMemo(() => {
+    if (!enabled) return EMPTY_SEARCH_BUCKETS;
+    const ranked = rankAndMerge({
+      query: parsed,
+      serverResults: rawResults,
+      favorites: favoritesList,
+      history,
+      playlists,
+      currentArtist: currentTrack?.artist || '',
+      limit: 24,
+    });
+    const topSongIdentity =
+      ranked.top && ranked.top._kind === 'song' ? songIdentity(ranked.top) : null;
+    return {
+      songExact: ranked.songExact
+        .filter((song) => songIdentity(song) !== topSongIdentity)
+        .slice(0, 4),
+      songRelated: ranked.songRelated
+        .filter((song) => songIdentity(song) !== topSongIdentity)
+        .slice(0, 4),
+      albums: ranked.albums.slice(0, 4),
+    };
+  }, [enabled, parsed, rawResults, favoritesList, history, playlists, currentTrack?.artist]);
+
+  const searchResults = useMemo(
+    () => [...searchBuckets.songExact, ...searchBuckets.songRelated],
+    [searchBuckets.songExact, searchBuckets.songRelated],
+  );
 
   const runAndClose = useCallback(
     (fn, recent) => () => {
@@ -270,6 +311,7 @@ const CommandPalette = () => {
   const showArtists = !scopeInfo || scopeInfo.scope.prefix === '@';
   const showPlaylists = !scopeInfo || scopeInfo.scope.prefix === '#';
   const showSongs = !scopeInfo || scopeInfo.scope.prefix === '>';
+  const showAlbums = !scopeInfo;
   const showFavorites = !scopeInfo;
   const showRecents = !query && !scopeInfo && recents.length > 0;
   const showHelp = scopeInfo?.scope.prefix === '?';
@@ -287,7 +329,7 @@ const CommandPalette = () => {
       .map(([artist, t]) => ({
         artist,
         thumbnail: t.thumbnail,
-        slug: t.artistSlug || artist.toLowerCase().replace(/\s+/g, '-'),
+        slug: artistSlugOf(t) || artistSlugFromName(artist),
       }));
   }, [favoritesList, searchResults]);
 
@@ -435,14 +477,22 @@ const CommandPalette = () => {
                   <Command.Item
                     key={`@${a.artist}`}
                     value={`artist ${a.artist}`}
-                    onSelect={runAndClose(() => navigate(`/artist/${a.slug}`))}
+                    onSelect={runAndClose(() => {
+                      if (isUsableArtistSlug(a.slug)) navigate(`/artist/${a.slug}`);
+                    })}
+                    onMouseEnter={() => prefetchArtistRoute(a.slug)}
+                    onFocus={() => prefetchArtistRoute(a.slug)}
+                    disabled={!isUsableArtistSlug(a.slug)}
                     className={ITEM_BASE}
                   >
                     <SelectedBar />
-                    <img
+                    <SmartImage
                       src={a.thumbnail}
                       alt=""
-                      className="w-7 h-7 rounded-full object-cover ring-1 ring-white/10"
+                      kind="artist"
+                      rounded="rounded-full"
+                      className="w-7 h-7 ring-1 ring-white/10"
+                      imgClassName="object-cover"
                     />
                     <span>{a.artist}</span>
                     <User className="w-3.5 h-3.5 ml-auto text-ink-3" />
@@ -468,31 +518,104 @@ const CommandPalette = () => {
               </Command.Group>
             ) : null}
 
-            {showSongs && searchResults.length > 0 ? (
+            {showSongs && searchBuckets.songExact.length > 0 ? (
               <Command.Group
-                heading={`Songs matching "${effectiveQuery}"`}
+                heading={`Exact matches for "${effectiveQuery}"`}
                 className={GROUP_HEADING}
               >
-                {searchResults.map((r) => (
+                {searchBuckets.songExact.map((r) => (
                   <Command.Item
-                    key={`r-${r.id}`}
-                    value={`song ${r.title} ${r.artist}`}
+                    key={`song-exact-${r.id}`}
+                    value={`song exact ${r.title} ${r.artist}`}
                     onSelect={() => handlePlayResult(r)}
                     className={ITEM_BASE}
                   >
                     <SelectedBar />
-                    <img
+                    <SmartImage
                       src={r.thumbnail}
                       alt=""
-                      className="w-8 h-8 rounded-sharp object-cover flex-shrink-0 ring-1 ring-white/10"
+                      kind="track"
+                      rounded="rounded-sharp"
+                      className="w-8 h-8 flex-shrink-0 ring-1 ring-white/10"
+                      imgClassName="object-cover"
                     />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[13.5px]">{r.title}</p>
                       <p className="font-editorial text-[11.5px] text-ink-3 truncate mt-0.5">
-                        by {r.artist}
+                        by {r.artist || 'Unknown artist'}
                       </p>
                     </div>
                     <Play className="w-4 h-4 text-ink-3" />
+                  </Command.Item>
+                ))}
+              </Command.Group>
+            ) : null}
+
+            {showSongs && searchBuckets.songRelated.length > 0 ? (
+              <Command.Group
+                heading={`Related songs for "${effectiveQuery}"`}
+                className={GROUP_HEADING}
+              >
+                {searchBuckets.songRelated.map((r) => (
+                  <Command.Item
+                    key={`song-related-${r.id}`}
+                    value={`song related ${r.title} ${r.artist}`}
+                    onSelect={() => handlePlayResult(r)}
+                    className={ITEM_BASE}
+                  >
+                    <SelectedBar />
+                    <SmartImage
+                      src={r.thumbnail}
+                      alt=""
+                      kind="track"
+                      rounded="rounded-sharp"
+                      className="w-8 h-8 flex-shrink-0 ring-1 ring-white/10"
+                      imgClassName="object-cover"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13.5px]">{r.title}</p>
+                      <p className="font-editorial text-[11.5px] text-ink-3 truncate mt-0.5">
+                        by {r.artist || 'Unknown artist'}
+                      </p>
+                    </div>
+                    <Play className="w-4 h-4 text-ink-3" />
+                  </Command.Item>
+                ))}
+              </Command.Group>
+            ) : null}
+
+            {showAlbums && searchBuckets.albums.length > 0 ? (
+              <Command.Group
+                heading={`Albums matching "${effectiveQuery}"`}
+                className={GROUP_HEADING}
+              >
+                {searchBuckets.albums.map((album) => (
+                  <Command.Item
+                    key={`album-${album.id}`}
+                    value={`album ${album.title} ${album.artist}`}
+                    onSelect={runAndClose(() =>
+                      navigate(`/album/${album.id}?from=search&autoplay=1`)
+                    )}
+                    onMouseEnter={() => prefetchAlbumRoute(album.id)}
+                    onFocus={() => prefetchAlbumRoute(album.id)}
+                    className={ITEM_BASE}
+                  >
+                    <SelectedBar />
+                    <SmartImage
+                      src={album.thumbnail}
+                      alt=""
+                      kind="album"
+                      rounded="rounded-sharp"
+                      className="w-8 h-8 flex-shrink-0 ring-1 ring-white/10"
+                      imgClassName="object-cover"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13.5px]">{album.title}</p>
+                      <p className="font-editorial text-[11.5px] text-ink-3 truncate mt-0.5">
+                        by {album.artist || 'Unknown artist'}
+                      </p>
+                    </div>
+                    <Disc className="w-4 h-4 text-ink-3" />
                   </Command.Item>
                 ))}
               </Command.Group>
@@ -508,15 +631,18 @@ const CommandPalette = () => {
                     className={ITEM_BASE}
                   >
                     <SelectedBar />
-                    <img
+                    <SmartImage
                       src={track.thumbnail}
                       alt=""
-                      className="w-8 h-8 rounded-sharp object-cover flex-shrink-0 ring-1 ring-white/10"
+                      kind="track"
+                      rounded="rounded-sharp"
+                      className="w-8 h-8 flex-shrink-0 ring-1 ring-white/10"
+                      imgClassName="object-cover"
                     />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[13.5px]">{track.title}</p>
                       <p className="font-editorial text-[11.5px] text-ink-3 truncate mt-0.5">
-                        by {track.artist}
+                        by {track.artist || 'Unknown artist'}
                       </p>
                     </div>
                     <Heart className="w-4 h-4 text-accent fill-current" />

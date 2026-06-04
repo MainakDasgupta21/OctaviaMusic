@@ -6,7 +6,7 @@ import './index.css';
 // Apply persisted theme + reduce-motion BEFORE React mounts so we never flash
 // the wrong palette. Mirrors the keys SettingsContext writes.
 // =============================================================================
-const SETTINGS_KEY = 'harmony.settings.v1';
+const SETTINGS_KEY = 'octavia.settings.v1';
 const VALID_THEMES = new Set(['dark', 'oled', 'light', 'hicontrast']);
 
 try {

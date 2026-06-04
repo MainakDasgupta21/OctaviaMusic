@@ -16,6 +16,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { usePlayer } from '@/contexts/PlayerContext';
 import EmptyState from '@/components/ui-v2/EmptyState';
+import SmartImage from '@/components/SmartImage';
 import { cn } from '@/lib/utils';
 
 const SortableQueueItem = ({ track, index, onPlay, onRemove, isCurrent }) => {
@@ -31,36 +32,44 @@ const SortableQueueItem = ({ track, index, onPlay, onRemove, isCurrent }) => {
       ref={setNodeRef}
       style={style}
       className={cn(
-        'group grid grid-cols-[1.25rem_2rem_2.5rem_1fr_auto] items-center gap-2.5 px-2 py-2 rounded-sharp transition-colors',
-        isCurrent ? 'bg-track/[0.10]' : 'hover:bg-white/[0.035]',
+        'group grid grid-cols-[1.6rem_2.5rem_1fr_auto_auto] items-center gap-2.5 px-2 py-2 rounded-xl transition-colors',
+        isCurrent ? 'bg-track/[0.12] border border-track/30' : 'hover:bg-white/[0.045]',
       )}
       {...attributes}
     >
-      <button
-        type="button"
-        {...listeners}
-        className="flex items-center justify-center text-ink-4 hover:text-ink-2 cursor-grab active:cursor-grabbing focus-ring rounded-sharp transition-colors"
-        aria-label="Drag to reorder"
-      >
-        <GripVertical className="w-3.5 h-3.5" strokeWidth={1.5} />
-      </button>
       <span
-        className={cn(
-          'flex justify-center font-display italic text-base leading-none tabular-nums',
-          isCurrent ? 'text-accent' : 'text-ink-4',
-        )}
+        aria-hidden="true"
+        className="relative flex items-center justify-center w-6 h-5 overflow-hidden"
       >
-        {String(index + 1).padStart(2, '0')}
+        <span
+          className={cn(
+            'font-mono text-[12px] tabular-nums transition-all duration-short',
+            'group-hover:opacity-0 group-hover:-translate-y-0.5',
+            isCurrent ? 'text-accent' : 'text-ink-4',
+          )}
+        >
+          {String(index + 1).padStart(2, '0')}
+        </span>
+        <Play
+          className={cn(
+            'absolute w-3.5 h-3.5 fill-current opacity-0 scale-75 transition-all duration-short',
+            'group-hover:opacity-100 group-hover:scale-100',
+            isCurrent ? 'text-accent' : 'text-ink-2',
+          )}
+        />
       </span>
-      <img
+      <SmartImage
         src={track.thumbnail}
         alt=""
-        className="w-10 h-10 rounded-sharp object-cover flex-shrink-0 ring-1 ring-white/10"
+        kind="track"
+        rounded="rounded-lg"
+        className="w-10 h-10 flex-shrink-0 ring-1 ring-white/10"
+        imgClassName="object-cover"
       />
       <button
         type="button"
         onClick={onPlay}
-        className="flex-1 min-w-0 text-left focus-ring rounded-sharp"
+        className="flex-1 min-w-0 text-left focus-ring rounded-md"
       >
         <p
           className={cn(
@@ -70,14 +79,22 @@ const SortableQueueItem = ({ track, index, onPlay, onRemove, isCurrent }) => {
         >
           {track.title}
         </p>
-        <p className="font-editorial text-[12px] text-ink-3 truncate mt-0.5">
-          by {track.artist}
+        <p className="text-[12px] text-ink-3 truncate mt-0.5">
+          by {track.artist || 'Unknown artist'}
         </p>
       </button>
       <button
         type="button"
+        {...listeners}
+        className="flex items-center justify-center text-ink-4 hover:text-ink-2 cursor-grab active:cursor-grabbing focus-ring rounded-md transition-all duration-short opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0"
+        aria-label="Drag to reorder"
+      >
+        <GripVertical className="w-3.5 h-3.5" strokeWidth={1.5} />
+      </button>
+      <button
+        type="button"
         onClick={onRemove}
-        className="p-1.5 rounded-sharp text-ink-3 hover:text-danger hover:bg-danger/10 opacity-0 group-hover:opacity-100 focus-ring transition-opacity"
+        className="p-1.5 rounded-md text-ink-4 hover:text-danger hover:bg-danger/10 opacity-0 group-hover:opacity-100 focus-ring transition-opacity"
         aria-label="Remove from queue"
       >
         <Trash2 className="w-3.5 h-3.5" />
@@ -105,7 +122,7 @@ const QueuePanel = () => {
 
   return (
     <div className="h-full flex flex-col pr-0.5">
-      <div className="px-2 mb-3 pb-2 border-b border-white/[0.06] flex items-center justify-between">
+      <div className="px-2.5 mb-3 pb-2.5 border-b border-white/[0.06] flex items-center justify-between">
         <h3 className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-4">
           Now playing
         </h3>
@@ -115,18 +132,25 @@ const QueuePanel = () => {
       </div>
 
       {currentTrack ? (
-        <div className="grid grid-cols-[2.5rem_1fr_auto] items-center gap-3 p-2.5 mb-3 rounded-sharp border border-track/35 bg-track/[0.12] shadow-[0_8px_24px_hsl(var(--track-accent)/0.12)]">
-          <img
+        <div className="relative grid grid-cols-[2.5rem_1fr_auto] items-center gap-3 p-2.5 pl-3 mb-3 rounded-xl border border-track/40 bg-track/[0.14] shadow-[0_10px_26px_hsl(var(--track-accent)/0.14)] overflow-hidden">
+          <span
+            aria-hidden="true"
+            className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-track"
+          />
+          <SmartImage
             src={currentTrack.thumbnail}
             alt=""
-            className="w-10 h-10 rounded-sharp object-cover ring-1 ring-white/10"
+            kind="track"
+            rounded="rounded-lg"
+            className="w-10 h-10 ring-1 ring-white/10"
+            imgClassName="object-cover"
           />
           <div className="flex-1 min-w-0">
             <p className="text-[13.5px] font-semibold truncate text-accent">
               {currentTrack.title}
             </p>
-            <p className="font-editorial text-[12px] text-ink-3 truncate mt-0.5">
-              by {currentTrack.artist}
+            <p className="text-[12px] text-ink-3 truncate mt-0.5">
+              by {currentTrack.artist || 'Unknown artist'}
             </p>
           </div>
           {isPlaying ? (
@@ -141,7 +165,7 @@ const QueuePanel = () => {
         </div>
       ) : null}
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar -mx-2 px-2">
+      <div className="flex-1 overflow-y-auto custom-scrollbar -mx-1 px-1">
         {queue.length === 0 ? (
           <EmptyState
             icon={ListMusic}

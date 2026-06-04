@@ -1,6 +1,7 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { usePlayer, usePlayerProgress } from '@/contexts/PlayerContext';
 import { useUI } from '@/contexts/UIContext';
+import { useSettings } from '@/contexts/SettingsContext';
 import ReactPlayer from 'react-player';
 import {
   Play,
@@ -18,14 +19,21 @@ import { Slider } from '@/components/ui/slider';
 import { motion, AnimatePresence } from 'framer-motion';
 import HeartButton from '@/components/HeartButton';
 import { useColorExtraction } from '@/hooks/use-color-extraction';
+import { formatTime } from '@/lib/player-format';
+import { pickPlaceholder, sanitizeImageUrl, sanitizeVideoId } from '@/lib/media-sanitize';
 import { cn } from '@/lib/utils';
 
-const formatTime = (seconds) => {
-  if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
-};
+const QUALITY_PREFERENCE_ORDER = [
+  'highres',
+  'hd2160',
+  'hd1440',
+  'hd1080',
+  'hd720',
+  'large',
+  'medium',
+  'small',
+  'tiny',
+];
 
 const FooterPlayer = () => {
   const {
@@ -51,10 +59,22 @@ const FooterPlayer = () => {
   } = usePlayer();
   const { progress, duration, canGoPrevious } = usePlayerProgress();
   const { openExpandedPlayer } = useUI();
+  const { settings } = useSettings();
+  const highQualityAudio = settings?.highQualityAudio !== false;
+  const safeVideoId = sanitizeVideoId(currentTrack?.videoId);
+  const safeThumbnail =
+    sanitizeImageUrl(currentTrack?.thumbnail, { fallback: pickPlaceholder('track') })
+    || pickPlaceholder('track');
+
+  const handleArtError = (e) => {
+    if (e?.currentTarget && e.currentTarget.src !== window.location.origin + pickPlaceholder('track')) {
+      e.currentTarget.src = pickPlaceholder('track');
+    }
+  };
 
   // The track-accent updates globally so even the sidebar pill and play button
   // reflect the current album art.
-  useColorExtraction(currentTrack?.thumbnail);
+  useColorExtraction(safeThumbnail);
 
   const handleSeek = (value) => seekTo(value[0]);
 
@@ -70,6 +90,53 @@ const FooterPlayer = () => {
     (e) => reportDuration(e.currentTarget?.duration),
     [reportDuration],
   );
+  const playerConfig = useMemo(
+    () => ({
+      youtube: {
+        playerVars: {
+          playsinline: 1,
+          rel: 0,
+          iv_load_policy: 3,
+          vq: highQualityAudio ? 'hd1080' : 'auto',
+        },
+      },
+    }),
+    [highQualityAudio],
+  );
+
+  // Prefer the best quality level YouTube exposes for this video.
+  const applyPreferredQuality = useCallback(() => {
+    if (!highQualityAudio) return;
+    const root = playerRef.current;
+    const yt =
+      root?.api ||
+      (typeof root?.getInternalPlayer === 'function'
+        ? root.getInternalPlayer('youtube') || root.getInternalPlayer()
+        : null);
+    if (!yt) return;
+
+    try {
+      const available =
+        typeof yt.getAvailableQualityLevels === 'function'
+          ? yt.getAvailableQualityLevels()
+          : [];
+      const preferred =
+        QUALITY_PREFERENCE_ORDER.find((level) => available.includes(level)) || 'hd1080';
+
+      if (typeof yt.setPlaybackQualityRange === 'function') {
+        yt.setPlaybackQualityRange(preferred);
+      }
+      if (typeof yt.setPlaybackQuality === 'function') {
+        yt.setPlaybackQuality(preferred);
+      }
+    } catch {
+      /* YouTube API is not always ready on first paint */
+    }
+  }, [highQualityAudio, playerRef]);
+
+  const handlePlayerReady = useCallback(() => {
+    applyPreferredQuality();
+  }, [applyPreferredQuality]);
 
   // OS-level / lock-screen / Bluetooth headset controls via Media Session API.
   useEffect(() => {
@@ -86,19 +153,19 @@ const FooterPlayer = () => {
       navigator.mediaSession.metadata = new window.MediaMetadata({
         title: currentTrack.title || 'Untitled',
         artist: currentTrack.artist || 'Unknown artist',
-        album: 'Harmony Hub',
-        artwork: currentTrack.thumbnail
+        album: 'Octavia',
+        artwork: safeThumbnail
           ? [
-              { src: currentTrack.thumbnail, sizes: '96x96', type: 'image/jpeg' },
-              { src: currentTrack.thumbnail, sizes: '256x256', type: 'image/jpeg' },
-              { src: currentTrack.thumbnail, sizes: '512x512', type: 'image/jpeg' },
+              { src: safeThumbnail, sizes: '96x96', type: 'image/jpeg' },
+              { src: safeThumbnail, sizes: '256x256', type: 'image/jpeg' },
+              { src: safeThumbnail, sizes: '512x512', type: 'image/jpeg' },
             ]
           : [],
       });
     } catch {
       /* MediaMetadata not supported in this browser */
     }
-  }, [currentTrack]);
+  }, [currentTrack, safeThumbnail]);
 
   useEffect(() => {
     if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
@@ -157,15 +224,22 @@ const FooterPlayer = () => {
     }
   }, [progress, duration]);
 
+  useEffect(() => {
+    applyPreferredQuality();
+  }, [applyPreferredQuality, currentTrack?.id]);
+
   if (!currentTrack) return null;
+  if (!safeVideoId) return null;
 
   return (
     <>
       <ReactPlayer
         ref={playerRef}
-        src={`https://www.youtube.com/watch?v=${currentTrack.videoId}`}
+        src={`https://www.youtube.com/watch?v=${safeVideoId}`}
         playing={isPlaying}
         volume={volume}
+        config={playerConfig}
+        onReady={handlePlayerReady}
         onTimeUpdate={handleTimeUpdate}
         onDurationChange={handleDurationChange}
         onLoadedMetadata={handleLoadedMetadata}
@@ -206,8 +280,12 @@ const FooterPlayer = () => {
                   key={currentTrack.id}
                   initial={{ scale: 0.85, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
-                  src={currentTrack.thumbnail}
-                  alt={currentTrack.title}
+                  src={safeThumbnail}
+                  alt={currentTrack.title || ''}
+                  onError={handleArtError}
+                  loading="eager"
+                  decoding="async"
+                  referrerPolicy="no-referrer"
                   className="w-14 h-14 rounded-sharp object-cover ring-1 ring-white/10 shadow-elev-2 flex-shrink-0"
                 />
                 <div className="min-w-0 flex-1">
@@ -215,7 +293,7 @@ const FooterPlayer = () => {
                     {currentTrack.title}
                   </h4>
                   <p className="text-[11px] text-ink-3 truncate mt-0.5">
-                    <span className="font-editorial">by</span> {currentTrack.artist}
+                    <span className="font-editorial">by</span> {currentTrack.artist || 'Unknown artist'}
                   </p>
                 </div>
               </button>
@@ -358,8 +436,12 @@ const FooterPlayer = () => {
           >
             <motion.img
               layoutId="footer-art-mobile"
-              src={currentTrack.thumbnail}
-              alt={currentTrack.title}
+              src={safeThumbnail}
+              alt={currentTrack.title || ''}
+              onError={handleArtError}
+              loading="eager"
+              decoding="async"
+              referrerPolicy="no-referrer"
               className="w-12 h-12 rounded-sharp object-cover ring-1 ring-white/10 flex-shrink-0"
             />
             <div className="flex-1 min-w-0">
@@ -367,7 +449,7 @@ const FooterPlayer = () => {
                 {currentTrack.title}
               </p>
               <p className="text-[11px] text-ink-3 truncate mt-0.5">
-                <span className="font-editorial">by</span> {currentTrack.artist}
+                <span className="font-editorial">by</span> {currentTrack.artist || 'Unknown artist'}
               </p>
             </div>
           </button>

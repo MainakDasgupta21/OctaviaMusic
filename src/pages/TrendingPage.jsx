@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Play, Clock, AlertTriangle, TrendingUp } from 'lucide-react';
@@ -7,27 +6,13 @@ import HeartButton from '@/components/HeartButton';
 import Button from '@/components/ui-v2/Button';
 import EmptyState from '@/components/ui-v2/EmptyState';
 import Skeleton from '@/components/ui-v2/Skeleton';
+import SmartImage from '@/components/SmartImage';
 import { getTrending } from '@/lib/api';
+import { cachePolicy, queryKeys } from '@/lib/query-keys';
 import { fadeUp, staggerChildren } from '@/design/motion';
+import { useEditorialMeta } from '@/hooks/use-editorial-meta';
+import { formatPlays } from '@/lib/player-format';
 import { cn } from '@/lib/utils';
-
-const formatPlays = (n) => {
-  if (!Number.isFinite(n)) return '—';
-  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return `${n}`;
-};
-
-const formatMasthead = () => {
-  const d = new Date();
-  return new Intl.DateTimeFormat('en-US', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(d).toUpperCase();
-};
 
 const NowPlayingBars = () => (
   <span className="inline-flex items-end gap-0.5 h-4" aria-label="Now playing">
@@ -59,15 +44,12 @@ const TrendingRowSkeleton = () => (
 
 const TrendingPage = () => {
   const { playTrack, currentTrack, isPlaying, addToQueue } = usePlayer();
-  const masthead = useMemo(() => formatMasthead(), []);
-  const issueNum = useMemo(() => {
-    const start = new Date(new Date().getFullYear(), 0, 0);
-    return String(Math.floor((Date.now() - start.getTime()) / 86_400_000)).padStart(3, '0');
-  }, []);
+  const { masthead, issueNum } = useEditorialMeta();
 
-  const { data: trending = [], isLoading, isError } = useQuery({
-    queryKey: ['trending'],
+  const { data: trending = [], isLoading, isError, refetch } = useQuery({
+    queryKey: queryKeys.trending(20),
     queryFn: () => getTrending({ limit: 20 }),
+    ...cachePolicy.trending,
   });
 
   const handlePlayAll = () => {
@@ -86,7 +68,7 @@ const TrendingPage = () => {
         <span>{masthead}</span>
         <span className="flex items-center gap-3">
           <span className="text-ink-3">✦</span>
-          <span>The Harmony Hub Daily · Trending</span>
+          <span>The Octavia Daily · Trending</span>
           <span className="text-ink-3">✦</span>
         </span>
         <span>Vol. 01 · No. {issueNum}</span>
@@ -127,6 +109,11 @@ const TrendingPage = () => {
           icon={AlertTriangle}
           title="Trending is offline"
           description="We couldn't reach the catalog service. Please try again in a moment."
+          action={
+            <Button onClick={() => refetch()} size="md">
+              Try again
+            </Button>
+          }
         />
       ) : (
         <motion.div
@@ -180,10 +167,13 @@ const TrendingPage = () => {
 
                     {/* Artwork */}
                     <div className="relative">
-                      <img
+                      <SmartImage
                         src={track.thumbnail}
                         alt={track.title}
-                        className="w-12 h-12 rounded-sharp object-cover ring-1 ring-white/10"
+                        kind="track"
+                        rounded="rounded-sharp"
+                        className="w-12 h-12 ring-1 ring-white/10"
+                        imgClassName="object-cover"
                       />
                       <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-sharp">
                         <Play className="w-4 h-4 text-white fill-current" />
@@ -201,7 +191,7 @@ const TrendingPage = () => {
                         {track.title}
                       </h4>
                       <p className="font-editorial text-[12.5px] text-ink-3 truncate mt-0.5">
-                        by {track.artist}
+                        by {track.artist || 'Unknown artist'}
                       </p>
                     </div>
 

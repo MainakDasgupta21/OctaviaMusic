@@ -81,12 +81,11 @@ const NavItem = ({
       aria-label={label}
       className={cn(
         'group relative flex items-center rounded-xl border focus-ring',
-        'transition-[background-color,color,border-color,box-shadow,transform] duration-short ease-emphasis',
+        'transition-[background-color,color,border-color,box-shadow] duration-short ease-emphasis',
         expanded ? 'gap-3 pl-3 pr-3 py-2.5' : 'justify-center h-12 w-12 mx-auto',
-        'hover:scale-[1.02] active:scale-[0.98]',
         isActive
-          ? 'text-ink bg-white/[0.055] border-white/[0.12] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_24px_rgba(0,0,0,0.26)]'
-          : 'border-transparent text-ink-3 hover:text-ink hover:bg-white/[0.04] hover:border-white/[0.07]',
+          ? 'text-ink bg-white/[0.07] border-white/[0.14] shadow-[inset_0_1px_0_rgba(255,255,255,0.07)]'
+          : 'border-transparent text-ink-3 hover:text-ink hover:bg-white/[0.035] hover:border-white/[0.06]',
       )}
     >
       {/* Active indicator — a hairline bar beside the icon. Centered with
@@ -110,7 +109,7 @@ const NavItem = ({
           'relative z-10 inline-flex items-center justify-center rounded-lg transition-colors',
           expanded ? 'h-8 w-8' : 'h-9 w-9',
           isActive
-            ? 'bg-track/[0.14] text-accent shadow-[0_0_16px_hsl(var(--track-accent)/0.25)]'
+            ? 'bg-track/[0.16] text-accent'
             : 'text-current group-hover:bg-white/[0.06]',
         )}
       >
@@ -124,7 +123,7 @@ const NavItem = ({
             exit={{ opacity: 0, x: -8 }}
             transition={{ duration: 0.18 }}
             className={cn(
-              'relative z-10 text-[13px] whitespace-nowrap',
+              'relative z-10 text-[13.5px] whitespace-nowrap',
               isActive ? 'font-medium tracking-tight' : 'font-normal',
             )}
           >
@@ -235,18 +234,19 @@ const Sidebar = ({ onNavigate }) => {
       transition={{ type: 'spring', stiffness: 280, damping: 32 }}
       className="hidden md:flex fixed left-0 top-0 h-full flex-col py-4 z-50 overflow-hidden border-r border-white/[0.08] backdrop-blur-xl"
       style={{
-        background: 'var(--gradient-sidebar)',
+        background:
+          'linear-gradient(180deg, hsl(var(--surface-1) / 0.97), hsl(var(--surface-0) / 0.98))',
         boxShadow: expanded
-          ? '12px 0 36px rgba(0,0,0,0.42), inset -1px 0 0 rgba(255,255,255,0.05)'
-          : '8px 0 28px rgba(0,0,0,0.30), inset -1px 0 0 rgba(255,255,255,0.04)',
+          ? '10px 0 32px rgba(0,0,0,0.34), inset -1px 0 0 rgba(255,255,255,0.04)'
+          : '8px 0 22px rgba(0,0,0,0.26), inset -1px 0 0 rgba(255,255,255,0.03)',
       }}
     >
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 opacity-70"
+        className="pointer-events-none absolute inset-0 opacity-55"
         style={{
           background:
-            'radial-gradient(120% 46% at 0% 20%, hsl(var(--track-accent) / 0.12), transparent 55%)',
+            'radial-gradient(100% 40% at 0% 12%, hsl(var(--track-accent) / 0.10), transparent 58%)',
         }}
       />
       {/* Brand */}
@@ -259,12 +259,12 @@ const Sidebar = ({ onNavigate }) => {
         <NavLink
           to="/"
           onClick={onNavigate}
-          aria-label="Harmony Hub home"
+          aria-label="Octavia home"
           className={cn(
-            'inline-flex items-center gap-3 focus-ring rounded-2xl border border-white/[0.08] backdrop-blur-md',
+            'inline-flex items-center gap-3 focus-ring rounded-2xl border border-white/[0.10] backdrop-blur-md',
             expanded
-              ? 'px-3 py-2 bg-white/[0.02] hover:bg-white/[0.04]'
-              : 'h-12 w-12 justify-center bg-white/[0.03] hover:bg-white/[0.05]',
+              ? 'px-3 py-2 bg-white/[0.03] hover:bg-white/[0.05]'
+              : 'h-12 w-12 justify-center bg-white/[0.04] hover:bg-white/[0.06]',
           )}
         >
           <LogoMark size={expanded ? 36 : 32} />
@@ -278,8 +278,8 @@ const Sidebar = ({ onNavigate }) => {
                 className="flex items-center gap-2"
               >
                 <Wordmark size="md" />
-                <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-ink-4 pt-2">
-                  /&nbsp;hub
+                <span className="text-[9px] font-mono uppercase tracking-[0.16em] text-ink-4 pt-2">
+                  music
                 </span>
               </motion.span>
             )}
@@ -290,7 +290,7 @@ const Sidebar = ({ onNavigate }) => {
       <nav
         className={cn(
           'relative z-10 flex-1 flex flex-col overflow-y-auto custom-scrollbar pb-3',
-          expanded ? 'gap-6 px-3' : 'gap-4 px-2',
+          expanded ? 'gap-5 px-3' : 'gap-4 px-2',
         )}
       >
         {groups.map((group, gi) => (
@@ -298,7 +298,7 @@ const Sidebar = ({ onNavigate }) => {
             key={group.label}
             className={cn(
               'flex flex-col gap-1',
-              !expanded && 'mx-0.5 rounded-2xl border border-white/[0.07] bg-white/[0.02] py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]',
+              !expanded && 'mx-0.5 py-1.5',
             )}
           >
             {expanded && (
@@ -308,11 +308,8 @@ const Sidebar = ({ onNavigate }) => {
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.15 }}
-                  className="font-editorial text-[12px] text-ink-3 whitespace-nowrap flex items-center gap-2"
+                  className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-4 whitespace-nowrap"
                 >
-                  <span className="font-mono not-italic text-[9px] text-ink-4 tracking-[0.15em]">
-                    §{String(gi + 1).padStart(2, '0')}
-                  </span>
                   {group.label}
                 </motion.span>
               </div>
@@ -339,16 +336,13 @@ const Sidebar = ({ onNavigate }) => {
         <div className="flex flex-col gap-0.5">
           {expanded ? (
             <div className="h-5 px-4 flex items-center justify-between">
-              <span className="font-editorial text-[12px] text-ink-3 whitespace-nowrap flex items-center gap-2">
-                <span className="font-mono not-italic text-[9px] text-ink-4 tracking-[0.15em]">
-                  §03
-                </span>
+              <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-4 whitespace-nowrap">
                 Playlists
               </span>
               <button
                 type="button"
                 onClick={handleCreate}
-                className="p-1 rounded-sharp text-ink-3 hover:text-ink hover:bg-white/[0.04] focus-ring"
+                className="p-1 rounded-sharp text-ink-3 hover:text-ink hover:bg-white/[0.05] focus-ring"
                 aria-label="Create playlist"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -356,7 +350,7 @@ const Sidebar = ({ onNavigate }) => {
             </div>
           ) : (
             <>
-              <div className="mx-auto mb-2 h-px w-9 bg-gradient-to-r from-transparent via-white/[0.16] to-transparent" aria-hidden />
+              <div className="mx-auto mb-2 h-px w-8 bg-white/[0.10]" aria-hidden />
               <button
                 type="button"
                 onClick={handleCreate}
@@ -392,7 +386,7 @@ const Sidebar = ({ onNavigate }) => {
             </DndContext>
           )}
           {pinned.length === 0 && expanded ? (
-            <p className="px-3 mt-1 text-[11px] text-ink-4">Pin a playlist to see it here.</p>
+            <p className="px-3 mt-1 text-[11px] text-ink-4">Pin a playlist to keep quick access here.</p>
           ) : null}
         </div>
       </nav>
@@ -434,10 +428,9 @@ const Sidebar = ({ onNavigate }) => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="px-4 pt-4 pb-1 flex items-baseline justify-between text-[9px] font-mono uppercase tracking-[0.2em] text-ink-4"
+              className="px-4 pt-4 pb-1 flex items-baseline justify-between text-[9px] font-mono uppercase tracking-[0.16em] text-ink-4"
             >
-              <span>Vol. 01</span>
-              <span aria-hidden="true">✦</span>
+              <span>Octavia</span>
               <span>{new Date().getFullYear()}</span>
             </motion.div>
           )}

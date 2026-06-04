@@ -1,5 +1,5 @@
 {
-  "name": "harmony-hub-server",
+  "name": "octavia-server",
   "private": true,
   "version": "1.0.0",
   "scripts": {
@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "cors": "^2.8.5",
+    "express-rate-limit": "^7.4.1",
     "express": "^4.21.2",
     "ytmusic-api": "^5.3.1"
   }

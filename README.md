@@ -1,4 +1,4 @@
-# Harmony Hub
+# Octavia
 
 A modern, glass-themed music streaming web app built with React, Vite, Tailwind CSS, shadcn/ui, and Framer Motion. Search and play music from YouTube Music in real time, browse live charts and trending tracks, build a personal favorites library, and control playback with a polished UI and keyboard shortcuts.
 

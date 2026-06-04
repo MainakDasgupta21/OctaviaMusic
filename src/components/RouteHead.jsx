@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useLocation } from 'react-router-dom';
 
-const SITE = 'Harmony Hub';
+const SITE = 'Octavia';
 
 const STATIC_TITLES = {
   '/': { title: 'Home', desc: 'Editorial music discovery, daily mixes, and immersive Now Playing.' },
@@ -14,7 +14,7 @@ const STATIC_TITLES = {
   '/favorites': { title: 'Favorites', desc: 'Songs you love.' },
   '/player': { title: 'Now playing', desc: 'Immersive Now Playing with visualizer and synced lyrics.' },
   '/trending': { title: 'Trending', desc: 'What\'s trending right now.' },
-  '/settings': { title: 'Settings', desc: 'Customize your Harmony Hub experience.' },
+  '/settings': { title: 'Settings', desc: 'Customize your Octavia experience.' },
 };
 
 const RouteHead = () => {
@@ -28,7 +28,7 @@ const RouteHead = () => {
       return { title: name, desc: `Top tracks, discography, and similar artists for ${name}.` };
     }
     if (path.startsWith('/album/')) return { title: 'Album', desc: 'Album tracklist and credits.' };
-    if (path.startsWith('/playlist/')) return { title: 'Playlist', desc: 'A playlist on Harmony Hub.' };
+    if (path.startsWith('/playlist/')) return { title: 'Playlist', desc: 'A playlist on Octavia.' };
     return { title: SITE, desc: 'Listen to music, beautifully.' };
   }, [location.pathname]);
 

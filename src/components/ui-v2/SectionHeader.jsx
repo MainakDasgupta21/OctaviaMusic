@@ -25,6 +25,7 @@ const SectionHeader = ({
   rule = true,
   className,
   size = 'md',
+  id,
 }) => {
   // Sizes: lg = display section, md = standard, sm = subsection
   const titleClass =
@@ -55,7 +56,7 @@ const SectionHeader = ({
               ) : null}
             </div>
           ) : null}
-          <h2 className={cn(titleClass)}>
+          <h2 id={id} className={cn(titleClass)}>
             {to ? (
               <Link
                 to={to}

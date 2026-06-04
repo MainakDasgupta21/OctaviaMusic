@@ -67,7 +67,14 @@ const Tabs = ({
               {it.icon ? <it.icon className="w-3.5 h-3.5" strokeWidth={1.75} /> : null}
               {it.label}
               {typeof it.count === 'number' ? (
-                <span className="font-mono text-ink-3 text-[11px] tabular-nums tracking-tight">
+                <span
+                  className={cn(
+                    'font-mono text-[10px] tabular-nums tracking-tight rounded-full px-1.5 py-[1px] border transition-colors',
+                    isActive
+                      ? 'text-bone bg-track/85 border-track/45'
+                      : 'text-ink-4 bg-white/[0.04] border-white/[0.08]',
+                  )}
+                >
                   {it.count}
                 </span>
               ) : null}

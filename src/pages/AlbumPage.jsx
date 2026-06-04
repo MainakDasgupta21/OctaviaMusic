@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
@@ -16,8 +16,12 @@ import HeartButton from '@/components/HeartButton';
 import Button from '@/components/ui-v2/Button';
 import EmptyState from '@/components/ui-v2/EmptyState';
 import Skeleton from '@/components/ui-v2/Skeleton';
+import SmartImage from '@/components/SmartImage';
 import { getAlbum, isNotFoundError } from '@/lib/api';
+import { cachePolicy, queryKeys } from '@/lib/query-keys';
+import { isUsableArtistSlug } from '@/lib/slug';
 import { fadeUp, staggerChildren } from '@/design/motion';
+import { useArtistPrefetchProps } from '@/hooks/use-route-prefetch';
 import { cn } from '@/lib/utils';
 
 const sumDuration = (tracks) => {
@@ -66,18 +70,59 @@ const AlbumPageSkeleton = () => (
 
 const AlbumPage = () => {
   const { id } = useParams();
-  const { playTrack, addToQueue, currentTrack, isPlaying } = usePlayer();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { playTracksInOrder, currentTrack, isPlaying } = usePlayer();
+  const autoplayHandledRef = useRef(false);
 
-  const { data: album, isLoading, isError, error } = useQuery({
-    queryKey: ['album', id],
+  const { data: album, isLoading, isError, error, refetch } = useQuery({
+    queryKey: queryKeys.album(id),
     queryFn: () => getAlbum(id),
     enabled: Boolean(id),
+    ...cachePolicy.album,
   });
+
+  // Hooks must be called unconditionally — pass undefined when the album is
+  // still loading, which the helper handles by returning {}.
+  const artistPrefetchProps = useArtistPrefetchProps(album?.artistSlug);
 
   const totalRunTime = useMemo(
     () => (album?.tracks ? sumDuration(album.tracks) : '0 min'),
     [album],
   );
+
+  const shouldAutoplayFromSearch =
+    searchParams.get('from') === 'search' && searchParams.get('autoplay') === '1';
+
+  const handlePlay = useCallback(
+    (startIndex = 0) => {
+      if (!album?.tracks?.length) return false;
+      return playTracksInOrder(album.tracks, {
+        replaceQueue: true,
+        startIndex,
+        forceSequential: true,
+      });
+    },
+    [album?.tracks, playTracksInOrder],
+  );
+
+  useEffect(() => {
+    autoplayHandledRef.current = false;
+  }, [id]);
+
+  useEffect(() => {
+    if (!shouldAutoplayFromSearch) return;
+    if (!album?.tracks?.length) return;
+    if (autoplayHandledRef.current) return;
+
+    const didStart = handlePlay(0);
+    if (!didStart) return;
+
+    autoplayHandledRef.current = true;
+    const next = new URLSearchParams(searchParams);
+    next.delete('from');
+    next.delete('autoplay');
+    setSearchParams(next, { replace: true });
+  }, [handlePlay, shouldAutoplayFromSearch, album?.tracks, searchParams, setSearchParams]);
 
   if (isLoading) return <AlbumPageSkeleton />;
 
@@ -92,6 +137,13 @@ const AlbumPage = () => {
             notFound
               ? "We couldn't find an album with that id."
               : 'The catalog service is unreachable. Check your connection and try again.'
+          }
+          action={
+            notFound ? null : (
+              <Button onClick={() => refetch()} size="md">
+                Try again
+              </Button>
+            )
           }
         />
       </div>
@@ -109,12 +161,6 @@ const AlbumPage = () => {
       </div>
     );
   }
-
-  const handlePlay = () => {
-    if (!album.tracks.length) return;
-    playTrack(album.tracks[0]);
-    album.tracks.slice(1).forEach((t) => addToQueue(t));
-  };
 
   return (
     <div className="pb-12">
@@ -137,7 +183,10 @@ const AlbumPage = () => {
           <span>The Record</span>
           <span className="flex items-center gap-3">
             <span className="text-ink-3">✦</span>
-            <span>{album.artist} · {album.year}</span>
+            <span>
+              {album.artist || 'Unknown artist'}
+              {album.year ? ` · ${album.year}` : ''}
+            </span>
             <span className="text-ink-3">✦</span>
           </span>
           <span>LP</span>
@@ -148,10 +197,15 @@ const AlbumPage = () => {
           className="flex flex-col md:flex-row items-center md:items-end gap-6 md:gap-10"
         >
           <div className="relative shrink-0">
-            <img
+            <SmartImage
               src={album.cover || album.thumbnail}
               alt={album.title}
-              className="w-48 h-48 md:w-64 md:h-64 rounded-sharp object-cover shadow-elev-5 ring-1 ring-white/15"
+              kind="album"
+              loading="eager"
+              fetchpriority="high"
+              rounded="rounded-sharp"
+              className="w-48 h-48 md:w-64 md:h-64 shadow-elev-5 ring-1 ring-white/15"
+              imgClassName="object-cover"
             />
             {/* Subtle inner shadow vignette to enhance physicality */}
             <span
@@ -172,15 +226,16 @@ const AlbumPage = () => {
             </h1>
             <p className="font-editorial text-[16px] text-ink-2 mt-4 leading-snug">
               by{' '}
-              {album.artistSlug ? (
+              {isUsableArtistSlug(album.artistSlug) ? (
                 <Link
                   to={`/artist/${album.artistSlug}`}
+                  {...artistPrefetchProps}
                   className="text-ink hover:text-accent focus-ring rounded-sharp underline-offset-2 hover:underline"
                 >
-                  {album.artist}
+                  {album.artist || 'Unknown artist'}
                 </Link>
               ) : (
-                <span className="text-ink">{album.artist}</span>
+                <span className="text-ink">{album.artist || 'Unknown artist'}</span>
               )}
             </p>
           </div>
@@ -191,7 +246,7 @@ const AlbumPage = () => {
       <div className="px-5 md:px-10 max-w-[1600px] mx-auto mb-8 flex items-center gap-3">
         <Button
           size="lg"
-          onClick={handlePlay}
+          onClick={() => handlePlay(0)}
           leftIcon={<Play className="w-4 h-4 fill-current" />}
         >
           Play album
@@ -250,15 +305,18 @@ const AlbumPage = () => {
           >
             {album.tracks.map((track, i) => {
               const isCurrent = currentTrack?.id === track.id;
+              const isPlayable = track.playable !== false && Boolean(track.videoId || track.id);
               return (
                 <motion.div
                   variants={fadeUp}
-                  key={track.id}
-                  onClick={() => playTrack(track)}
+                  key={track.id || `${track.title}-${i}`}
+                  onClick={() => isPlayable && handlePlay(i)}
+                  aria-disabled={!isPlayable}
                   className={cn(
                     'group grid grid-cols-[2.5rem_1fr_auto_auto] gap-4 px-4 py-3.5',
-                    'items-center cursor-pointer transition-colors border-b border-white/[0.05] last:border-0',
-                    isCurrent ? 'bg-track/[0.08]' : 'hover:bg-white/[0.035]',
+                    'items-center transition-colors border-b border-white/[0.05] last:border-0',
+                    isPlayable ? 'cursor-pointer' : 'cursor-not-allowed opacity-55',
+                    isCurrent ? 'bg-track/[0.08]' : isPlayable ? 'hover:bg-white/[0.035]' : '',
                   )}
                 >
                   <span
@@ -276,21 +334,21 @@ const AlbumPage = () => {
                         isCurrent ? 'text-accent' : 'text-ink',
                       )}
                     >
-                      {track.title}
+                      {track.title || 'Untitled'}
                     </p>
                     <p className="font-editorial text-[12.5px] text-ink-3 truncate mt-0.5">
-                      by {track.artist}
-                      {isCurrent && isPlaying ? ' · now playing' : ''}
+                      by {track.artist || album.artist || 'Unknown artist'}
+                      {!isPlayable ? ' · unavailable' : isCurrent && isPlaying ? ' · now playing' : ''}
                     </p>
                   </div>
                   <div
                     onClick={(e) => e.stopPropagation()}
                     className="opacity-0 group-hover:opacity-100 transition-opacity"
                   >
-                    <HeartButton track={track} size="sm" />
+                    {isPlayable ? <HeartButton track={track} size="sm" /> : <span className="w-7 h-7 inline-block" aria-hidden />}
                   </div>
                   <span className="font-mono text-[12px] text-ink-4 tabular-nums tracking-tight">
-                    {track.duration}
+                    {track.duration || '—'}
                   </span>
                 </motion.div>
               );

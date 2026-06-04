@@ -20,15 +20,24 @@ import {
 } from 'lucide-react';
 import { searchMusic } from '@/lib/api';
 import { usePlayer } from '@/contexts/PlayerContext';
+import { useFavorites } from '@/contexts/FavoritesContext';
+import { usePlaylists } from '@/contexts/PlaylistContext';
 import HeartButton from '@/components/HeartButton';
 import EmptyState from '@/components/ui-v2/EmptyState';
 import Input from '@/components/ui-v2/Input';
 import Skeleton from '@/components/ui-v2/Skeleton';
 import Kbd from '@/components/ui-v2/Kbd';
+import Button from '@/components/ui-v2/Button';
+import SmartImage from '@/components/SmartImage';
 import { fadeUp, staggerChildren } from '@/design/motion';
+import { parseQuery, rankAndMerge } from '@/lib/search-rank';
+import { artistSlugOf, isUsableArtistSlug } from '@/lib/slug';
+import { cachePolicy, queryKeys } from '@/lib/query-keys';
+import { useEditorialMeta } from '@/hooks/use-editorial-meta';
+import { useHoverPrefetch } from '@/hooks/use-route-prefetch';
 import { cn } from '@/lib/utils';
 
-const RECENT_KEY = 'harmony.recent-searches.v1';
+const RECENT_KEY = 'octavia.recent-searches.v1';
 
 const readRecents = () => {
   if (typeof window === 'undefined') return [];
@@ -54,15 +63,14 @@ const FILTERS = [
   { id: 'playlist', label: 'Playlists', icon: ListMusic },
 ];
 
-const formatMasthead = () => {
-  const d = new Date();
-  return new Intl.DateTimeFormat('en-US', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(d).toUpperCase();
-};
+const OPERATOR_HINTS = [
+  { label: 'artist:"..."', value: 'artist:""' },
+  { label: 'album:"..."', value: 'album:""' },
+  { label: 'type:song', value: 'type:song' },
+  { label: 'year>=2020', value: 'year>=2020' },
+  { label: 'duration<3:30', value: 'duration<3:30' },
+  { label: '-live', value: '-live' },
+];
 
 // Debounced state hook — used by the input to avoid a fetch per keystroke.
 const useDebouncedValue = (value, delay) => {
@@ -83,6 +91,17 @@ const toTrack = (r) => ({
   duration: r.duration,
 });
 
+const itemIdentity = (item) =>
+  item?.videoId || item?.id || `${item?.title || item?.name || ''}::${item?.artist || ''}`;
+
+const resultKind = (item) => {
+  if (!item) return 'song';
+  const explicit = (item._kind || item.type || '').toLowerCase();
+  if (explicit === 'album' || explicit === 'artist' || explicit === 'song') return explicit;
+  if (item.name && !item.title) return 'artist';
+  return 'song';
+};
+
 const SearchPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -92,8 +111,11 @@ const SearchPage = () => {
   const [recents, setRecents] = useState(() => readRecents());
   const [selectedIdx, setSelectedIdx] = useState(0);
   const inputRef = useRef(null);
-  const { playTrack, addToQueue } = usePlayer();
-  const masthead = useMemo(() => formatMasthead(), []);
+  const { playTrack, addToQueue, history, currentTrack } = usePlayer();
+  const { list: favorites } = useFavorites();
+  const { playlists } = usePlaylists();
+  const { masthead } = useEditorialMeta();
+  const { onAlbum: prefetchAlbumRoute, onArtist: prefetchArtistRoute } = useHoverPrefetch();
 
   const debouncedQuery = useDebouncedValue(query.trim(), 250);
 
@@ -113,16 +135,27 @@ const SearchPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams.get('q')]);
 
-  const serverType = filter === 'playlist' ? null : filter;
+  const parsedQuery = useMemo(() => parseQuery(debouncedQuery), [debouncedQuery]);
+  const chipType = filter === 'playlist' ? null : filter;
+  const operatorType = parsedQuery.filters?.type || null;
+  const serverType = chipType === null ? null : operatorType || chipType;
+  const serverQuery =
+    parsedQuery.terms ||
+    parsedQuery.filters?.artist ||
+    parsedQuery.filters?.album ||
+    '';
+  const shouldFetchServer = Boolean(serverQuery) && serverType !== null;
 
   const {
     data: results = [],
     isLoading,
     isError,
+    refetch,
   } = useQuery({
-    queryKey: ['search', debouncedQuery, serverType],
-    queryFn: () => searchMusic(debouncedQuery, serverType),
-    enabled: Boolean(debouncedQuery) && serverType !== null,
+    queryKey: queryKeys.search(serverQuery, serverType || 'all'),
+    queryFn: () => searchMusic(serverQuery, serverType || 'all'),
+    enabled: shouldFetchServer,
+    ...cachePolicy.search,
     // v5: keep the prior results painted while the next query resolves so the
     // list never flashes to empty as the user types / switches filters.
     placeholderData: keepPreviousData,
@@ -140,22 +173,107 @@ const SearchPage = () => {
     });
   }, [debouncedQuery]);
 
+  const ranked = useMemo(() => {
+    const displayFilter = filter === 'playlist' ? filter : operatorType || filter;
+    const includeLibrary = displayFilter === 'all' || displayFilter === 'song';
+    return rankAndMerge({
+      query: parsedQuery,
+      serverResults: results,
+      favorites: includeLibrary ? favorites : [],
+      history: includeLibrary ? history : [],
+      playlists: includeLibrary ? playlists : [],
+      currentArtist: currentTrack?.artist || '',
+      limit: 80,
+    });
+  }, [
+    filter,
+    operatorType,
+    parsedQuery,
+    results,
+    favorites,
+    history,
+    playlists,
+    currentTrack?.artist,
+  ]);
+
+  const displayFilter = filter === 'playlist' ? filter : operatorType || filter;
+
   const grouped = useMemo(() => {
-    const songs = [];
-    const artists = [];
-    const albums = [];
-    for (const r of results) {
-      if (r.type === 'song' || !r.type) songs.push(r);
-      else if (r.type === 'artist') artists.push(r);
-      else if (r.type === 'album') albums.push(r);
+    if (displayFilter === 'song') {
+      return {
+        songs: ranked.songs,
+        songExact: ranked.songExact,
+        songRelated: ranked.songRelated,
+        artists: [],
+        albums: [],
+        playlists: [],
+        library: ranked.library,
+        didYouMean: ranked.didYouMean,
+        top: ranked.songs[0] || ranked.top || null,
+      };
     }
-    return { songs, artists, albums, playlists: [] };
-  }, [results]);
+    if (displayFilter === 'artist') {
+      return {
+        songs: [],
+        songExact: [],
+        songRelated: [],
+        artists: ranked.artists,
+        albums: [],
+        playlists: [],
+        library: [],
+        didYouMean: ranked.didYouMean,
+        top: ranked.artists[0] || null,
+      };
+    }
+    if (displayFilter === 'album') {
+      return {
+        songs: [],
+        songExact: [],
+        songRelated: [],
+        artists: [],
+        albums: ranked.albums,
+        playlists: [],
+        library: [],
+        didYouMean: ranked.didYouMean,
+        top: ranked.albums[0] || null,
+      };
+    }
+    return {
+      songs: ranked.songs,
+      songExact: ranked.songExact,
+      songRelated: ranked.songRelated,
+      artists: ranked.artists,
+      albums: ranked.albums,
+      playlists: [],
+      library: ranked.library,
+      didYouMean: ranked.didYouMean,
+      top: ranked.top,
+    };
+  }, [displayFilter, ranked]);
 
-  const topResult = grouped.songs[0] || grouped.artists[0] || grouped.albums[0] || null;
-  const songs = grouped.songs;
+  const topResult = grouped.top || grouped.songs[0] || grouped.artists[0] || grouped.albums[0] || null;
+  const topSongIdentity = resultKind(topResult) === 'song' ? itemIdentity(topResult) : null;
+  const exactSongs = useMemo(
+    () => grouped.songExact.filter((song) => itemIdentity(song) !== topSongIdentity),
+    [grouped.songExact, topSongIdentity],
+  );
+  const relatedSongs = useMemo(
+    () => grouped.songRelated.filter((song) => itemIdentity(song) !== topSongIdentity),
+    [grouped.songRelated, topSongIdentity],
+  );
+  const songs = useMemo(() => [...exactSongs, ...relatedSongs], [exactSongs, relatedSongs]);
 
-  useEffect(() => { setSelectedIdx(0); }, [results, filter]);
+  const appendOperator = (snippet) => {
+    setQuery((prev) => {
+      const base = prev.trimEnd();
+      return base ? `${base} ${snippet}` : snippet;
+    });
+    inputRef.current?.focus();
+  };
+
+  useEffect(() => {
+    setSelectedIdx(0);
+  }, [debouncedQuery, displayFilter]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -183,8 +301,90 @@ const SearchPage = () => {
 
   const hasSearched = Boolean(debouncedQuery);
   const showRecents = !query.trim() && recents.length > 0;
-  const isEmpty = hasSearched && !isLoading && results.length === 0;
+  const totalHits =
+    grouped.songs.length +
+    grouped.artists.length +
+    grouped.albums.length +
+    grouped.library.length;
+  const isEmpty = hasSearched && !isLoading && totalHits === 0;
   const isPlaylistFilter = filter === 'playlist';
+  const librarySourceLabel = (entry) => {
+    const sources = entry?._librarySources || [];
+    if (sources.includes('favorite') && sources.includes('history')) {
+      return 'Saved + recently played';
+    }
+    if (sources.includes('favorite')) return 'Saved in favorites';
+    if (sources.includes('history')) return 'From listening history';
+    if (sources.includes('playlist')) return 'From your playlists';
+    return 'From your library';
+  };
+
+  const renderSongRow = (track, globalIndex) => (
+    <motion.div
+      variants={fadeUp}
+      key={`${track.id || track.videoId || globalIndex}-${globalIndex}`}
+      onClick={() => playTrack(toTrack(track))}
+      onMouseEnter={() => setSelectedIdx(globalIndex)}
+      className={cn(
+        'group flex items-center gap-4 p-3 cursor-pointer border-b border-white/[0.05] last:border-0 transition-colors',
+        selectedIdx === globalIndex ? 'bg-track/[0.10]' : 'hover:bg-white/[0.035]',
+      )}
+    >
+      <div className="relative w-12 h-12 flex-shrink-0">
+        <SmartImage
+          src={track.thumbnail}
+          alt=""
+          kind="track"
+          rounded="rounded-sharp"
+          className="w-12 h-12 ring-1 ring-white/10"
+          imgClassName="object-cover"
+        />
+        <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-sharp">
+          <Play className="w-4 h-4 text-white fill-current" />
+        </div>
+      </div>
+      <div className="flex-1 min-w-0">
+        <p
+          className={cn(
+            'text-[14px] font-medium truncate',
+            selectedIdx === globalIndex ? 'text-accent' : 'text-ink',
+          )}
+        >
+          {track.title}
+        </p>
+        <p className="font-editorial text-[12.5px] text-ink-3 truncate mt-0.5">
+          by{' '}
+          {(() => {
+            const slug = artistSlugOf(track);
+            return isUsableArtistSlug(slug) ? (
+              <Link
+                to={`/artist/${slug}`}
+                onClick={(e) => e.stopPropagation()}
+                className="hover:text-ink hover:underline underline-offset-2 focus-ring rounded-sharp"
+              >
+                {track.artist || 'Unknown artist'}
+              </Link>
+            ) : (
+              track.artist || 'Unknown artist'
+            );
+          })()}
+        </p>
+      </div>
+      {selectedIdx === globalIndex ? (
+        <span className="hidden md:inline-flex items-center gap-1 text-[10px] text-ink-3">
+          <CornerDownLeft className="w-3 h-3" />
+        </span>
+      ) : null}
+      <div onClick={(e) => e.stopPropagation()} className="opacity-0 group-hover:opacity-100 transition-opacity">
+        <HeartButton track={toTrack(track)} size="sm" />
+      </div>
+      {track.duration ? (
+        <span className="font-mono text-[12px] text-ink-4 tabular-nums hidden sm:inline tracking-tight">
+          {track.duration}
+        </span>
+      ) : null}
+    </motion.div>
+  );
 
   return (
     <div className="p-5 md:p-10 max-w-[1600px] mx-auto pb-12">
@@ -196,7 +396,7 @@ const SearchPage = () => {
         <span>{masthead}</span>
         <span className="flex items-center gap-3">
           <span className="text-ink-3">✦</span>
-          <span>The Harmony Hub Daily · Search</span>
+          <span>The Octavia Daily · Search</span>
           <span className="text-ink-3">✦</span>
         </span>
         <span>The index</span>
@@ -262,6 +462,22 @@ const SearchPage = () => {
         })}
       </div>
 
+      <div className="mb-7 flex flex-wrap items-center gap-1.5">
+        <span className="mr-1 text-[10px] font-mono uppercase tracking-[0.14em] text-ink-4">
+          Power operators
+        </span>
+        {OPERATOR_HINTS.map((hint) => (
+          <button
+            key={hint.label}
+            type="button"
+            onClick={() => appendOperator(hint.value)}
+            className="rounded-sharp border border-white/[0.10] bg-white/[0.02] px-2 py-1 text-[10px] font-mono uppercase tracking-[0.08em] text-ink-3 transition-colors hover:border-white/[0.24] hover:bg-white/[0.06] hover:text-ink focus-ring"
+          >
+            {hint.label}
+          </button>
+        ))}
+      </div>
+
       <AnimatePresence mode="wait">
         {isLoading && hasSearched ? (
           <motion.div key="loading" {...fadeUp} className="space-y-3">
@@ -285,6 +501,11 @@ const SearchPage = () => {
               icon={AlertTriangle}
               title="Search is offline"
               description="We couldn't reach the catalog service. Try again in a moment."
+              action={
+                <Button onClick={() => refetch()} size="md">
+                  Try again
+                </Button>
+              }
             />
           </motion.div>
         ) : isPlaylistFilter ? (
@@ -354,9 +575,70 @@ const SearchPage = () => {
             animate="animate"
             className="space-y-12"
           >
+            {grouped.didYouMean ? (
+              <motion.div variants={fadeUp} className="rounded-sharp border border-track/25 bg-track/[0.08] px-4 py-3">
+                <p className="text-[13px] text-ink-2">
+                  Did you mean{' '}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuery(grouped.didYouMean);
+                      inputRef.current?.focus();
+                    }}
+                    className="text-accent hover:underline underline-offset-2 focus-ring rounded-sharp"
+                  >
+                    {grouped.didYouMean}
+                  </button>
+                  ?
+                </p>
+              </motion.div>
+            ) : null}
+
+            {(filter === 'all' || filter === 'song') && grouped.library.length > 0 ? (
+              <div>
+                <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-4 mb-3 flex items-center gap-2">
+                  <span className="w-4 h-px bg-ink-4/40" />
+                  From your library
+                </h2>
+                <div className="rounded-sharp border border-white/[0.06] bg-surface-2/35 backdrop-blur-md overflow-hidden">
+                  {grouped.library.map((r, i) => (
+                    <motion.div
+                      variants={fadeUp}
+                      key={`lib-${r.id || r.videoId}-${i}`}
+                      onClick={() => playTrack(toTrack(r))}
+                      className="group flex items-center gap-4 p-3 cursor-pointer border-b border-white/[0.05] last:border-0 transition-colors hover:bg-white/[0.035]"
+                    >
+                      <div className="relative w-11 h-11 flex-shrink-0">
+                        <SmartImage
+                          src={r.thumbnail}
+                          alt=""
+                          kind="track"
+                          rounded="rounded-sharp"
+                          className="w-11 h-11 ring-1 ring-white/10"
+                          imgClassName="object-cover"
+                        />
+                        <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-sharp">
+                          <Play className="w-4 h-4 text-white fill-current" />
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[14px] font-medium truncate text-ink">{r.title}</p>
+                        <p className="text-[12px] text-ink-3 truncate mt-0.5">
+                          {librarySourceLabel(r)}
+                        </p>
+                      </div>
+                      <div onClick={(e) => e.stopPropagation()} className="opacity-0 group-hover:opacity-100 transition-opacity">
+                        <HeartButton track={toTrack(r)} size="sm" />
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
             {/* Top result + songs grid */}
-            {grouped.songs.length > 0 ? (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+            {songs.length > 0 || topResult ? (
+              <div className={cn('grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8', songs.length === 0 && 'lg:grid-cols-1')}>
                 {topResult ? (
                   <motion.div variants={fadeUp} className="lg:col-span-1">
                     <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-4 mb-3 flex items-center gap-2">
@@ -365,93 +647,62 @@ const SearchPage = () => {
                     </h2>
                     <TopResultCard
                       result={topResult}
-                      onPlay={() => topResult.type === 'song' || !topResult.type
-                        ? playTrack(toTrack(topResult))
-                        : navigate(topResult.type === 'artist'
-                          ? `/artist/${topResult.slug}`
-                          : `/album/${topResult.id}`)}
+                      onPlay={() =>
+                        topResult.type === 'song' || !topResult.type
+                          ? playTrack(toTrack(topResult))
+                          : navigate(
+                              topResult.type === 'artist'
+                                ? `/artist/${topResult.slug}`
+                                : `/album/${topResult.id}?from=search&autoplay=1`,
+                            )
+                      }
                       onNavigate={(to) => navigate(to)}
                     />
                   </motion.div>
                 ) : null}
 
-                <div className="lg:col-span-2 min-w-0">
-                  <div className="flex items-center justify-between mb-3">
-                    <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-4 flex items-center gap-2">
-                      <span className="w-4 h-px bg-ink-4/40" />
-                      Songs
-                    </h2>
-                    <div className="flex items-center gap-3 text-[11px] text-ink-4">
-                      <span className="hidden md:inline-flex items-center gap-1">
-                        <Kbd keys={['\u2191']} />
-                        <Kbd keys={['\u2193']} />
-                        <span className="font-editorial italic text-ink-3 ml-1">navigate</span>
-                      </span>
-                      <span className="hidden md:inline-flex items-center gap-1">
-                        <Kbd keys={['Enter']} />
-                        <span className="font-editorial italic text-ink-3 ml-1">play</span>
-                      </span>
+                {songs.length > 0 ? (
+                  <div className="lg:col-span-2 min-w-0 space-y-5">
+                    <div className="flex items-center justify-between mb-3">
+                      <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-4 flex items-center gap-2">
+                        <span className="w-4 h-px bg-ink-4/40" />
+                        Songs
+                      </h2>
+                      <div className="flex items-center gap-3 text-[11px] text-ink-4">
+                        <span className="hidden md:inline-flex items-center gap-1">
+                          <Kbd keys={['\u2191']} />
+                          <Kbd keys={['\u2193']} />
+                          <span className="font-editorial italic text-ink-3 ml-1">navigate</span>
+                        </span>
+                        <span className="hidden md:inline-flex items-center gap-1">
+                          <Kbd keys={['Enter']} />
+                          <span className="font-editorial italic text-ink-3 ml-1">play</span>
+                        </span>
+                      </div>
                     </div>
+                    {exactSongs.length > 0 ? (
+                      <div>
+                        <h3 className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-4 mb-2 px-1">
+                          Exact matches
+                        </h3>
+                        <div className="rounded-sharp border border-white/[0.06] bg-surface-2/40 backdrop-blur-md overflow-hidden">
+                          {exactSongs.map((song, i) => renderSongRow(song, i))}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {relatedSongs.length > 0 ? (
+                      <div>
+                        <h3 className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-4 mb-2 px-1">
+                          Related songs
+                        </h3>
+                        <div className="rounded-sharp border border-white/[0.06] bg-surface-2/35 backdrop-blur-md overflow-hidden">
+                          {relatedSongs.map((song, i) => renderSongRow(song, exactSongs.length + i))}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
-                  <div className="rounded-sharp border border-white/[0.06] bg-surface-2/40 backdrop-blur-md overflow-hidden">
-                    {grouped.songs.map((r, i) => (
-                      <motion.div
-                        variants={fadeUp}
-                        key={`${r.id}-${i}`}
-                        onClick={() => playTrack(toTrack(r))}
-                        onMouseEnter={() => setSelectedIdx(i)}
-                        className={cn(
-                          'group flex items-center gap-4 p-3 cursor-pointer border-b border-white/[0.05] last:border-0 transition-colors',
-                          selectedIdx === i ? 'bg-track/[0.10]' : 'hover:bg-white/[0.035]',
-                        )}
-                      >
-                        <div className="relative w-12 h-12 rounded-sharp overflow-hidden flex-shrink-0 ring-1 ring-white/10">
-                          <img src={r.thumbnail} alt="" className="w-full h-full object-cover" />
-                          <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                            <Play className="w-4 h-4 text-white fill-current" />
-                          </div>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p
-                            className={cn(
-                              'text-[14px] font-medium truncate',
-                              selectedIdx === i ? 'text-accent' : 'text-ink',
-                            )}
-                          >
-                            {r.title}
-                          </p>
-                          <p className="font-editorial text-[12.5px] text-ink-3 truncate mt-0.5">
-                            by{' '}
-                            {r.artistSlug ? (
-                              <Link
-                                to={`/artist/${r.artistSlug}`}
-                                onClick={(e) => e.stopPropagation()}
-                                className="hover:text-ink hover:underline underline-offset-2 focus-ring rounded-sharp"
-                              >
-                                {r.artist}
-                              </Link>
-                            ) : (
-                              r.artist
-                            )}
-                          </p>
-                        </div>
-                        {selectedIdx === i ? (
-                          <span className="hidden md:inline-flex items-center gap-1 text-[10px] text-ink-3">
-                            <CornerDownLeft className="w-3 h-3" />
-                          </span>
-                        ) : null}
-                        <div onClick={(e) => e.stopPropagation()} className="opacity-0 group-hover:opacity-100 transition-opacity">
-                          <HeartButton track={toTrack(r)} size="sm" />
-                        </div>
-                        {r.duration ? (
-                          <span className="font-mono text-[12px] text-ink-4 tabular-nums hidden sm:inline tracking-tight">
-                            {r.duration}
-                          </span>
-                        ) : null}
-                      </motion.div>
-                    ))}
-                  </div>
-                </div>
+                ) : null}
               </div>
             ) : null}
 
@@ -468,22 +719,31 @@ const SearchPage = () => {
                   animate="animate"
                   className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4"
                 >
-                  {grouped.artists.map((a) => (
-                    <motion.div variants={fadeUp} key={a.id}>
-                      <Link
-                        to={`/artist/${a.slug}`}
-                        className="group block text-center rounded-sharp p-4 hover:bg-white/[0.03] transition-colors focus-ring"
-                      >
-                        <img
-                          src={a.thumbnail}
-                          alt={a.name}
-                          className="w-full aspect-square rounded-full object-cover ring-1 ring-white/[0.08] mb-3 group-hover:ring-track/50 transition-all shadow-elev-1 group-hover:shadow-elev-3"
-                        />
-                        <p className="text-[13.5px] font-medium truncate text-ink">{a.name}</p>
-                        <p className="font-editorial text-[11.5px] text-ink-3">Artist</p>
-                      </Link>
-                    </motion.div>
-                  ))}
+                  {grouped.artists.map((a) => {
+                    const slug = a.slug || a.artistSlug;
+                    return (
+                      <motion.div variants={fadeUp} key={a.id}>
+                        <Link
+                          to={isUsableArtistSlug(slug) ? `/artist/${slug}` : '#'}
+                          aria-disabled={!isUsableArtistSlug(slug)}
+                          onMouseEnter={() => prefetchArtistRoute(slug)}
+                          onFocus={() => prefetchArtistRoute(slug)}
+                          className="group block text-center rounded-sharp p-4 hover:bg-white/[0.03] transition-colors focus-ring"
+                        >
+                          <SmartImage
+                            src={a.thumbnail}
+                            alt={a.name}
+                            kind="artist"
+                            rounded="rounded-full"
+                            className="w-full aspect-square ring-1 ring-white/[0.08] mb-3 group-hover:ring-track/50 transition-all shadow-elev-1 group-hover:shadow-elev-3"
+                            imgClassName="object-cover"
+                          />
+                          <p className="text-[13.5px] font-medium truncate text-ink">{a.name}</p>
+                          <p className="font-editorial text-[11.5px] text-ink-3">Artist</p>
+                        </Link>
+                      </motion.div>
+                    );
+                  })}
                 </motion.div>
               </div>
             ) : null}
@@ -504,14 +764,19 @@ const SearchPage = () => {
                   {grouped.albums.map((a) => (
                     <motion.div variants={fadeUp} key={a.id}>
                       <Link
-                        to={`/album/${a.id}`}
+                        to={`/album/${a.id}?from=search&autoplay=1`}
+                        onMouseEnter={() => prefetchAlbumRoute(a.id)}
+                        onFocus={() => prefetchAlbumRoute(a.id)}
                         className="group block rounded-sharp overflow-hidden focus-ring border border-white/[0.06] hover:border-white/[0.18] transition-colors"
                       >
                         <div className="aspect-square overflow-hidden">
-                          <img
+                          <SmartImage
                             src={a.thumbnail}
                             alt={a.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-long ease-emphasis"
+                            kind="album"
+                            rounded="rounded-none"
+                            className="w-full h-full"
+                            imgClassName="object-cover group-hover:scale-105 transition-transform duration-long ease-emphasis"
                           />
                         </div>
                         <div className="p-3">
@@ -550,7 +815,7 @@ const TopResultCard = ({ result, onPlay, onNavigate }) => {
   const title = isArtist ? result.name : result.title;
   const thumbnail = result.thumbnail;
   const target = isArtist ? `/artist/${result.slug}`
-    : isAlbum ? `/album/${result.id}`
+    : isAlbum ? `/album/${result.id}?from=search&autoplay=1`
     : null;
 
   return (
@@ -562,10 +827,13 @@ const TopResultCard = ({ result, onPlay, onNavigate }) => {
       }}
       className="relative group block w-full text-left p-5 rounded-sharp bg-surface-2/40 backdrop-blur-md border border-white/[0.06] hover:border-white/[0.18] transition-colors focus-ring shadow-elev-2 hover:shadow-elev-3"
     >
-      <img
+      <SmartImage
         src={thumbnail}
         alt=""
-        className={`w-24 h-24 ${isArtist ? 'rounded-full' : 'rounded-sharp'} object-cover shadow-elev-3 mb-4 ring-1 ring-white/10`}
+        kind={isArtist ? 'artist' : isAlbum ? 'album' : 'track'}
+        rounded={isArtist ? 'rounded-full' : 'rounded-sharp'}
+        className={`w-24 h-24 shadow-elev-3 mb-4 ring-1 ring-white/10`}
+        imgClassName="object-cover"
       />
       <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-4 mb-2">
         {subtype}

@@ -24,6 +24,7 @@ import { useNavigate } from 'react-router-dom';
 import { usePlayer } from '@/contexts/PlayerContext';
 import { useFavorites } from '@/contexts/FavoritesContext';
 import { usePlaylists } from '@/contexts/PlaylistContext';
+import { artistSlugOf, isUsableArtistSlug } from '@/lib/slug';
 import notify from '@/lib/notify';
 
 const TrackContextMenu = ({ track, children, onShareLink }) => {
@@ -58,6 +59,13 @@ const TrackContextMenu = ({ track, children, onShareLink }) => {
   };
 
   if (!track) return children;
+
+  // Use the canonical slug supplied by the API when available; otherwise
+  // derive one from the artist name. If we have nothing usable we disable the
+  // menu item rather than route to a guessed slug.
+  const artistSlug = artistSlugOf(track);
+  const canVisitArtist = isUsableArtistSlug(artistSlug);
+  const albumId = track.albumId || null;
 
   return (
     <ContextMenu>
@@ -99,12 +107,20 @@ const TrackContextMenu = ({ track, children, onShareLink }) => {
         </ContextMenuSub>
         <ContextMenuSeparator />
         <ContextMenuItem
-          onClick={() => navigate(`/artist/${(track.artist || '').toLowerCase().replace(/\s+/g, '-')}`)}
+          disabled={!canVisitArtist}
+          onClick={() => {
+            if (!canVisitArtist) return;
+            navigate(`/artist/${artistSlug}`);
+          }}
         >
           <User className="w-4 h-4 mr-2" /> Go to artist
         </ContextMenuItem>
         <ContextMenuItem
-          onClick={() => navigate(`/album/${track.albumId || 'es-a1'}`)}
+          disabled={!albumId}
+          onClick={() => {
+            if (!albumId) return;
+            navigate(`/album/${albumId}`);
+          }}
         >
           <Disc className="w-4 h-4 mr-2" /> Go to album
         </ContextMenuItem>

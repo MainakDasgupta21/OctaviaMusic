@@ -1,5 +1,7 @@
 // =============================================================================
-// LRC parser + LRCLib client. Returns an array of { time, text } lines.
+// LRC parser. The transport layer for fetching lyrics now lives in
+// `src/lib/api.js` so React Query can manage caching, retries, and 404 vs
+// provider-error semantics. This module stays focused on parsing/utility.
 // =============================================================================
 
 export const parseLRC = (raw) => {
@@ -20,48 +22,6 @@ export const parseLRC = (raw) => {
   }
   out.sort((a, b) => a.time - b.time);
   return out;
-};
-
-const cache = new Map();
-
-// Fetch from LRCLib (public, no auth required). Returns either:
-//   { synced: [{time,text}], plain: 'multi-line text' }
-// or null if nothing found / on error.
-export const fetchLyrics = async ({ title, artist, durationSec }) => {
-  if (!title || !artist) return null;
-  const key = `${title}::${artist}`.toLowerCase();
-  if (cache.has(key)) return cache.get(key);
-
-  const params = new URLSearchParams({
-    track_name: title,
-    artist_name: artist,
-    ...(durationSec ? { duration: String(Math.round(durationSec)) } : {}),
-  });
-
-  try {
-    const res = await fetch(`https://lrclib.net/api/get?${params.toString()}`, {
-      headers: { 'User-Agent': 'Harmony Hub (https://harmonyhub.local)' },
-    });
-    if (!res.ok) {
-      cache.set(key, null);
-      return null;
-    }
-    const data = await res.json();
-    const result = {
-      synced: parseLRC(data.syncedLyrics || ''),
-      plain: data.plainLyrics || '',
-    };
-    if (!result.synced.length && !result.plain) {
-      cache.set(key, null);
-      return null;
-    }
-    cache.set(key, result);
-    return result;
-  } catch (e) {
-    console.warn('LRC fetch failed', e);
-    cache.set(key, null);
-    return null;
-  }
 };
 
 // Find the active synced line for a given playback time.

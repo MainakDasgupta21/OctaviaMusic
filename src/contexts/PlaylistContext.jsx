@@ -7,7 +7,7 @@ import {
   useState,
 } from 'react';
 
-const STORAGE_KEY = 'harmony.playlists.v1';
+const STORAGE_KEY = 'octavia.playlists.v1';
 
 // Seed playlists shown on first load — gives the Library a populated feel
 // for new users while real persistence kicks in.

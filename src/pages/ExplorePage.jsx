@@ -8,9 +8,15 @@ import { useFavorites } from '@/contexts/FavoritesContext';
 import { useSettings } from '@/contexts/SettingsContext';
 import SectionHeader from '@/components/ui-v2/SectionHeader';
 import Skeleton from '@/components/ui-v2/Skeleton';
+import EmptyState from '@/components/ui-v2/EmptyState';
+import Button from '@/components/ui-v2/Button';
+import SmartImage from '@/components/SmartImage';
 import { getGenres, getTrending } from '@/lib/api';
+import { cachePolicy, queryKeys } from '@/lib/query-keys';
 import { fadeUp, staggerChildren } from '@/design/motion';
+import { useEditorialMeta } from '@/hooks/use-editorial-meta';
 import { cn } from '@/lib/utils';
+import { AlertTriangle } from 'lucide-react';
 
 // Editorial mood plates — paired with a Fraunces drop cap and a noun.
 const MOODS = [
@@ -22,31 +28,28 @@ const MOODS = [
   { id: 'cafe', label: 'Cafe hours', dropCap: 'C', icon: Coffee, mix: 'from-[#241808]/85 via-[#140d05]/70 to-transparent' },
 ];
 
-const formatMasthead = () => {
-  const d = new Date();
-  return new Intl.DateTimeFormat('en-US', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(d).toUpperCase();
-};
-
 const ExplorePage = () => {
   const { history, playTrack, addToQueue } = usePlayer();
   const { list: favorites } = useFavorites();
   const { settings } = useSettings();
-  const masthead = useMemo(() => formatMasthead(), []);
+  const { masthead } = useEditorialMeta();
 
-  const { data: genres = [], isLoading: genresLoading } = useQuery({
-    queryKey: ['genres'],
+  const {
+    data: genres = [],
+    isLoading: genresLoading,
+    isError: genresError,
+    refetch: refetchGenres,
+  } = useQuery({
+    queryKey: queryKeys.genres(),
     queryFn: getGenres,
+    ...cachePolicy.genres,
   });
 
   // For "Because you liked …" we use trending as a stand-in pool of similar tracks.
   const { data: trending = [] } = useQuery({
-    queryKey: ['trending'],
+    queryKey: queryKeys.trending(20),
     queryFn: () => getTrending({ limit: 20 }),
+    ...cachePolicy.trending,
   });
 
   // Daily Mixes derive from top artists in history/favorites — simple co-occurrence.
@@ -112,7 +115,7 @@ const ExplorePage = () => {
         <span>{masthead}</span>
         <span className="flex items-center gap-3">
           <span className="text-ink-3">✦</span>
-          <span>The Harmony Hub Daily · Explore</span>
+          <span>The Octavia Daily · Explore</span>
           <span className="text-ink-3">✦</span>
         </span>
         <span>For {firstName}</span>
@@ -159,15 +162,14 @@ const ExplorePage = () => {
                   key={mix.id}
                   className="relative aspect-square rounded-sharp overflow-hidden ring-1 ring-white/[0.07] hover:ring-white/[0.18] cursor-pointer group shadow-elev-2 hover:shadow-elev-3 transition-shadow"
                 >
-                  {mix.thumbnail ? (
-                    <img
-                      src={mix.thumbnail}
-                      alt={mix.label}
-                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-long ease-emphasis"
-                    />
-                  ) : (
-                    <div className="absolute inset-0 bg-gradient-to-br from-surface-2 to-surface-3" />
-                  )}
+                  <SmartImage
+                    src={mix.thumbnail}
+                    alt={mix.label}
+                    kind="mix"
+                    rounded="rounded-none"
+                    className="absolute inset-0 w-full h-full"
+                    imgClassName="object-cover group-hover:scale-105 transition-transform duration-long ease-emphasis"
+                  />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-transparent" />
                   {/* Top-right issue number */}
                   <span className="absolute top-3 right-3 font-mono text-[10px] uppercase tracking-[0.2em] text-white/55">
@@ -205,7 +207,22 @@ const ExplorePage = () => {
             ? Array.from({ length: 6 }).map((_, i) => (
                 <Skeleton key={i} className="aspect-[5/3] rounded-sharp" />
               ))
-            : genres.slice(0, 6).map((g) => (
+            : genresError
+              ? (
+                <div className="col-span-full">
+                  <EmptyState
+                    icon={AlertTriangle}
+                    title="Genres unavailable"
+                    description="We couldn't reach the genre catalog. Try again in a moment."
+                    action={
+                      <Button onClick={() => refetchGenres()} size="md">
+                        Try again
+                      </Button>
+                    }
+                  />
+                </div>
+              )
+              : genres.slice(0, 6).map((g) => (
                 <motion.div variants={fadeUp} key={g.id}>
                   <Link
                     to={`/genres?genre=${g.id}`}
@@ -213,10 +230,13 @@ const ExplorePage = () => {
                   >
                     {/* Background image if present, else gradient */}
                     {g.thumbnail ? (
-                      <img
+                      <SmartImage
                         src={g.thumbnail}
                         alt=""
-                        className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-75 group-hover:scale-105 transition-all duration-long ease-emphasis"
+                        kind="genre"
+                        rounded="rounded-none"
+                        className="absolute inset-0 w-full h-full opacity-60 group-hover:opacity-75 group-hover:scale-105 transition-all duration-long ease-emphasis"
+                        imgClassName="object-cover"
                       />
                     ) : (
                       <div
@@ -280,10 +300,13 @@ const ExplorePage = () => {
                 className="group flex items-center gap-3 p-2.5 pr-4 rounded-sharp border border-white/[0.06] bg-surface-2/50 backdrop-blur-md hover:bg-surface-2 hover:border-white/[0.12] transition-colors text-left focus-ring"
               >
                 <div className="relative flex-shrink-0">
-                  <img
+                  <SmartImage
                     src={track.thumbnail}
                     alt=""
-                    className="w-14 h-14 rounded-sharp object-cover ring-1 ring-white/10"
+                    kind="track"
+                    rounded="rounded-sharp"
+                    className="w-14 h-14 ring-1 ring-white/10"
+                    imgClassName="object-cover"
                   />
                   <span
                     aria-hidden="true"
@@ -295,7 +318,7 @@ const ExplorePage = () => {
                 <div className="min-w-0 flex-1">
                   <p className="text-[14px] font-medium truncate text-ink">{track.title}</p>
                   <p className="font-editorial text-[12.5px] text-ink-3 truncate mt-0.5">
-                    by {track.artist}
+                    by {track.artist || 'Unknown artist'}
                   </p>
                 </div>
                 <Play className="w-4 h-4 fill-current text-ink-3 group-hover:text-accent transition-colors" />

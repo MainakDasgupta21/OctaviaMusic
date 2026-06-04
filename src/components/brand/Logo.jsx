@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils';
 
-// Refined monogram: an "H" formed by two waveform-bar uprights with a tied
-// crossbar. Scales with the parent (uses em units). The mark is drawn on a
+// Refined monogram built from waveform bars with a center tie.
+// Scales with the parent (uses em units). The mark is drawn on a
 // rounded-square chip so it reads well on the sidebar at 40px and on the
 // title-card at 240px.
 
@@ -85,7 +85,7 @@ export const Wordmark = ({ className, size = 'md' }) => {
         className,
       )}
     >
-      Harmony
+      Octavia
     </span>
   );
 };

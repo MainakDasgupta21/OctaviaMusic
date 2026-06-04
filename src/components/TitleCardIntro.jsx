@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { LogoMark } from '@/components/brand/Logo';
 import { isReducedMotion } from '@/design/motion';
 
-const KEY = 'harmony.intro.v3.seen';
+const KEY = 'octavia.intro.v3.seen';
 
 const TitleCardIntro = () => {
   const [visible, setVisible] = useState(false);
@@ -75,7 +75,7 @@ const TitleCardIntro = () => {
             animate={{ opacity: 1, y: 0, transition: { delay: 0.55, duration: 0.55, ease: [0.22, 1, 0.36, 1] } }}
             className="mt-6 font-display text-5xl md:text-6xl gradient-text italic leading-none"
           >
-            Harmony Hub
+            Octavia
           </motion.h1>
           <motion.div
             initial={{ opacity: 0 }}

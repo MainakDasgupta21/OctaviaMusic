@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { toast } from 'sonner';
 
-const KEY = 'harmony.first-run-hint.v1';
+const KEY = 'octavia.first-run-hint.v1';
 
 const isMac =
   typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform);

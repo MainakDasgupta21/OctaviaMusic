@@ -16,17 +16,13 @@ import Button from '@/components/ui-v2/Button';
 import SectionHeader from '@/components/ui-v2/SectionHeader';
 import EmptyState from '@/components/ui-v2/EmptyState';
 import Skeleton from '@/components/ui-v2/Skeleton';
+import SmartImage from '@/components/SmartImage';
 import { getArtist, isNotFoundError } from '@/lib/api';
+import { cachePolicy, queryKeys } from '@/lib/query-keys';
+import { formatPlays } from '@/lib/player-format';
 import { fadeUp, staggerChildren } from '@/design/motion';
+import { useHoverPrefetch } from '@/hooks/use-route-prefetch';
 import { cn } from '@/lib/utils';
-
-const formatPlays = (n) => {
-  if (!Number.isFinite(n)) return '\u2014';
-  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return `${n}`;
-};
 
 const ArtistPageSkeleton = () => (
   <div className="pb-12">
@@ -63,11 +59,13 @@ const ArtistPageSkeleton = () => (
 const ArtistPage = () => {
   const { slug } = useParams();
   const { playTrack, addToQueue, currentTrack, isPlaying } = usePlayer();
+  const { onAlbum: prefetchAlbumRoute } = useHoverPrefetch();
 
-  const { data: artist, isLoading, isError, error } = useQuery({
-    queryKey: ['artist', slug],
+  const { data: artist, isLoading, isError, error, refetch } = useQuery({
+    queryKey: queryKeys.artist(slug),
     queryFn: () => getArtist(slug),
     enabled: Boolean(slug),
+    ...cachePolicy.artist,
   });
 
   if (isLoading) return <ArtistPageSkeleton />;
@@ -83,6 +81,13 @@ const ArtistPage = () => {
             notFound
               ? "We don't have a page for this artist yet."
               : 'The catalog service is unreachable. Check your connection and try again.'
+          }
+          action={
+            notFound ? null : (
+              <Button onClick={() => refetch()} size="md">
+                Try again
+              </Button>
+            )
           }
         />
       </div>
@@ -101,11 +106,16 @@ const ArtistPage = () => {
     <div className="pb-12">
       {/* Hero */}
       <div className="relative h-[48vh] min-h-[320px] max-h-[480px] overflow-hidden">
-        <img
+        <SmartImage
           src={artist.cover || artist.thumbnail}
           alt=""
+          kind="artist"
+          loading="eager"
+          fetchpriority="high"
           aria-hidden="true"
-          className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-45"
+          rounded="rounded-none"
+          className="absolute inset-0 w-full h-full"
+          imgClassName="object-cover scale-110 blur-2xl opacity-45"
         />
         {/* Triple-pass gradient — top fade, bottom paper, hairline catch */}
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-transparent" />
@@ -125,10 +135,14 @@ const ArtistPage = () => {
           {...fadeUp}
           className="absolute inset-x-0 bottom-0 p-5 md:p-10 max-w-[1600px] mx-auto flex items-end gap-5 md:gap-8"
         >
-          <img
+          <SmartImage
             src={artist.cover || artist.thumbnail}
             alt={artist.name}
-            className="w-36 h-36 md:w-56 md:h-56 rounded-full object-cover shadow-elev-5 ring-1 ring-white/15 flex-shrink-0"
+            kind="artist"
+            loading="eager"
+            rounded="rounded-full"
+            className="w-36 h-36 md:w-56 md:h-56 shadow-elev-5 ring-1 ring-white/15 flex-shrink-0"
+            imgClassName="object-cover"
           />
           <div className="min-w-0 pb-2 flex-1">
             <div className="flex items-center gap-3 mb-3">
@@ -232,10 +246,13 @@ const ArtistPage = () => {
                   >
                     {String(index + 1).padStart(2, '0')}
                   </span>
-                  <img
+                  <SmartImage
                     src={track.thumbnail}
                     alt=""
-                    className="w-12 h-12 rounded-sharp object-cover ring-1 ring-white/10"
+                    kind="track"
+                    rounded="rounded-sharp"
+                    className="w-12 h-12 ring-1 ring-white/10"
+                    imgClassName="object-cover"
                   />
                   <div className="flex-1 min-w-0">
                     <h4
@@ -247,7 +264,7 @@ const ArtistPage = () => {
                       {track.title}
                     </h4>
                     <p className="font-editorial text-[12.5px] text-ink-3 truncate mt-0.5">
-                      {formatPlays(track.plays)} plays
+                      {Number.isFinite(track.plays) ? `${formatPlays(track.plays)} plays` : '\u2014'}
                       {isCurrent && isPlaying ? ' · now playing' : ''}
                     </p>
                   </div>
@@ -281,13 +298,18 @@ const ArtistPage = () => {
               <Link
                 key={a.id}
                 to={`/album/${a.id}`}
+                onMouseEnter={() => prefetchAlbumRoute(a.id)}
+                onFocus={() => prefetchAlbumRoute(a.id)}
                 className="group block rounded-sharp overflow-hidden border border-white/[0.06] hover:border-white/[0.18] transition-colors focus-ring shadow-elev-2 hover:shadow-elev-3"
               >
                 <div className="aspect-square overflow-hidden relative">
-                  <img
+                  <SmartImage
                     src={a.thumbnail}
                     alt={a.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-long ease-emphasis"
+                    kind="album"
+                    rounded="rounded-none"
+                    className="w-full h-full"
+                    imgClassName="object-cover group-hover:scale-105 transition-transform duration-long ease-emphasis"
                   />
                   <span className="absolute top-2 left-2 font-mono text-[10px] uppercase tracking-[0.2em] text-white/55 mix-blend-difference">
                     №{String(i + 1).padStart(2, '0')}

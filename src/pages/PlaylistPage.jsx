@@ -31,6 +31,7 @@ import { usePlaylists } from '@/contexts/PlaylistContext';
 import Button from '@/components/ui-v2/Button';
 import EmptyState from '@/components/ui-v2/EmptyState';
 import HeartButton from '@/components/HeartButton';
+import SmartImage from '@/components/SmartImage';
 import { fadeUp } from '@/design/motion';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -82,10 +83,13 @@ const SortableTrack = ({ track, index, onPlay, onRemove, isCurrent }) => {
       >
         {String(index + 1).padStart(2, '0')}
       </span>
-      <img
+      <SmartImage
         src={track.thumbnail}
         alt=""
-        className="w-10 h-10 rounded-sharp object-cover ring-1 ring-white/10"
+        kind="track"
+        rounded="rounded-sharp"
+        className="w-10 h-10 ring-1 ring-white/10"
+        imgClassName="object-cover"
       />
       <div className="min-w-0 cursor-pointer" onClick={onPlay}>
         <p
@@ -97,7 +101,7 @@ const SortableTrack = ({ track, index, onPlay, onRemove, isCurrent }) => {
           {track.title}
         </p>
         <p className="font-editorial text-[12.5px] text-ink-3 truncate mt-0.5">
-          by {track.artist}
+          by {track.artist || 'Unknown artist'}
         </p>
       </div>
       <div onClick={(e) => e.stopPropagation()}>
@@ -131,7 +135,14 @@ const CollageCover = ({ tracks }) => {
   if (thumbs.length === 1) {
     return (
       <div className="relative w-48 h-48 md:w-64 md:h-64 rounded-sharp overflow-hidden shadow-elev-5 ring-1 ring-white/15">
-        <img src={thumbs[0]} alt="" className="w-full h-full object-cover" />
+        <SmartImage
+          src={thumbs[0]}
+          alt=""
+          kind="mix"
+          rounded="rounded-none"
+          className="w-full h-full"
+          imgClassName="object-cover"
+        />
       </div>
     );
   }
@@ -141,7 +152,15 @@ const CollageCover = ({ tracks }) => {
   return (
     <div className="relative w-48 h-48 md:w-64 md:h-64 rounded-sharp overflow-hidden shadow-elev-5 ring-1 ring-white/15 grid grid-cols-2 grid-rows-2 gap-px bg-white/[0.06]">
       {filled.slice(0, 4).map((src, i) => (
-        <img key={i} src={src} alt="" className="w-full h-full object-cover" />
+        <SmartImage
+          key={i}
+          src={src}
+          alt=""
+          kind="mix"
+          rounded="rounded-none"
+          className="w-full h-full"
+          imgClassName="object-cover"
+        />
       ))}
     </div>
   );

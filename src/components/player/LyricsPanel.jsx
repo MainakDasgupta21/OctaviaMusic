@@ -1,40 +1,64 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Music2, Loader2 } from 'lucide-react';
-import { fetchLyrics, activeLineIndex } from '@/lib/lrc';
+import { Music2, Loader2, AlertTriangle } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { activeLineIndex, parseLRC } from '@/lib/lrc';
+import { getLyrics, isNotFoundError, isProviderError } from '@/lib/api';
+import { queryKeys, cachePolicy } from '@/lib/query-keys';
 import { usePlayer, usePlayerProgress } from '@/contexts/PlayerContext';
 import EmptyState from '@/components/ui-v2/EmptyState';
+import { Button } from '@/components/ui-v2/Button';
 import { cn } from '@/lib/utils';
+
+// =============================================================================
+// Lyrics screen — Spotify Now-Playing inspired.
+// - Bold display-weight typography (no editorial italics)
+// - Big dramatic active line, dim past/future lines
+// - Click any line to seek there
+// - Active line auto-scrolls to center
+// =============================================================================
 
 const LyricsPanel = () => {
   const { currentTrack, seekTo } = usePlayer();
   const { progress, duration } = usePlayerProgress();
-  const [state, setState] = useState({ status: 'idle', data: null });
   const scrollRef = useRef(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    if (!currentTrack) {
-      setState({ status: 'idle', data: null });
-      return;
-    }
-    setState({ status: 'loading', data: null });
-    fetchLyrics({
-      title: currentTrack.title,
-      artist: currentTrack.artist,
-      durationSec: duration || undefined,
-    }).then((r) => {
-      if (cancelled) return;
-      if (!r) setState({ status: 'empty', data: null });
-      else setState({ status: 'ready', data: r });
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [currentTrack?.id, currentTrack?.title, currentTrack?.artist, duration]);
+  const title = currentTrack?.title || '';
+  const artist = currentTrack?.artist || '';
+  const durationSec = duration > 0 ? duration : null;
+  const enabled = Boolean(title && artist);
 
-  const synced = state.data?.synced;
-  const idx = synced ? activeLineIndex(synced, progress) : -1;
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: queryKeys.lyrics(title, artist, durationSec),
+    queryFn: () => getLyrics({ title, artist, durationSec: durationSec ?? undefined }),
+    enabled,
+    staleTime: cachePolicy.lyrics.staleTime,
+    gcTime: cachePolicy.lyrics.gcTime,
+    // 404 means the provider has no lyrics for this song — there's no point
+    // retrying. Other errors (network/provider) are worth one or two retries.
+    retry: (failureCount, err) => {
+      if (isNotFoundError(err)) return false;
+      return failureCount < 2;
+    },
+  });
+
+  // Memoise the parse so re-renders during playback don't re-tokenise the LRC.
+  const parsed = useMemo(() => {
+    if (!data) return { synced: [], plain: '' };
+    return {
+      synced: parseLRC(data.syncedRaw || ''),
+      plain: data.plain || '',
+    };
+  }, [data]);
+
+  const synced = parsed.synced;
+  const idx = synced.length ? activeLineIndex(synced, progress) : -1;
 
   useEffect(() => {
     if (idx < 0 || !scrollRef.current) return;
@@ -44,15 +68,57 @@ const LyricsPanel = () => {
     }
   }, [idx]);
 
-  if (state.status === 'loading') {
+  if (!currentTrack) {
     return (
-      <div className="h-full flex items-center justify-center text-ink-3 gap-2 font-editorial italic text-[14px] rounded-sharp border border-white/[0.06] bg-white/[0.02]">
-        <Loader2 className="w-4 h-4 animate-spin not-italic" /> Loading lyrics…
+      <EmptyState
+        icon={Music2}
+        title="No track playing"
+        description="Play something to see its lyrics here."
+        className="py-12"
+      />
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="h-full flex items-center justify-center gap-2 text-ink-3 text-[14px]">
+        <Loader2 className="w-4 h-4 animate-spin" /> Loading lyrics…
       </div>
     );
   }
 
-  if (state.status === 'empty' || !currentTrack) {
+  if (isError) {
+    // 404 = "no lyrics available", treated as an empty state rather than an
+    // error. 5xx / network failures get a retry button.
+    if (isNotFoundError(error)) {
+      return (
+        <EmptyState
+          icon={Music2}
+          title="No lyrics yet"
+          description="We couldn't find synced lyrics for this track."
+          className="py-12"
+        />
+      );
+    }
+    const description = isProviderError(error)
+      ? 'The lyrics provider is having a moment. Try again in a few seconds.'
+      : 'We couldn\'t reach the lyrics service. Check your connection.';
+    return (
+      <EmptyState
+        icon={AlertTriangle}
+        title="Lyrics unavailable"
+        description={description}
+        className="py-12"
+        action={
+          <Button variant="secondary" onClick={() => refetch()}>
+            Try again
+          </Button>
+        }
+      />
+    );
+  }
+
+  if (!synced.length && !parsed.plain) {
     return (
       <EmptyState
         icon={Music2}
@@ -63,15 +129,24 @@ const LyricsPanel = () => {
     );
   }
 
-  if (synced?.length) {
+  if (synced.length) {
     return (
       <div
         ref={scrollRef}
-        className="h-full overflow-y-auto custom-scrollbar px-3 py-12 space-y-3.5 text-center"
+        className="h-full overflow-y-auto custom-scrollbar px-4 py-16 space-y-1 text-left"
+        style={{
+          // Spotify-style fade at top/bottom so lines feel like they're "rising
+          // out" and "sinking back into" the panel rather than hard-cutting.
+          maskImage:
+            'linear-gradient(180deg, transparent 0%, #000 14%, #000 86%, transparent 100%)',
+          WebkitMaskImage:
+            'linear-gradient(180deg, transparent 0%, #000 14%, #000 86%, transparent 100%)',
+        }}
       >
         {synced.map((line, i) => {
           const isActive = i === idx;
           const isPast = i < idx;
+          const isAdjacent = Math.abs(i - idx) === 1;
           return (
             <motion.button
               key={`${i}-${line.time}`}
@@ -79,24 +154,16 @@ const LyricsPanel = () => {
               data-active={isActive}
               onClick={() => seekTo(line.time)}
               animate={{
-                opacity: isActive ? 1 : isPast ? 0.28 : 0.5,
-                scale: isActive ? 1 : 0.96,
+                opacity: isActive ? 1 : isPast ? 0.22 : isAdjacent ? 0.55 : 0.35,
               }}
-              transition={{ duration: 0.25 }}
+              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
               className={cn(
-                'block w-full px-3 py-1.5 rounded-sharp font-editorial italic text-[17px] md:text-[19px] leading-snug focus-ring relative transition-colors',
+                'block w-full text-left px-2 py-2 rounded-lg font-display tracking-tight leading-[1.18] focus-ring transition-colors',
                 isActive
-                  ? 'text-accent bg-track/[0.10]'
-                  : 'text-ink-3 hover:text-ink hover:bg-white/[0.03]',
+                  ? 'text-white font-bold text-[24px] md:text-[28px]'
+                  : 'text-ink-2 hover:text-ink font-semibold text-[19px] md:text-[22px]',
               )}
             >
-              {/* Track-accent hairline cursor under active line */}
-              {isActive ? (
-                <span
-                  aria-hidden="true"
-                  className="absolute inset-x-1/4 -bottom-1 h-px bg-track/60"
-                />
-              ) : null}
               {line.text || '\u00a0'}
             </motion.button>
           );
@@ -106,9 +173,17 @@ const LyricsPanel = () => {
   }
 
   return (
-    <div className="h-full overflow-y-auto custom-scrollbar px-4 py-8">
-      <pre className="whitespace-pre-wrap font-editorial italic text-[15px] text-ink-2 leading-relaxed">
-        {state.data.plain}
+    <div
+      className="h-full overflow-y-auto custom-scrollbar px-5 py-10"
+      style={{
+        maskImage:
+          'linear-gradient(180deg, transparent 0%, #000 8%, #000 92%, transparent 100%)',
+        WebkitMaskImage:
+          'linear-gradient(180deg, transparent 0%, #000 8%, #000 92%, transparent 100%)',
+      }}
+    >
+      <pre className="whitespace-pre-wrap font-display font-semibold text-[19px] md:text-[20px] text-ink-2 leading-[1.45] tracking-tight">
+        {parsed.plain}
       </pre>
     </div>
   );

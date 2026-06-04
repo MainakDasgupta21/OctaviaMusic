@@ -80,7 +80,22 @@ const Button = forwardRef(
     },
     ref,
   ) => {
-    const Comp = asChild ? Slot : 'button';
+    if (asChild) {
+      return (
+        <Slot
+          ref={ref}
+          className={cn(button({ variant, size }), className)}
+          aria-busy={loading || undefined}
+          aria-disabled={disabled || loading || undefined}
+          data-disabled={disabled || loading ? '' : undefined}
+          {...props}
+        >
+          {children}
+        </Slot>
+      );
+    }
+
+    const Comp = 'button';
     return (
       <Comp
         ref={ref}

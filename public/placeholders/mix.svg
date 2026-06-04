@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" role="img" aria-label="Mix artwork unavailable">
+  <defs>
+    <linearGradient id="bg" x1="72" y1="64" x2="960" y2="960" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2C2436"/>
+      <stop offset="1" stop-color="#100C18"/>
+    </linearGradient>
+    <linearGradient id="glow1" x1="0" y1="0" x2="600" y2="600" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FF6E9C" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#221432" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="glow2" x1="600" y1="600" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7FB6FF" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#1B1733" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="64" fill="url(#bg)"/>
+  <circle cx="320" cy="320" r="320" fill="url(#glow1)"/>
+  <circle cx="720" cy="720" r="320" fill="url(#glow2)"/>
+  <g fill="#F4EFFA">
+    <rect x="356" y="428" width="40" height="168" rx="12"/>
+    <rect x="436" y="380" width="40" height="264" rx="12"/>
+    <rect x="516" y="332" width="40" height="360" rx="12"/>
+    <rect x="596" y="380" width="40" height="264" rx="12"/>
+    <rect x="676" y="428" width="40" height="168" rx="12"/>
+  </g>
+</svg>

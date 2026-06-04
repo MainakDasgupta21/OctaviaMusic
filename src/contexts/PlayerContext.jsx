@@ -8,6 +8,7 @@ import React, {
   useState,
 } from 'react';
 import { useSettings } from '@/contexts/SettingsContext';
+import { sanitizeTrack, sanitizeTrackList } from '@/lib/media-sanitize';
 
 // Two contexts on purpose:
 //  • PlayerContext        — stable state + controls. Changes only on real
@@ -19,7 +20,7 @@ import { useSettings } from '@/contexts/SettingsContext';
 const PlayerContext = createContext(undefined);
 const PlayerProgressContext = createContext(undefined);
 
-const STORAGE_KEY = 'harmony.player.v1';
+const STORAGE_KEY = 'octavia.player.v1';
 
 const readState = () => {
   if (typeof window === 'undefined') return null;
@@ -34,7 +35,17 @@ const readState = () => {
   }
 };
 
-const persisted = readState();
+const sanitizePersistedState = (state) => {
+  if (!state || typeof state !== 'object') return null;
+  return {
+    ...state,
+    currentTrack: sanitizeTrack(state.currentTrack, { requirePlayable: true }),
+    queue: sanitizeTrackList(state.queue, { requirePlayable: true }),
+    history: sanitizeTrackList(state.history, { requirePlayable: true }).slice(0, 24),
+  };
+};
+
+const persisted = sanitizePersistedState(readState());
 
 export const PlayerProvider = ({ children }) => {
   const { settings } = useSettings();
@@ -80,7 +91,8 @@ export const PlayerProvider = ({ children }) => {
     }
   }, [currentTrack, volume, queue, history, shuffle, repeat]);
 
-  const pushToHistory = useCallback((track) => {
+  const pushToHistory = useCallback((trackInput) => {
+    const track = sanitizeTrack(trackInput, { requirePlayable: true });
     if (!track?.id) return;
     setHistory((h) => {
       const filtered = h.filter((t) => t.id !== track.id);
@@ -89,8 +101,9 @@ export const PlayerProvider = ({ children }) => {
   }, []);
 
   const playTrack = useCallback(
-    (track) => {
-      if (!track?.id) return;
+    (trackInput) => {
+      const track = sanitizeTrack(trackInput, { requirePlayable: true });
+      if (!track?.id) return false;
       setCurrentTrack((prev) => {
         if (prev && prev.id !== track.id) pushToHistory(prev);
         return track;
@@ -98,6 +111,7 @@ export const PlayerProvider = ({ children }) => {
       setIsPlaying(true);
       setProgress(0);
       setDuration(0);
+      return true;
     },
     [pushToHistory],
   );
@@ -142,13 +156,35 @@ export const PlayerProvider = ({ children }) => {
     setProgress(seconds);
   }, []);
 
-  const addToQueue = useCallback((track) => {
+  const addToQueue = useCallback((trackInput) => {
+    const track = sanitizeTrack(trackInput, { requirePlayable: true });
     if (!track?.id) return;
     setQueue((prev) => [...prev, track]);
   }, []);
 
+  const playTracksInOrder = useCallback(
+    (tracks, { replaceQueue = true, startIndex = 0, forceSequential = false } = {}) => {
+      const ordered = sanitizeTrackList(tracks, { requirePlayable: true });
+      if (ordered.length === 0) return false;
+
+      const boundedStart = Math.min(
+        Math.max(0, Number.isInteger(startIndex) ? startIndex : 0),
+        ordered.length - 1,
+      );
+      const first = ordered[boundedStart];
+      const upcoming = ordered.slice(boundedStart + 1);
+
+      setQueue((prev) => (replaceQueue ? upcoming : [...prev, ...upcoming]));
+      if (forceSequential) setShuffle(false);
+      playTrack(first);
+      return true;
+    },
+    [playTrack],
+  );
+
   // Insert a track at the head of the queue ("play next" context-menu action).
-  const playTrackNext = useCallback((track) => {
+  const playTrackNext = useCallback((trackInput) => {
+    const track = sanitizeTrack(trackInput, { requirePlayable: true });
     if (!track?.id) return;
     setQueue((prev) => [track, ...prev.filter((t) => t.id !== track.id)]);
   }, []);
@@ -328,6 +364,7 @@ export const PlayerProvider = ({ children }) => {
       toggleMute,
       seekTo,
       addToQueue,
+      playTracksInOrder,
       playTrackNext,
       removeFromQueue,
       reorderQueue,
@@ -357,6 +394,7 @@ export const PlayerProvider = ({ children }) => {
       toggleMute,
       seekTo,
       addToQueue,
+      playTracksInOrder,
       playTrackNext,
       removeFromQueue,
       reorderQueue,
