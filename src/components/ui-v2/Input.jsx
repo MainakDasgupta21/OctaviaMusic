@@ -1,4 +1,4 @@
-import { forwardRef } from 'react';
+import { forwardRef, useId } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
@@ -19,10 +19,19 @@ const Input = forwardRef(
       error,
       size = 'md',
       variant = 'default',
+      id,
+      'aria-describedby': ariaDescribedBy,
       ...props
     },
     ref,
   ) => {
+    // Stable ID so the optional error message has something to point at via
+    // `aria-describedby`. Caller-supplied `id` always wins so explicit
+    // `<label htmlFor>` pairings keep working.
+    const autoId = useId();
+    const inputId = id || autoId;
+    const errorId = error ? `${inputId}-error` : null;
+    const describedBy = [ariaDescribedBy, errorId].filter(Boolean).join(' ') || undefined;
     const sizes = {
       sm: 'h-9 text-[12px]',
       md: 'h-10 text-[13px]',
@@ -79,6 +88,7 @@ const Input = forwardRef(
         ) : null}
         <input
           ref={ref}
+          id={inputId}
           className={cn(
             'block w-full text-ink placeholder:text-ink-4',
             'transition-colors duration-short focus-ring',
@@ -90,6 +100,7 @@ const Input = forwardRef(
             className,
           )}
           aria-invalid={error || undefined}
+          aria-describedby={describedBy}
           {...props}
         />
         {rightIcon ? (
@@ -100,6 +111,15 @@ const Input = forwardRef(
             )}
           >
             {rightIcon}
+          </span>
+        ) : null}
+        {errorId && typeof error === 'string' ? (
+          // Hidden-but-announced error text so screen readers pick up
+          // `aria-describedby` even when callers don't render their own
+          // error region. Visual error text remains the caller's job —
+          // this is the a11y safety net.
+          <span id={errorId} className="sr-only">
+            {error}
           </span>
         ) : null}
       </div>

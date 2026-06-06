@@ -20,17 +20,36 @@ export const registerPrefetch = (path, loader) => {
 
 const seen = new Set();
 
+// Resolve a concrete path (`/artist/justin-bieber`) to a registered loader.
+// Exact match wins; if none, we walk the path back one segment at a time so
+// dynamic routes registered as `/artist` / `/album` / `/playlist` still warm
+// their chunk on hover. We also memoise by the *registered* key (not the
+// concrete path) so two hovers over the same album hit the loader once but
+// hovering a different album of the same shape still does nothing redundant.
+const resolveLoader = (path) => {
+  let key = path;
+  while (key && key !== '/') {
+    const loader = registry.get(key);
+    if (loader) return { key, loader };
+    const lastSlash = key.lastIndexOf('/');
+    if (lastSlash <= 0) break;
+    key = key.slice(0, lastSlash);
+  }
+  return null;
+};
+
 export const useRoutePrefetch = () => {
   return useCallback((path) => {
-    if (!path || seen.has(path)) return;
-    const loader = registry.get(path);
-    if (!loader) return;
-    seen.add(path);
+    if (!path) return;
+    const match = resolveLoader(path);
+    if (!match) return;
+    if (seen.has(match.key)) return;
+    seen.add(match.key);
     try {
       // Fire and forget — even on failure we'll retry on actual navigation.
-      Promise.resolve(loader()).catch(() => seen.delete(path));
+      Promise.resolve(match.loader()).catch(() => seen.delete(match.key));
     } catch {
-      seen.delete(path);
+      seen.delete(match.key);
     }
   }, []);
 };
@@ -135,6 +154,20 @@ export const useArtistPrefetchProps = (slug) => {
   const { onArtist } = useHoverPrefetch();
   const handler = useCallback(() => onArtist(slug), [onArtist, slug]);
   return slug
+    ? { onMouseEnter: handler, onFocus: handler, onTouchStart: handler }
+    : {};
+};
+
+// Compose hover/focus/touch listeners for a playlist link. Playlists live
+// client-side (no API) so we only need to warm the route chunk — there is
+// no React Query payload to prefetch.
+export const usePlaylistPrefetchProps = (playlistId) => {
+  const prefetch = useRoutePrefetch();
+  const handler = useCallback(
+    () => prefetch(`/playlist/${playlistId}`),
+    [prefetch, playlistId],
+  );
+  return playlistId
     ? { onMouseEnter: handler, onFocus: handler, onTouchStart: handler }
     : {};
 };

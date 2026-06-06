@@ -88,10 +88,13 @@ const SortableQueueItem = ({ track, index, onPlay, onRemove, isCurrent }) => {
           by {track.artist || 'Unknown artist'}
         </p>
       </button>
+      {/* Drag handle is always rendered at low opacity (keyboard-discoverable)
+          and lifts to full visibility on hover/focus. Touch users can long-
+          press anywhere on the row instead. */}
       <button
         type="button"
         {...listeners}
-        className="flex items-center justify-center text-ink-4 hover:text-ink-2 cursor-grab active:cursor-grabbing focus-ring rounded-md transition-all duration-short opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0"
+        className="flex items-center justify-center text-ink-4 hover:text-ink-2 focus:text-ink-2 cursor-grab active:cursor-grabbing focus-ring rounded-md transition-opacity duration-short opacity-40 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100"
         aria-label="Drag to reorder"
       >
         <GripVertical className="w-3.5 h-3.5" strokeWidth={1.5} />
@@ -99,7 +102,7 @@ const SortableQueueItem = ({ track, index, onPlay, onRemove, isCurrent }) => {
       <button
         type="button"
         onClick={onRemove}
-        className="p-1.5 rounded-md text-ink-4 hover:text-danger hover:bg-danger/10 opacity-0 group-hover:opacity-100 focus-ring transition-opacity"
+        className="p-1.5 rounded-md text-ink-4 hover:text-danger hover:bg-danger/10 opacity-40 group-hover:opacity-100 focus-visible:opacity-100 focus-ring transition-opacity"
         aria-label="Remove from queue"
       >
         <Trash2 className="w-3.5 h-3.5" />
@@ -168,7 +171,7 @@ const QueuePanel = () => {
         </div>
       ) : null}
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar -mx-1 px-1">
+      <div data-lenis-prevent className="flex-1 overflow-y-auto custom-scrollbar -mx-1 px-1">
         {queue.length === 0 ? (
           <EmptyState
             icon={ListMusic}

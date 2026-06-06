@@ -50,7 +50,7 @@
     --accent-lime:   84  82% 62%;
     --accent-violet: 268 78% 66%;
     --accent-pink:   330 86% 68%;
-    /* Iridescent ramp: warm -> cool -> violet, used by .text-iris/.holo-chip */
+    /* Iridescent ramp: warm -> cool -> violet, used by .text-iris */
     --accent-iris-a: 16  82% 60%;   /* ember */
     --accent-iris-b: 188 84% 60%;   /* cyan */
     --accent-iris-c: 268 78% 66%;   /* violet */
@@ -62,6 +62,14 @@
     --track-accent: var(--brand-500);
     --track-accent-strong: var(--brand-600);
     --track-accent-foreground: 30 12% 4%;
+    /* Companion accents — rotated alongside `--track-accent` by use-color-extraction
+       so the shell always renders three coordinated hues at once. Defaults below
+       supply a sensible ember + cyan + violet aurora for the first paint (and for
+       reduced-motion users where the rotator isn't ticking). */
+    --track-accent-2: 188 78% 58%;
+    --track-accent-2-strong: 188 82% 50%;
+    --track-accent-3: 268 70% 62%;
+    --track-accent-3-strong: 268 74% 54%;
 
     /* =======================================================================
        Status
@@ -151,8 +159,10 @@
     --gradient-card: linear-gradient(180deg, hsl(var(--oxblood) / 0.25), hsl(var(--surface-2)));
     --gradient-sidebar: linear-gradient(180deg, hsl(var(--surface-0)), hsl(30 14% 3%));
     --gradient-main:
-      radial-gradient(ellipse 80% 60% at 25% -5%, hsl(var(--track-accent) / 0.12) 0%, transparent 55%),
-      radial-gradient(ellipse 70% 50% at 90% 110%, hsl(var(--oxblood) / 0.40) 0%, transparent 55%),
+      radial-gradient(ellipse 70% 55% at 22% -5%, hsl(var(--track-accent) / 0.16) 0%, transparent 55%),
+      radial-gradient(ellipse 60% 50% at 95% 15%, hsl(var(--track-accent-2) / 0.12) 0%, transparent 60%),
+      radial-gradient(ellipse 65% 55% at 50% 110%, hsl(var(--track-accent-3) / 0.14) 0%, transparent 60%),
+      radial-gradient(ellipse 70% 50% at 8% 90%, hsl(var(--oxblood) / 0.28) 0%, transparent 55%),
       hsl(var(--surface-1));
 
     /* Hairline rules — the editorial bread and butter. */
@@ -164,7 +174,11 @@
   :root {
     transition:
       --track-accent var(--dur-xlong) var(--ease-emphasis),
-      --track-accent-strong var(--dur-xlong) var(--ease-emphasis);
+      --track-accent-strong var(--dur-xlong) var(--ease-emphasis),
+      --track-accent-2 var(--dur-xlong) var(--ease-emphasis),
+      --track-accent-2-strong var(--dur-xlong) var(--ease-emphasis),
+      --track-accent-3 var(--dur-xlong) var(--ease-emphasis),
+      --track-accent-3-strong var(--dur-xlong) var(--ease-emphasis);
   }
 }
 
@@ -532,6 +546,22 @@
     background-clip: text;
     color: transparent;
   }
+  /* Stable two-stop brand gradient used by the LogoMark chip. Pulls from
+     --brand-500/600 directly (NOT --track-accent) so the chip is the same
+     orange regardless of what's playing — brand identity stays consistent
+     across the session. The hue rotation lives elsewhere (hero gradients,
+     track accents) where it belongs. */
+  .gradient-brand {
+    background-image:
+      linear-gradient(155deg,
+        hsl(var(--brand-500)) 0%,
+        hsl(var(--brand-600)) 100%);
+  }
+  /* Inset 1px highlight for the logo chip on dark surfaces. Reads as
+     depth without registering as a visible stroke. */
+  .logo-ring {
+    box-shadow: inset 0 0 0 1px hsl(var(--track-accent-foreground) / 0.18);
+  }
   .shadow-accent  { box-shadow: var(--shadow-accent); }
 
   /* =======================================================================
@@ -745,6 +775,12 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+  .custom-scrollbar {
+    /* Firefox parity for the WebKit scrollbar styling below. `thin` matches
+       the 8px width feel; the two-tone colour mirrors thumb / track. */
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--ink-primary) / 0.18) transparent;
+  }
   .custom-scrollbar::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -865,6 +901,8 @@
     background:
       radial-gradient(ellipse 70% 55% at 24% 12%, hsl(var(--track-accent) / 0.42), transparent 65%),
       radial-gradient(ellipse 58% 48% at 82% 88%, hsl(var(--track-accent-strong) / 0.35), transparent 66%),
+      radial-gradient(ellipse 60% 50% at 88% 18%, hsl(var(--track-accent-2) / 0.30), transparent 68%),
+      radial-gradient(ellipse 62% 52% at 12% 86%, hsl(var(--track-accent-3) / 0.28), transparent 68%),
       radial-gradient(ellipse 75% 62% at 50% 50%, hsl(var(--oxblood) / 0.20), transparent 72%);
   }
   .now-playing-vignette {
@@ -965,8 +1003,15 @@
      Route progress bar
      ======================================================================= */
   .route-progress {
-    background: linear-gradient(90deg, hsl(var(--track-accent)), hsl(var(--track-accent-strong)));
-    box-shadow: 0 0 10px hsl(var(--track-accent) / 0.7);
+    background: linear-gradient(
+      90deg,
+      hsl(var(--track-accent)),
+      hsl(var(--track-accent-2)) 55%,
+      hsl(var(--track-accent-3))
+    );
+    box-shadow:
+      0 0 10px hsl(var(--track-accent) / 0.55),
+      0 0 18px hsl(var(--track-accent-3) / 0.35);
   }
 
   /* =======================================================================
@@ -1175,7 +1220,9 @@
     border-color: hsl(var(--bone) / 0.2);
     background:
       radial-gradient(140% 110% at 50% -20%, hsl(var(--track-accent) / 0.16), transparent 62%),
-      radial-gradient(120% 88% at 100% 120%, hsl(var(--oxblood) / 0.2), transparent 60%),
+      radial-gradient(120% 90% at 0% 110%, hsl(var(--track-accent-2) / 0.14), transparent 60%),
+      radial-gradient(120% 88% at 100% 120%, hsl(var(--track-accent-3) / 0.14), transparent 60%),
+      radial-gradient(120% 88% at 100% 120%, hsl(var(--oxblood) / 0.16), transparent 60%),
       linear-gradient(180deg, hsl(var(--surface-2) / 0.9), hsl(var(--surface-1) / 0.95));
     box-shadow:
       inset 0 1px 0 hsl(var(--bone) / 0.16),
@@ -1348,46 +1395,12 @@
   /* Holographic chip — iridescent hairline border over the existing chip body.
      Use sparingly (1-2 per row); collapses to a flat warm border under
      reduced-transparency. */
-  .holo-chip {
-    position: relative;
-    isolation: isolate;
-  }
-  .holo-chip::before {
-    content: '';
-    position: absolute;
-    inset: -1px;
-    border-radius: inherit;
-    padding: 1px;
-    background: conic-gradient(
-      from 140deg,
-      hsl(var(--accent-iris-a)),
-      hsl(var(--accent-iris-b)),
-      hsl(var(--accent-iris-c)),
-      hsl(var(--accent-iris-a))
-    );
-    -webkit-mask:
-      linear-gradient(#000 0 0) content-box,
-      linear-gradient(#000 0 0);
-            mask:
-      linear-gradient(#000 0 0) content-box,
-      linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor;
-            mask-composite: exclude;
-    pointer-events: none;
-    opacity: 0.85;
-    animation: holo-spin 6s linear infinite;
-    z-index: 1;
-  }
+  /* `.holo-chip` (rotating iridescent border) was removed because the
+     mask-composite + animated conic gradient rendered as visible diagonal
+     streaks on several browsers/GPUs. We kept the `holo-spin` keyframe
+     since `.card-magnetic` below also uses it. */
   @keyframes holo-spin {
     to { transform: rotate(360deg); }
-  }
-  @media (prefers-reduced-transparency: reduce) {
-    .holo-chip::before {
-      background: linear-gradient(180deg,
-        hsl(var(--accent-iris-a) / 0.6),
-        hsl(var(--accent-iris-c) / 0.6));
-      animation: none;
-    }
   }
 
   /* Sticker — a tiny rotation + lift; clicks "settle" via bounce ease.
@@ -1639,11 +1652,13 @@
     border-radius: var(--radius);
     background:
       linear-gradient(135deg,
-        hsl(var(--track-accent) / 0.22),
-        hsl(var(--accent-iris-c) / 0.18));
+        hsl(var(--track-accent) / 0.24),
+        hsl(var(--track-accent-2) / 0.18) 55%,
+        hsl(var(--track-accent-3) / 0.22));
     box-shadow:
       inset 0 0 0 1px hsl(var(--track-accent) / 0.32),
-      0 8px 22px hsl(var(--track-accent) / 0.22);
+      0 8px 22px hsl(var(--track-accent) / 0.22),
+      0 8px 28px hsl(var(--track-accent-3) / 0.18);
     transition:
       top    var(--dur-med) var(--ease-emphasis),
       left   var(--dur-med) var(--ease-emphasis),
@@ -1735,7 +1750,6 @@
    ========================================================================= */
 @media (prefers-reduced-motion: reduce) {
   .text-iris       { animation: none !important; background-position: 0 50% !important; }
-  .holo-chip::before,
   .card-magnetic::before { animation: none !important; }
   .kinetic-headline > span > span { animation: none !important; transform: none !important; opacity: 1 !important; }
   .btn-juicy:hover,
@@ -1751,7 +1765,6 @@
   .sticker:active   { transform: none !important; }
 }
 :root[data-reduce-motion='true'] .text-iris,
-:root[data-reduce-motion='true'] .holo-chip::before,
 :root[data-reduce-motion='true'] .card-magnetic::before,
 :root[data-reduce-motion='true'] .marquee__track,
 :root[data-reduce-motion='true'] .skeleton-pulse-iris,
@@ -1822,7 +1835,9 @@
   --surface-3: 0 0% 10%;
   --surface-4: 0 0% 14%;
   --gradient-main:
-    radial-gradient(ellipse 80% 60% at 25% -5%, hsl(var(--track-accent) / 0.14) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 55% at 22% -5%, hsl(var(--track-accent) / 0.16) 0%, transparent 55%),
+    radial-gradient(ellipse 60% 50% at 95% 15%, hsl(var(--track-accent-2) / 0.13) 0%, transparent 60%),
+    radial-gradient(ellipse 65% 55% at 50% 110%, hsl(var(--track-accent-3) / 0.15) 0%, transparent 60%),
     hsl(0 0% 0%);
 }
 :root[data-theme='light'] {
@@ -1839,8 +1854,10 @@
   --border: 30 14% 84%;
   --hairline: 1px solid hsl(var(--ink-primary) / 0.10);
   --gradient-main:
-    radial-gradient(ellipse 80% 60% at 25% -5%, hsl(var(--track-accent) / 0.10) 0%, transparent 55%),
-    radial-gradient(ellipse 70% 50% at 90% 110%, hsl(var(--oxblood) / 0.10) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 55% at 22% -5%, hsl(var(--track-accent) / 0.12) 0%, transparent 55%),
+    radial-gradient(ellipse 60% 50% at 95% 15%, hsl(var(--track-accent-2) / 0.10) 0%, transparent 60%),
+    radial-gradient(ellipse 65% 55% at 50% 110%, hsl(var(--track-accent-3) / 0.11) 0%, transparent 60%),
+    radial-gradient(ellipse 70% 50% at 8% 90%, hsl(var(--oxblood) / 0.08) 0%, transparent 55%),
     hsl(var(--surface-1));
   /* Dim the iris ramp on cream paper — saturated cyans/violets read garish
      over a light background; pull them toward the print palette. */

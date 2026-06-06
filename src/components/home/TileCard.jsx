@@ -40,7 +40,7 @@ const TileCard = ({ track, onPlay, isCurrent, index }) => {
   <button
     type="button"
     onClick={handleClick}
-    className="relative group flex-shrink-0 w-44 snap-start snap-pop text-left focus-ring rounded-sharp lift press"
+    className="relative group flex-shrink-0 w-44 snap-start text-left focus-ring rounded-sharp lift press"
   >
     <div
       className="relative aspect-square rounded-sharp overflow-hidden card-magnetic"

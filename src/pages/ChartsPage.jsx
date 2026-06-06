@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
@@ -7,7 +8,7 @@ import {
   ChevronUp,
   ChevronDown,
   Minus,
-  AlertTriangle,
+  BarChart3,
 } from 'lucide-react';
 import { usePlayer } from '@/contexts/PlayerContext';
 import HeartButton from '@/components/HeartButton';
@@ -16,9 +17,11 @@ import Button from '@/components/ui-v2/Button';
 import Skeleton from '@/components/ui-v2/Skeleton';
 import EmptyState from '@/components/ui-v2/EmptyState';
 import SmartImage from '@/components/SmartImage';
+import ChartsTabs from '@/components/charts/ChartsTabs';
 import { getCharts } from '@/lib/api';
 import { cachePolicy, queryKeys } from '@/lib/query-keys';
 import { useEditorialMeta } from '@/hooks/use-editorial-meta';
+import { usePageError } from '@/hooks/use-page-error';
 import { formatPlays } from '@/lib/player-format';
 import { fadeUp, staggerChildren } from '@/design/motion';
 import { cn } from '@/lib/utils';
@@ -92,18 +95,45 @@ const ChartRowSkeleton = () => (
   </div>
 );
 
+const VALID_REGIONS = new Set(REGIONS.map((r) => r.id));
+const VALID_WINDOWS = new Set(WINDOWS.map((w) => w.id));
+
 const ChartsPage = () => {
   const { playTrack, addToQueue, currentTrack, isPlaying } = usePlayer();
-  const [region, setRegion] = useState('global');
-  const [chartWindow, setChartWindow] = useState('weekly');
+  // Region + window persist to the URL so deep links + browser-back retain
+  // the user's selections. Unknown values fall back to the defaults.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const region = VALID_REGIONS.has(searchParams.get('region'))
+    ? searchParams.get('region')
+    : 'global';
+  const chartWindow = VALID_WINDOWS.has(searchParams.get('window'))
+    ? searchParams.get('window')
+    : 'weekly';
+  const setRegion = (next) => {
+    setSearchParams((prev) => {
+      const params = new URLSearchParams(prev);
+      if (next === 'global') params.delete('region');
+      else params.set('region', next);
+      return params;
+    }, { replace: true });
+  };
+  const setChartWindow = (next) => {
+    setSearchParams((prev) => {
+      const params = new URLSearchParams(prev);
+      if (next === 'weekly') params.delete('window');
+      else params.set('window', next);
+      return params;
+    }, { replace: true });
+  };
   const { masthead } = useEditorialMeta();
 
-  const { data: chartsResponse, isLoading, isError, refetch } = useQuery({
+  const { data: chartsResponse, isLoading, isError, error, refetch } = useQuery({
     queryKey: queryKeys.charts(region, chartWindow, 50),
     queryFn: () => getCharts({ region, window: chartWindow, limit: 50 }),
     ...cachePolicy.charts,
     placeholderData: keepPreviousData,
   });
+  const pageError = usePageError(error, { resource: 'the charts' });
 
   const charts = useMemo(() => {
     if (Array.isArray(chartsResponse)) return chartsResponse;
@@ -127,6 +157,9 @@ const ChartsPage = () => {
 
   return (
     <div className="p-5 md:p-10 max-w-[1600px] mx-auto pb-12">
+      {/* Section tabs — songs (this page) vs artists (/charts/artists) */}
+      <ChartsTabs className="mb-6" />
+
       {/* Editorial masthead */}
       <div
         aria-hidden="true"
@@ -159,6 +192,24 @@ const ChartsPage = () => {
             <em>{regionLabel.toLowerCase()}</em>,{' '}
             <em>{windowLabel.toLowerCase()}</em>.
           </p>
+          {meta?.source ? (
+            // Honest about provenance: "live" comes off the upstream chart
+            // endpoint, anything else is the curated fallback. Users see why
+            // the rank deltas may or may not match competing services.
+            <p
+              className="mt-3 inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.2em] text-ink-4"
+              aria-live="polite"
+            >
+              <span
+                className={cn(
+                  'inline-block w-1.5 h-1.5 rounded-full',
+                  isLiveSource ? 'bg-success' : 'bg-amber-400/80',
+                )}
+                aria-hidden="true"
+              />
+              {isLiveSource ? 'Live data' : `Curated · ${meta.source}`}
+            </p>
+          ) : null}
         </div>
         <div className="flex items-center gap-3 pb-2">
           <Button
@@ -181,14 +232,25 @@ const ChartsPage = () => {
         <Tabs items={WINDOWS} value={chartWindow} onValueChange={setChartWindow} variant="pill" />
       </div>
 
-      {isError ? (
+      {isError && pageError ? (
         <EmptyState
-          icon={AlertTriangle}
-          title="Charts unavailable"
-          description="We couldn't reach the catalog service. Please try again in a moment."
+          icon={pageError.icon}
+          title={pageError.title}
+          description={pageError.description}
           action={
             <Button onClick={() => refetch()} size="md">
               Try again
+            </Button>
+          }
+        />
+      ) : !isLoading && charts.length === 0 ? (
+        <EmptyState
+          icon={BarChart3}
+          title={`No chart for ${regionLabel.toLowerCase()} \u00b7 ${windowLabel.toLowerCase()}`}
+          description="Try a different region or time window — or refresh in a moment."
+          action={
+            <Button onClick={() => refetch()} size="md" variant="secondary">
+              Refresh
             </Button>
           }
         />

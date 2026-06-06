@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 // Quick HSL conversion + saturation/value bias so we don't pick muddy edges.
 const rgbToHsl = (r, g, b) => {
@@ -68,6 +68,15 @@ const extractFromImage = async (src) => {
   }
 };
 
+// Companion accents are offset from the primary on the colour wheel so they
+// always feel coordinated with `--track-accent` rather than random. +140 deg
+// lands near the complement (warm -> cyan/teal), +250 deg picks up a triadic
+// violet/magenta. Saturation/lightness reuse the same WCAG-friendly clamps as
+// the primary so chrome surfaces never go muddy or blinding.
+const ACCENT_2_HUE_SHIFT = 140;
+const ACCENT_3_HUE_SHIFT = 250;
+const wrapHue = (h) => ((h % 360) + 360) % 360;
+
 const setRootAccent = (h, s, l) => {
   const root = document.documentElement;
   root.style.setProperty('--track-accent', `${h} ${s}% ${l}%`);
@@ -75,6 +84,13 @@ const setRootAccent = (h, s, l) => {
   // Pick foreground that contrasts.
   const fg = l > 55 ? '222 47% 8%' : '0 0% 100%';
   root.style.setProperty('--track-accent-foreground', fg);
+
+  const h2 = wrapHue(h + ACCENT_2_HUE_SHIFT);
+  const h3 = wrapHue(h + ACCENT_3_HUE_SHIFT);
+  root.style.setProperty('--track-accent-2', `${h2} ${s}% ${l}%`);
+  root.style.setProperty('--track-accent-2-strong', `${h2} ${Math.min(100, s + 5)}% ${Math.max(20, l - 8)}%`);
+  root.style.setProperty('--track-accent-3', `${h3} ${s}% ${l}%`);
+  root.style.setProperty('--track-accent-3-strong', `${h3} ${Math.min(100, s + 5)}% ${Math.max(20, l - 8)}%`);
 };
 
 const resetRootAccent = () => {
@@ -82,6 +98,10 @@ const resetRootAccent = () => {
   root.style.removeProperty('--track-accent');
   root.style.removeProperty('--track-accent-strong');
   root.style.removeProperty('--track-accent-foreground');
+  root.style.removeProperty('--track-accent-2');
+  root.style.removeProperty('--track-accent-2-strong');
+  root.style.removeProperty('--track-accent-3');
+  root.style.removeProperty('--track-accent-3-strong');
 };
 
 export const useColorExtraction = (imageUrl) => {
@@ -99,6 +119,40 @@ export const useColorExtraction = (imageUrl) => {
     })();
     return () => { cancelled = true; };
   }, [imageUrl]);
+};
+
+// Scoped variant: runs the same histogram extraction but returns the HSL triple
+// in component state instead of writing to `:root`. The caller applies it as
+// an inline CSS variable on a wrapper element, so per-page accents (artist
+// portrait, hero backdrops) don't compete with `useColorExtraction`'s root
+// `--track-accent` (owned by the playing track via FooterPlayer).
+//
+// Returns `{ h, s, l, ready }`. While extraction is in flight (or if the
+// extractor returns no usable swatch) `ready` is false and the consumer
+// should fall back to its default styling.
+export const useScopedArtistAccent = (imageUrl) => {
+  const [accent, setAccent] = useState({ h: 0, s: 0, l: 0, ready: false });
+
+  useEffect(() => {
+    if (!imageUrl) {
+      setAccent({ h: 0, s: 0, l: 0, ready: false });
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      const result = await extractFromImage(imageUrl);
+      if (cancelled) return;
+      if (!result) {
+        setAccent({ h: 0, s: 0, l: 0, ready: false });
+        return;
+      }
+      const [h, s, l] = result.hsl;
+      setAccent({ h, s, l, ready: true });
+    })();
+    return () => { cancelled = true; };
+  }, [imageUrl]);
+
+  return accent;
 };
 
 export { setRootAccent, resetRootAccent };

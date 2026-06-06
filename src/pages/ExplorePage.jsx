@@ -1,8 +1,8 @@
-import { useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useRef } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Sparkles, Sun, Moon, Headphones, Coffee, Flame, Heart, Play } from 'lucide-react';
+import { Sparkles, Sun, Moon, Headphones, Coffee, Flame, Heart, Play, Music2 } from 'lucide-react';
 import { usePlayer } from '@/contexts/PlayerContext';
 import { useFavorites } from '@/contexts/FavoritesContext';
 import { useSettings } from '@/contexts/SettingsContext';
@@ -15,24 +15,46 @@ import { getGenres, getTrending } from '@/lib/api';
 import { cachePolicy, queryKeys } from '@/lib/query-keys';
 import { fadeUp, staggerChildren } from '@/design/motion';
 import { useEditorialMeta } from '@/hooks/use-editorial-meta';
+import { shuffleArray } from '@/lib/shuffle';
+import { smoothScrollIntoView } from '@/lib/scroll';
+import notify from '@/lib/notify';
 import { cn } from '@/lib/utils';
 import { AlertTriangle } from 'lucide-react';
 
 // Editorial mood plates — paired with a Fraunces drop cap and a noun.
+// `keywords` drive the radio seed: each mood maps to genre/keyword hints we
+// match against the trending pool to bootstrap playback.
 const MOODS = [
-  { id: 'focus', label: 'Deep focus', dropCap: 'F', icon: Sparkles, mix: 'from-[#1a2236]/85 via-[#0f1525]/70 to-transparent' },
-  { id: 'morning', label: 'First light', dropCap: 'M', icon: Sun, mix: 'from-[#3a1f10]/85 via-[#1f120a]/70 to-transparent' },
-  { id: 'evening', label: 'Slow evenings', dropCap: 'E', icon: Moon, mix: 'from-[#28122b]/85 via-[#170818]/70 to-transparent' },
-  { id: 'workout', label: 'Workout', dropCap: 'W', icon: Flame, mix: 'from-[#3a1212]/85 via-[#1c0808]/70 to-transparent' },
-  { id: 'lounge', label: 'Late lounge', dropCap: 'L', icon: Headphones, mix: 'from-[#0f2226]/85 via-[#0a1417]/70 to-transparent' },
-  { id: 'cafe', label: 'Cafe hours', dropCap: 'C', icon: Coffee, mix: 'from-[#241808]/85 via-[#140d05]/70 to-transparent' },
+  { id: 'focus', label: 'Deep focus', dropCap: 'F', icon: Sparkles, keywords: ['focus', 'instrumental', 'piano', 'ambient'], mix: 'from-[#1a2236]/85 via-[#0f1525]/70 to-transparent' },
+  { id: 'morning', label: 'First light', dropCap: 'M', icon: Sun, keywords: ['acoustic', 'morning', 'sunrise', 'folk'], mix: 'from-[#3a1f10]/85 via-[#1f120a]/70 to-transparent' },
+  { id: 'evening', label: 'Slow evenings', dropCap: 'E', icon: Moon, keywords: ['evening', 'jazz', 'slow', 'soul'], mix: 'from-[#28122b]/85 via-[#170818]/70 to-transparent' },
+  { id: 'workout', label: 'Workout', dropCap: 'W', icon: Flame, keywords: ['workout', 'hip hop', 'edm', 'energy'], mix: 'from-[#3a1212]/85 via-[#1c0808]/70 to-transparent' },
+  { id: 'lounge', label: 'Late lounge', dropCap: 'L', icon: Headphones, keywords: ['lounge', 'chill', 'lofi', 'electronic'], mix: 'from-[#0f2226]/85 via-[#0a1417]/70 to-transparent' },
+  { id: 'cafe', label: 'Cafe hours', dropCap: 'C', icon: Coffee, keywords: ['cafe', 'acoustic', 'indie', 'mellow'], mix: 'from-[#241808]/85 via-[#140d05]/70 to-transparent' },
 ];
 
+// Pick `count` tracks from `pool` whose title/artist text contains any of the
+// `keywords`. Falls back to a random sampling from the pool when no matches.
+const buildMoodRadio = (pool, keywords, count = 12) => {
+  if (!Array.isArray(pool) || pool.length === 0) return [];
+  const lower = keywords.map((k) => k.toLowerCase());
+  const matches = pool.filter((t) => {
+    const haystack = `${t.title || ''} ${t.artist || ''}`.toLowerCase();
+    return lower.some((k) => haystack.includes(k));
+  });
+  const picks = matches.length > 0 ? matches : pool;
+  return shuffleArray(picks).slice(0, count);
+};
+
 const ExplorePage = () => {
-  const { history, playTrack, addToQueue } = usePlayer();
+  const { history, playTrack, addToQueue, playTracksInOrder } = usePlayer();
   const { list: favorites } = useFavorites();
   const { settings } = useSettings();
   const { masthead } = useEditorialMeta();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const moodSectionRef = useRef(null);
+  const mixesSectionRef = useRef(null);
+  const genresSectionRef = useRef(null);
 
   const {
     data: genres = [],
@@ -105,6 +127,40 @@ const ExplorePage = () => {
 
   const firstName = settings.displayName?.split(' ')[0] || 'you';
 
+  // Deep-link handling. `?mood=focus` scrolls to the mood section and starts
+  // a curated radio for that mood. `?genre=rock` or `?artist=…` scrolls to the
+  // relevant section so the URL is no longer inert.
+  const moodParam = searchParams.get('mood');
+  const genreParam = searchParams.get('genre');
+  const artistParam = searchParams.get('artist');
+  const handledMoodRef = useRef(null);
+
+  const playMood = (mood) => {
+    const radio = buildMoodRadio(trending, mood.keywords, 12);
+    if (radio.length === 0) {
+      notify.info('Loading mood radio…');
+      return;
+    }
+    playTracksInOrder(radio, { replaceQueue: true, forceSequential: false });
+    notify.info(`${mood.label} \u00b7 radio`);
+  };
+
+  useEffect(() => {
+    if (moodParam) {
+      smoothScrollIntoView(moodSectionRef.current);
+      const mood = MOODS.find((m) => m.id === moodParam);
+      if (mood && trending.length > 0 && handledMoodRef.current !== moodParam) {
+        playMood(mood);
+        handledMoodRef.current = moodParam;
+      }
+    } else if (artistParam) {
+      smoothScrollIntoView(mixesSectionRef.current);
+    } else if (genreParam) {
+      smoothScrollIntoView(genresSectionRef.current);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [moodParam, artistParam, genreParam, trending.length]);
+
   return (
     <div className="p-5 md:p-10 max-w-[1600px] mx-auto pb-12">
       {/* Editorial masthead */}
@@ -139,7 +195,7 @@ const ExplorePage = () => {
       </motion.div>
 
       {/* Daily Mixes */}
-      <section className="mb-14">
+      <section ref={mixesSectionRef} className="mb-14 scroll-mt-24">
         <SectionHeader
           ordinal={1}
           eyebrow="The rotation"
@@ -156,21 +212,58 @@ const ExplorePage = () => {
             ? Array.from({ length: 6 }).map((_, i) => (
                 <Skeleton key={i} className="aspect-square rounded-sharp" />
               ))
-            : dailyMixes.map((mix, i) => (
-                <motion.div
+            : dailyMixes.length === 0
+              ? (
+                <div className="col-span-full">
+                  <EmptyState
+                    icon={Music2}
+                    title="No mixes yet"
+                    description="Like songs or play a few tracks and we'll build your daily rotation here."
+                  />
+                </div>
+              )
+              : dailyMixes.map((mix, i) => {
+                const seedTracks = mix.artist
+                  ? [...favorites, ...history].filter((t) => t.artist === mix.artist)
+                  : [];
+                const isHighlighted = artistParam && mix.artist === artistParam;
+                const onPlayMix = () => {
+                  if (seedTracks.length === 0) {
+                    notify.info('Like more songs from this artist to play a mix');
+                    return;
+                  }
+                  const shuffled = shuffleArray(seedTracks);
+                  playTrack(shuffled[0]);
+                  shuffled.slice(1).forEach((t) => addToQueue(t));
+                  notify.info(`${mix.label} \u00b7 ${mix.artist}`);
+                };
+                return (
+                <motion.button
+                  type="button"
                   variants={fadeUp}
                   key={mix.id}
-                  className="relative aspect-square rounded-sharp overflow-hidden ring-1 ring-white/[0.07] hover:ring-white/[0.18] cursor-pointer group shadow-elev-2 hover:shadow-elev-3 transition-shadow"
+                  onClick={onPlayMix}
+                  aria-label={`Play ${mix.label} \u2014 ${mix.artist}`}
+                  className={cn(
+                    'relative aspect-square rounded-sharp overflow-hidden ring-1 ring-white/[0.07] hover:ring-white/[0.18] cursor-pointer group shadow-elev-2 hover:shadow-elev-3 transition-shadow text-left focus-ring',
+                    isHighlighted && 'ring-track ring-2',
+                  )}
                 >
                   <SmartImage
                     src={mix.thumbnail}
-                    alt={mix.label}
+                    alt=""
                     kind="mix"
                     rounded="rounded-none"
                     className="absolute inset-0 w-full h-full"
                     imgClassName="object-cover group-hover:scale-105 transition-transform duration-long ease-emphasis"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-transparent" />
+                  {/* Hover-revealed play affordance */}
+                  <span className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="w-12 h-12 rounded-full bg-track text-track-fg flex items-center justify-center shadow-accent ring-1 ring-white/20">
+                      <Play className="w-5 h-5 fill-current ml-0.5" />
+                    </span>
+                  </span>
                   {/* Top-right issue number */}
                   <span className="absolute top-3 right-3 font-mono text-[10px] uppercase tracking-[0.2em] text-white/55">
                     № {String(i + 1).padStart(2, '0')}
@@ -183,13 +276,14 @@ const ExplorePage = () => {
                       by {mix.artist}
                     </p>
                   </div>
-                </motion.div>
-              ))}
+                </motion.button>
+                );
+              })}
         </motion.div>
       </section>
 
       {/* Browse genres */}
-      <section className="mb-14">
+      <section ref={genresSectionRef} className="mb-14 scroll-mt-24">
         <SectionHeader
           ordinal={2}
           eyebrow="The atlas"
@@ -262,7 +356,24 @@ const ExplorePage = () => {
         </motion.div>
       </section>
 
-      {/* Because you liked X — real rail with playable tracks */}
+      {/* Because you liked X — real rail with playable tracks.
+          When the user has no favorites yet, show a tiny "start by liking
+          something" prompt so the section doesn't silently disappear. */}
+      {!lastLiked ? (
+        <section className="mb-14">
+          <SectionHeader
+            ordinal={3}
+            eyebrow="Adjacent"
+            title="Because you liked…"
+            subtitle="We'll start suggesting adjacent tracks the moment you like one."
+          />
+          <EmptyState
+            icon={Heart}
+            title="Like a song to seed this rail"
+            description="Tap the heart on any track in Home or Search — we'll start recommending songs nearby."
+          />
+        </section>
+      ) : null}
       {lastLiked && becauseList.length > 0 ? (
         <section className="mb-14">
           <SectionHeader
@@ -329,12 +440,12 @@ const ExplorePage = () => {
       ) : null}
 
       {/* Moods — editorial plates with Fraunces drop-cap */}
-      <section className="mb-12">
+      <section ref={moodSectionRef} className="mb-12 scroll-mt-24">
         <SectionHeader
           ordinal={4}
           eyebrow="Mood rooms"
           title="Whatever the hour"
-          subtitle="Tap a room, we'll handle the rest."
+          subtitle="Tap a room — we'll build a radio for it."
         />
         <motion.div
           variants={staggerChildren(0.04)}
@@ -342,11 +453,30 @@ const ExplorePage = () => {
           animate="animate"
           className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4"
         >
-          {MOODS.map((m, i) => (
+          {MOODS.map((m, i) => {
+            const isActive = moodParam === m.id;
+            return (
             <motion.button
               variants={fadeUp}
               key={m.id}
-              className="relative aspect-[5/3] rounded-sharp overflow-hidden text-left p-4 focus-ring border border-white/[0.08] hover:border-white/25 transition-colors group"
+              type="button"
+              aria-label={`Play ${m.label} radio`}
+              aria-pressed={isActive}
+              onClick={() => {
+                playMood(m);
+                setSearchParams(
+                  (prev) => {
+                    const next = new URLSearchParams(prev);
+                    next.set('mood', m.id);
+                    return next;
+                  },
+                  { replace: true },
+                );
+              }}
+              className={cn(
+                'relative aspect-[5/3] rounded-sharp overflow-hidden text-left p-4 focus-ring border border-white/[0.08] hover:border-white/25 transition-colors group',
+                isActive && 'border-track/60 ring-1 ring-track/40',
+              )}
               style={{ background: 'hsl(var(--surface-2))' }}
             >
               <div className={cn('absolute inset-0 bg-gradient-to-br', m.mix)} />
@@ -359,6 +489,10 @@ const ExplorePage = () => {
               >
                 {m.dropCap}
               </span>
+              {/* Hover-revealed play glyph */}
+              <span className="absolute top-3 right-3 w-9 h-9 rounded-full bg-track text-track-fg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-accent">
+                <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+              </span>
               <div className="relative h-full flex flex-col justify-between">
                 <m.icon className="w-5 h-5 text-white/85" strokeWidth={1.75} />
                 <div>
@@ -369,7 +503,8 @@ const ExplorePage = () => {
                 </div>
               </div>
             </motion.button>
-          ))}
+            );
+          })}
         </motion.div>
       </section>
 

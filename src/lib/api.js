@@ -118,6 +118,20 @@ export const getCharts = async ({
   return upgradeAllImages(response.data);
 };
 
+// Artist-level chart, derived server-side from the same source the songs
+// chart uses. Returns `{ items, meta }` shaped like /charts; each item is a
+// ranked artist (`{ id, slug, humanSlug, name, thumbnail, tracks, plays, rank }`).
+export const getChartsArtists = async ({
+  region = 'global',
+  window: chartWindow = 'weekly',
+  limit = 50,
+} = {}) => {
+  const response = await api.get('/charts/artists', {
+    params: { region, window: chartWindow, limit },
+  });
+  return upgradeAllImages(response.data);
+};
+
 export const getTrending = async ({ limit = 20 } = {}) => {
   const response = await api.get('/trending', { params: { limit } });
   return upgradeAllImages(response.data);
@@ -174,7 +188,19 @@ export const getLyrics = async ({ title, artist, durationSec } = {}) => {
   return {
     syncedRaw: data.syncedLyrics || '',
     plain: data.plainLyrics || '',
+    // Surface the upstream "instrumental" flag (when present) so the UI can
+    // render a dedicated empty state instead of the generic "no lyrics".
+    instrumental: Boolean(data.instrumental),
   };
+};
+
+// Server health probe — used by the TopBar to surface an offline banner
+// when the catalog backend is unreachable.
+export const getServerHealth = async () => {
+  // Short timeout so a hung backend doesn't hold the UI hostage. We also
+  // fail fast on non-2xx so the caller treats it as offline.
+  const response = await api.get('/health', { timeout: 4000 });
+  return response?.data || { status: 'ok' };
 };
 
 // Translates an axios error into a "not found" sentinel so pages can render

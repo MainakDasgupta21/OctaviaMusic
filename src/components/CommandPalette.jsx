@@ -37,6 +37,7 @@ import { usePlaylists } from '@/contexts/PlaylistContext';
 import { searchMusic } from '@/lib/api';
 import { parseQuery } from '@/lib/search-rank';
 import { useRankedSearch } from '@/hooks/use-ranked-search';
+import { usePersonalizationSignals } from '@/hooks/use-personalization-signals';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import Kbd from '@/components/ui-v2/Kbd';
 import SmartImage from '@/components/SmartImage';
@@ -149,6 +150,8 @@ const CommandPalette = () => {
   const { list: favoritesList } = useFavorites();
   const { playlists } = usePlaylists();
   const { onAlbum: prefetchAlbumRoute, onArtist: prefetchArtistRoute } = useHoverPrefetch();
+  // Personalization parity with the TopBar / SearchPage ranker.
+  const { historyArtistCounts, recentSearchTerms } = usePersonalizationSignals();
 
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
@@ -218,9 +221,22 @@ const CommandPalette = () => {
       history,
       playlists,
       currentArtist: currentTrack?.artist || '',
+      // Parity with TopBar + SearchPage: pass personalization signals so the
+      // ranker can boost results matching the user's listening shape.
+      historyArtistCounts,
+      recentSearchTerms,
       limit: 24,
     }),
-    [parsed, rawResults, favoritesList, history, playlists, currentTrack?.artist],
+    [
+      parsed,
+      rawResults,
+      favoritesList,
+      history,
+      playlists,
+      currentTrack?.artist,
+      historyArtistCounts,
+      recentSearchTerms,
+    ],
   );
   const ranked = useRankedSearch(rankedSearchParams, { workerEnabled: enabled });
   const searchBuckets = useMemo(() => {
@@ -419,7 +435,7 @@ const CommandPalette = () => {
             <Kbd keys={['esc']} />
           </div>
 
-          <Command.List className="flex-1 overflow-y-auto custom-scrollbar p-2">
+          <Command.List data-lenis-prevent className="flex-1 overflow-y-auto custom-scrollbar p-2">
             <Command.Empty className="px-3 py-8 text-center">
               <p className="font-editorial italic text-[14px] text-ink-3">
                 No results found.

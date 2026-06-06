@@ -40,6 +40,13 @@ const button = cva(
         ghost: [
           'bg-transparent text-ink hover:bg-white/[0.04]',
         ],
+        // SECONDARY — companion to `solid` for non-hero CTAs. Quiet glass
+        // surface, ink-2 text, hairline border. Reads as "next step, but not
+        // the main one" (retry, dismiss, view all).
+        secondary: [
+          'bg-white/[0.06] text-ink border border-white/15 backdrop-blur-sm',
+          'hover:bg-white/[0.10] hover:border-white/25',
+        ],
         glass: [
           'bg-white/[0.04] backdrop-blur-md border border-white/[0.10] text-ink',
           'hover:bg-white/[0.08] hover:border-white/[0.18]',

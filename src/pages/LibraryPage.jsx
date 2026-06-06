@@ -10,9 +10,13 @@ import {
   Clock,
   Trash2,
   Music2,
+  User,
+  Disc,
 } from 'lucide-react';
 import { usePlayer } from '@/contexts/PlayerContext';
 import { useFavorites } from '@/contexts/FavoritesContext';
+import { useFollowedArtists } from '@/contexts/FollowedArtistsContext';
+import { useLikedAlbums } from '@/contexts/LikedAlbumsContext';
 import HeartButton from '@/components/HeartButton';
 import Button from '@/components/ui-v2/Button';
 import Stat from '@/components/ui-v2/Stat';
@@ -47,6 +51,8 @@ const TABS = [
   { id: 'overview', label: 'Overview', icon: LibraryIcon },
   { id: 'recent', label: 'Recently played', icon: History },
   { id: 'favorites', label: 'Favorites', icon: Heart },
+  { id: 'artists', label: 'Following', icon: User },
+  { id: 'albums', label: 'Liked albums', icon: Disc },
   { id: 'searches', label: 'Searches', icon: Search },
 ];
 
@@ -78,6 +84,8 @@ const LibraryPage = () => {
   const navigate = useNavigate();
   const { history, playTrack, addToQueue, currentTrack, isPlaying } = usePlayer();
   const { list: favorites } = useFavorites();
+  const { list: followedArtists, unfollow } = useFollowedArtists();
+  const { list: likedAlbums, removeLiked } = useLikedAlbums();
   const [tab, setTab] = useState('overview');
   const [recentSearches, setRecentSearches] = useState(() => readRecentSearches());
   const masthead = useMemo(() => formatMasthead(), []);
@@ -194,6 +202,10 @@ const LibraryPage = () => {
           currentTrack={currentTrack}
           isPlaying={isPlaying}
         />
+      ) : tab === 'artists' ? (
+        <FollowedArtistList artists={followedArtists} onUnfollow={unfollow} />
+      ) : tab === 'albums' ? (
+        <LikedAlbumGrid albums={likedAlbums} onRemove={removeLiked} />
       ) : (
         <RecentSearches
           searches={recentSearches}
@@ -547,5 +559,119 @@ const LibraryEmptyState = ({ navigate }) => (
     }
   />
 );
+
+// ============================================================================
+// Followed artists tab
+// ============================================================================
+
+const FollowedArtistList = ({ artists, onUnfollow }) => {
+  if (!artists.length) {
+    return (
+      <EmptyState
+        icon={User}
+        title="Not following anyone yet"
+        description="Tap Follow on any artist page and they'll show up here for quick access."
+      />
+    );
+  }
+  return (
+    <motion.div
+      variants={staggerChildren(0.04)}
+      initial="initial"
+      animate="animate"
+      className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
+    >
+      {artists.map((a) => (
+        <motion.div
+          variants={fadeUp}
+          key={a.id || a.slug}
+          className="group relative rounded-soft border border-white/[0.06] bg-surface-2/40 backdrop-blur-md p-4 flex items-center gap-3 hover:border-white/20 transition-colors"
+        >
+          <Link
+            to={`/artist/${a.slug || a.id}`}
+            className="flex items-center gap-3 flex-1 min-w-0 focus-ring rounded-sharp"
+          >
+            <SmartImage
+              src={a.thumbnail || a.cover}
+              alt={a.name}
+              kind="artist"
+              rounded="rounded-full"
+              className="w-14 h-14 ring-1 ring-white/10 flex-shrink-0"
+              imgClassName="object-cover"
+            />
+            <div className="min-w-0">
+              <p className="text-[14px] font-medium text-ink truncate">{a.name}</p>
+              <p className="font-editorial text-[12px] text-ink-3 truncate">Artist</p>
+            </div>
+          </Link>
+          <button
+            type="button"
+            onClick={() => onUnfollow?.(a.slug || a.id)}
+            aria-label={`Unfollow ${a.name}`}
+            className="p-1.5 rounded-sharp text-ink-3 hover:text-danger hover:bg-danger/10 focus-ring transition-colors opacity-60 group-hover:opacity-100"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </motion.div>
+      ))}
+    </motion.div>
+  );
+};
+
+// ============================================================================
+// Liked albums tab
+// ============================================================================
+
+const LikedAlbumGrid = ({ albums, onRemove }) => {
+  if (!albums.length) {
+    return (
+      <EmptyState
+        icon={Disc}
+        title="No liked albums yet"
+        description="Hit the heart on any album hero and it'll land here."
+      />
+    );
+  }
+  return (
+    <motion.div
+      variants={staggerChildren(0.04)}
+      initial="initial"
+      animate="animate"
+      className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4"
+    >
+      {albums.map((a) => (
+        <motion.div
+          variants={fadeUp}
+          key={a.id}
+          className="group relative rounded-soft border border-white/[0.06] bg-surface-2/40 backdrop-blur-md p-3 hover:border-white/20 transition-colors"
+        >
+          <Link to={`/album/${a.id}`} className="block focus-ring rounded-sharp">
+            <SmartImage
+              src={a.cover || a.thumbnail}
+              alt={a.title}
+              kind="album"
+              rounded="rounded-sharp"
+              className="aspect-square ring-1 ring-white/10 mb-2"
+              imgClassName="object-cover"
+            />
+            <p className="text-[13.5px] font-medium text-ink truncate">{a.title}</p>
+            <p className="font-editorial text-[11.5px] text-ink-3 truncate mt-0.5">
+              {a.artist || 'Unknown artist'}
+              {a.year ? ` · ${a.year}` : ''}
+            </p>
+          </Link>
+          <button
+            type="button"
+            onClick={() => onRemove?.(a.id)}
+            aria-label={`Unlike ${a.title}`}
+            className="absolute top-2 right-2 p-1.5 rounded-full text-ink-3 hover:text-danger hover:bg-danger/15 focus-ring transition-colors bg-bg/60 opacity-0 group-hover:opacity-100"
+          >
+            <Trash2 className="w-3 h-3" />
+          </button>
+        </motion.div>
+      ))}
+    </motion.div>
+  );
+};
 
 export default LibraryPage;

@@ -12,6 +12,7 @@ const {
   toArtistSummaryDTO,
   toArtistDetailDTO,
 } = require('./lib/mappers');
+const { aggregateTopArtists } = require('./lib/aggregators');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -344,6 +345,42 @@ app.get('/api/charts', searchLimiter, async (req, res) => {
   };
   setCacheHeaders(res);
   res.json(await liveOrFallback(live, fallback, 'charts', { treatEmptyAsFailure: false }));
+});
+
+// =============================================================================
+// Charts — artists. Derived by aggregating the per-track chart by artist (see
+// server/lib/aggregators.js). region/window are accepted for symmetry with
+// /api/charts so the client's query key stays stable across regional toggles
+// once the upstream supports them. We pull a wider 200-track sample upstream
+// to give the aggregator enough signal for a useful Top-50 artist ranking.
+// =============================================================================
+app.get('/api/charts/artists', searchLimiter, async (req, res) => {
+  const limit = Math.max(1, Math.min(100, Number(req.query.limit) || 50));
+  const region = String(req.query.region || 'global');
+  const chartWindow = String(req.query.window || 'weekly');
+
+  const live = async () => {
+    const rows = await ytm.getChartsLive(200);
+    const tracks = dedupeById(rows.map((r) => toTrackDTO(r)).filter(Boolean))
+      .map((t, i) => ({ ...t, rank: i + 1 }));
+    const items = aggregateTopArtists(tracks, { limit });
+    if (items.length === 0) throw new Error('no live artist chart');
+    return {
+      items,
+      meta: { source: 'live', region, window: chartWindow, generatedAt: new Date().toISOString() },
+    };
+  };
+
+  const fallback = () => {
+    const items = aggregateTopArtists(catalog.getCharts(200), { limit });
+    return {
+      items,
+      meta: { source: 'fallback', region, window: chartWindow, generatedAt: new Date().toISOString() },
+    };
+  };
+
+  setCacheHeaders(res);
+  res.json(await liveOrFallback(live, fallback, 'charts:artists', { treatEmptyAsFailure: false }));
 });
 
 // =============================================================================

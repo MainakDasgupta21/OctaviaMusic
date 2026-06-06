@@ -1,5 +1,6 @@
 import { useId, useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { smoothScrollBy } from '@/lib/scroll';
 
 const HorizontalRail = ({
   children,
@@ -11,7 +12,7 @@ const HorizontalRail = ({
   const regionId = useId();
 
   const scroll = (dx) => {
-    ref.current?.scrollBy({ left: dx, behavior: 'smooth' });
+    smoothScrollBy(ref.current, { left: dx });
   };
 
   const handleKeyDown = (event) => {
@@ -43,7 +44,7 @@ const HorizontalRail = ({
           maskImage:
             'linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%)',
         }}
-        className={`flex gap-5 overflow-x-auto no-scrollbar snap-x snap-mandatory scroll-pl-6 -mx-2 px-2 focus-ring rounded-sharp ${className}`}
+        className={`flex gap-5 overflow-x-auto no-scrollbar snap-x snap-proximity scroll-pl-6 -mx-2 px-2 focus-ring rounded-sharp ${className}`}
       >
         {children}
       </div>

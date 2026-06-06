@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Search as SearchIcon,
@@ -38,6 +39,7 @@ import { useInstantSearch } from '@/hooks/use-instant-search';
 import { useSearchSuggestions } from '@/hooks/use-search-suggestions';
 import { useTrendingSearches } from '@/hooks/use-trending-searches';
 import { useHoverPrefetch } from '@/hooks/use-route-prefetch';
+import { useNotifications } from '@/contexts/NotificationsContext';
 import { normalize } from '@/lib/search-rank';
 import { artistSlugFromName, artistSlugOf, isUsableArtistSlug } from '@/lib/slug';
 import SmartImage from '@/components/SmartImage';
@@ -120,10 +122,13 @@ const Breadcrumb = () => {
   if (!crumbs.length) return null;
 
   return (
-    <nav aria-label="Breadcrumb" className="hidden lg:flex items-center gap-1.5 text-[12px] font-editorial">
+    <nav
+      aria-label="Breadcrumb"
+      className="hidden lg:flex items-center gap-1.5 text-[13px] font-medium"
+    >
       {crumbs.map((c, i) => (
         <span key={i} className="flex items-center gap-1.5 capitalize">
-          {i > 0 && <span className="text-ink-4 not-italic">/</span>}
+          {i > 0 && <span className="text-ink-4">·</span>}
           <span className={cn(i === crumbs.length - 1 ? 'text-ink' : 'text-ink-3')}>
             {c.label}
           </span>
@@ -131,14 +136,6 @@ const Breadcrumb = () => {
       ))}
     </nav>
   );
-};
-
-const formatEditorialDate = () => {
-  const d = new Date();
-  const day = d.getDate();
-  const month = d.toLocaleString('en-US', { month: 'short' }).toUpperCase();
-  const weekday = d.toLocaleString('en-US', { weekday: 'short' }).toUpperCase();
-  return { day, month, weekday };
 };
 
 const SearchSection = ({ title, children }) => (
@@ -170,6 +167,14 @@ const TopBar = () => {
   const [historyLen, setHistoryLen] = useState(() =>
     typeof window === 'undefined' ? 1 : window.history.length,
   );
+
+  // In-app notifications feed for the bell button.
+  const {
+    items: notifications,
+    unreadCount: notifUnread,
+    markAllRead,
+    clear: clearNotifications,
+  } = useNotifications();
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -360,14 +365,16 @@ const TopBar = () => {
 
   const displayName = settings.displayName || 'Music Lover';
   const email = settings.email || 'user@example.com';
-  const editorialDate = useMemo(() => formatEditorialDate(), []);
 
   return (
     <TooltipProvider delayDuration={250}>
       <header
         className={cn(
-          'sticky top-0 z-40 h-[68px] flex items-center gap-3 px-3 md:px-6',
-          'bg-background/70 backdrop-blur-xl border-b border-white/[0.06] relative',
+          'sticky top-0 z-40 h-[60px] flex items-center gap-3 px-3 md:px-6',
+          'bg-background/80 backdrop-blur-2xl border-b border-white/[0.07] relative',
+          // Subtle inset top-light gives the chrome a premium "lifted" feel
+          // without changing layout. Pairs with the bottom hairline.
+          'shadow-[inset_0_1px_0_hsl(var(--ink-primary)/0.04)]',
         )}
       >
         {isPlaying && currentTrack ? (
@@ -376,8 +383,9 @@ const TopBar = () => {
             className="pointer-events-none absolute inset-x-0 bottom-[-1px] h-px"
             style={{
               backgroundImage:
-                'linear-gradient(90deg, transparent 0%, hsl(var(--track-accent) / 0.0) 8%, hsl(var(--track-accent) / 0.55) 50%, hsl(var(--track-accent) / 0.0) 92%, transparent 100%)',
-              boxShadow: '0 0 12px hsl(var(--track-accent) / 0.35)',
+                'linear-gradient(90deg, transparent 0%, hsl(var(--track-accent) / 0.0) 8%, hsl(var(--track-accent) / 0.55) 32%, hsl(var(--track-accent-2) / 0.7) 50%, hsl(var(--track-accent-3) / 0.55) 68%, hsl(var(--track-accent) / 0.0) 92%, transparent 100%)',
+              boxShadow:
+                '0 0 12px hsl(var(--track-accent) / 0.30), 0 0 18px hsl(var(--track-accent-3) / 0.22)',
               animation: 'topbar-pulse 4.5s ease-in-out infinite',
             }}
           />
@@ -386,66 +394,58 @@ const TopBar = () => {
         <button
           type="button"
           onClick={openMobileDrawer}
-          className="md:hidden p-2 rounded-lg text-ink-3 hover:text-ink hover:bg-white/5 transition-colors focus-ring"
+          className="md:hidden w-9 h-9 inline-flex items-center justify-center rounded-full text-ink-3 hover:text-ink hover:bg-white/[0.06] transition-colors focus-ring"
           aria-label="Open navigation"
         >
           <Menu className="w-5 h-5" />
         </button>
 
-        <div className="hidden md:flex items-center gap-0.5">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={() => canGoBack && navigate(-1)}
-                disabled={!canGoBack}
-                className="p-2 rounded-sharp text-ink-3 hover:text-ink hover:bg-white/[0.04] transition-colors focus-ring disabled:opacity-30 disabled:cursor-not-allowed"
-                aria-label="Back"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">Back</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={() => canGoForward && navigate(1)}
-                disabled={!canGoForward}
-                className="p-2 rounded-sharp text-ink-3 hover:text-ink hover:bg-white/[0.04] transition-colors focus-ring disabled:opacity-30 disabled:cursor-not-allowed"
-                aria-label="Forward"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">Forward</TooltipContent>
-          </Tooltip>
-
-          <div
-            aria-hidden="true"
-            className="hidden xl:flex items-baseline gap-2 ml-3 pl-4 border-l border-white/[0.07] select-none"
-          >
-            <span className="font-display text-2xl text-ink leading-none">
-              {editorialDate.day}
-            </span>
-            <span className="font-mono text-[9px] text-ink-4 uppercase tracking-[0.2em] leading-none">
-              {editorialDate.month}
-              <br />
-              {editorialDate.weekday}
-            </span>
+        <div className="hidden md:flex items-center">
+          {/* Back/forward grouped inside a single hairline pill so they
+              read as one navigation control rather than two loose icons. */}
+          <div className="inline-flex items-center p-0.5 rounded-full border border-white/[0.06] bg-white/[0.02]">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => canGoBack && navigate(-1)}
+                  disabled={!canGoBack}
+                  className="w-7 h-7 inline-flex items-center justify-center rounded-full text-ink-3 hover:text-ink hover:bg-white/[0.06] transition-colors focus-ring disabled:opacity-30 disabled:cursor-not-allowed"
+                  aria-label="Back"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Back</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => canGoForward && navigate(1)}
+                  disabled={!canGoForward}
+                  className="w-7 h-7 inline-flex items-center justify-center rounded-full text-ink-3 hover:text-ink hover:bg-white/[0.06] transition-colors focus-ring disabled:opacity-30 disabled:cursor-not-allowed"
+                  aria-label="Forward"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Forward</TooltipContent>
+            </Tooltip>
           </div>
         </div>
 
-        <div className="hidden lg:flex items-center pl-3 flex-shrink min-w-0">
+        <div className="hidden lg:flex items-center flex-shrink min-w-0">
+          {/* Hairline divider between back/forward pill and breadcrumb. */}
+          <span aria-hidden="true" className="mx-3 h-5 w-px bg-white/[0.06]" />
           <Breadcrumb />
         </div>
 
-        <form onSubmit={handleSubmit} role="search" className="flex-1 max-w-xl mx-auto lg:mx-0">
+        <form onSubmit={handleSubmit} role="search" className="flex-1 max-w-md mx-auto lg:mx-0">
           <button
             type="button"
             onClick={openPalette}
-            className="md:hidden w-full flex items-center justify-center gap-2 h-10 rounded-sharp border border-white/10 text-ink-3 hover:text-ink hover:bg-white/[0.04] transition-colors focus-ring"
+            className="md:hidden w-full flex items-center justify-center gap-2 h-10 rounded-full border border-white/10 text-ink-3 hover:text-ink hover:bg-white/[0.06] transition-colors focus-ring"
             aria-label="Open search"
           >
             <SearchIcon className="w-4 h-4" />
@@ -458,7 +458,7 @@ const TopBar = () => {
           >
             <PopoverTrigger asChild>
               <div className="hidden md:block relative group">
-                <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3 pointer-events-none transition-colors duration-short group-focus-within:text-accent" />
+                <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3 pointer-events-none transition-colors duration-short group-focus-within:text-accent" />
                 <input
                   ref={searchInputRef}
                   type="search"
@@ -472,31 +472,18 @@ const TopBar = () => {
                   onKeyDown={handleInputKeyDown}
                   placeholder="Search songs, artists, albums…"
                   className={cn(
-                    'w-full h-10 pl-10 pr-32 rounded-sharp bg-transparent',
-                    'border border-white/[0.10] hover:border-white/[0.16]',
-                    'text-[13px] text-ink placeholder:text-ink-4 placeholder:italic placeholder:font-editorial',
-                    // On focus the field gains a subtle inset shadow ("sunken
-                    // surface") + an accent rim + a soft glow. Pairs with
-                    // the spectrum bar that fades in just below.
+                    'w-full h-10 pl-11 pr-28 rounded-full bg-white/[0.03]',
+                    'border border-white/[0.08] hover:border-white/[0.16] hover:bg-white/[0.05]',
+                    'text-[13.5px] text-ink placeholder:text-ink-3',
+                    // On focus the field gains a subtle inset shadow + an
+                    // accent rim + a soft glow. Single rounded-full vocabulary
+                    // matches the rest of the new chrome.
                     'focus:outline-none focus:border-track/60 focus:bg-surface-2/40',
                     'focus:[box-shadow:inset_0_1px_2px_rgba(0,0,0,0.22),0_0_0_3px_hsl(var(--track-accent)/0.10)]',
                     'transition-[border-color,background,box-shadow] duration-short',
                   )}
                   aria-label="Search"
                 />
-                {/* Focus-only spectrum bar — appears under the field when active,
-                    giving the input a "live mic" feel without changing layout. */}
-                <span
-                  aria-hidden="true"
-                  className={cn(
-                    'pointer-events-none absolute left-10 right-32 bottom-[3px] h-2',
-                    'opacity-0 group-focus-within:opacity-100 transition-opacity duration-med',
-                  )}
-                >
-                  <span className="search-spectrum w-full">
-                    <span /><span /><span /><span /><span /><span /><span />
-                  </span>
-                </span>
                 <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
                   <VoiceSearchButton
                     size="sm"
@@ -505,18 +492,10 @@ const TopBar = () => {
                       setSearchOpen(true);
                     }}
                   />
-                  {/* Sticker-style "/" key hint — soft tilt + bone shadow */}
-                  <span
-                    aria-hidden="true"
-                    className="sticker hidden xl:inline-flex h-6 px-2 items-center justify-center rounded-md border border-white/[0.14] bg-surface-0/60 text-[10px] font-mono tracking-widest text-ink-3"
-                    title="Press / to focus search"
-                  >
-                    /
-                  </span>
                   <button
                     type="button"
                     onClick={openPalette}
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-sharp border border-white/[0.10] bg-surface-0/40 text-[10px] font-medium text-ink-3 font-mono tracking-wider hover:text-ink hover:bg-surface-0/80 hover:border-white/[0.18] transition-colors focus-ring"
+                    className="inline-flex items-center gap-1 h-6 px-2 rounded-full border border-white/[0.10] bg-white/[0.06] text-[10px] font-medium text-ink-3 font-mono tracking-wider hover:text-ink hover:bg-white/[0.10] hover:border-white/[0.18] transition-colors focus-ring"
                     aria-label="Open command palette"
                   >
                     {isMac ? (
@@ -524,7 +503,7 @@ const TopBar = () => {
                         <Command className="w-3 h-3" /> K
                       </>
                     ) : (
-                      'CTRL K'
+                      'Ctrl K'
                     )}
                   </button>
                 </div>
@@ -538,7 +517,7 @@ const TopBar = () => {
               onInteractOutside={() => setSearchOpen(false)}
               className="w-[min(44rem,calc(100vw-2rem))] p-0 rounded-sharp border border-white/[0.10] bg-surface-3/95 backdrop-blur-2xl shadow-elev-5"
             >
-              <div className="max-h-[70vh] overflow-y-auto custom-scrollbar p-2 space-y-2">
+              <div data-lenis-prevent className="max-h-[70vh] overflow-y-auto custom-scrollbar p-2 space-y-2">
                 {!hasSearchValue && showTrending ? (
                   <TrendingChips
                     terms={trendingTerms}
@@ -894,46 +873,122 @@ const TopBar = () => {
 
         <div className="flex-1 md:hidden" />
 
-        <div className="flex items-center gap-1.5">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={() => navigate('/favorites')}
-                className={cn(
-                  'hidden sm:flex p-2 rounded-sharp transition-colors focus-ring press',
-                  location.pathname === '/favorites'
-                    ? 'text-accent'
-                    : 'text-ink-3 hover:text-ink hover:bg-white/[0.04]',
-                )}
-                aria-label="Favorites"
-              >
-                <Heart className="w-[18px] h-[18px]" strokeWidth={1.75} />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">Favorites</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                className="hidden sm:flex p-2 rounded-sharp text-ink-3 hover:text-ink hover:bg-white/[0.04] transition-colors focus-ring press relative"
-                aria-label="Notifications"
-              >
-                <Bell className="w-[18px] h-[18px]" strokeWidth={1.75} />
-                {settings.notifyNewReleases ? (
-                  <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-track ring-2 ring-background" />
+        <div className="flex items-center ml-auto">
+          {/* Glass cluster — Favorites + Notifications grouped inside a
+              single hairline pill so the chrome reads as one action region
+              rather than two loose icons. Matches the back/forward pill on
+              the left for vocabulary symmetry. */}
+          <div className="hidden sm:inline-flex items-center p-0.5 rounded-full border border-white/[0.06] bg-white/[0.03]">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => navigate('/favorites')}
+                  className={cn(
+                    'w-8 h-8 inline-flex items-center justify-center rounded-full transition-colors focus-ring press',
+                    location.pathname === '/favorites'
+                      ? 'text-accent bg-white/[0.05]'
+                      : 'text-ink-3 hover:text-ink hover:bg-white/[0.06]',
+                  )}
+                  aria-label="Favorites"
+                >
+                  <Heart className="w-[18px] h-[18px]" strokeWidth={1.75} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Favorites</TooltipContent>
+            </Tooltip>
+            <Popover
+              onOpenChange={(open) => {
+                // Auto-mark-read when the popover opens so the dot clears
+                // the moment the user has actually seen the feed.
+                if (open && notifUnread > 0) markAllRead();
+              }}
+            >
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="w-8 h-8 inline-flex items-center justify-center rounded-full text-ink-3 hover:text-ink hover:bg-white/[0.06] transition-colors focus-ring press relative"
+                  aria-label={
+                    notifUnread > 0
+                      ? `Notifications, ${notifUnread} unread`
+                      : 'Notifications'
+                  }
+                >
+                  <Bell className="w-[18px] h-[18px]" strokeWidth={1.75} />
+                  {notifUnread > 0 ? (
+                    <span
+                      aria-hidden="true"
+                      className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-track ring-2 ring-background"
+                    />
+                  ) : null}
+                </button>
+              </PopoverTrigger>
+            <PopoverContent
+              align="end"
+              sideOffset={8}
+              className="w-[340px] p-0 bg-surface-1/95 backdrop-blur-xl border-white/[0.08]"
+            >
+              <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-white/[0.06]">
+                <p className="eyebrow text-ink-3">Notifications</p>
+                {notifications.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => clearNotifications()}
+                    className="text-[10px] font-mono uppercase tracking-[0.18em] text-ink-3 hover:text-ink focus-ring rounded-sharp px-1.5 py-0.5"
+                  >
+                    Clear all
+                  </button>
                 ) : null}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">Notifications</TooltipContent>
-          </Tooltip>
+              </div>
+              <div data-lenis-prevent className="max-h-[360px] overflow-y-auto custom-scrollbar">
+                {notifications.length === 0 ? (
+                  <div className="px-4 py-6 text-center">
+                    <p className="font-editorial text-[13px] text-ink-3">
+                      All quiet. Follow an artist or like an album to see updates here.
+                    </p>
+                  </div>
+                ) : (
+                  <ul role="list" className="divide-y divide-white/[0.05]">
+                    {notifications.map((n) => (
+                      <li key={n.id}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (n.to) navigate(n.to);
+                          }}
+                          className="w-full text-left px-4 py-3 hover:bg-white/[0.03] focus-ring transition-colors"
+                        >
+                          <p className="text-[13px] font-medium text-ink leading-tight">
+                            {n.title}
+                          </p>
+                          {n.description ? (
+                            <p className="font-editorial text-[12px] text-ink-3 mt-1 leading-snug">
+                              {n.description}
+                            </p>
+                          ) : null}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              {!settings.notifyNewReleases && !settings.notifyPlaylistUpdates ? (
+                <div className="px-4 py-2 border-t border-white/[0.06] text-[10.5px] font-mono uppercase tracking-[0.16em] text-ink-4">
+                  Both notification toggles are off in settings.
+                </div>
+              ) : null}
+            </PopoverContent>
+            </Popover>
+          </div>
+
+          {/* Hairline divider between the action cluster and the avatar pill. */}
+          <span aria-hidden="true" className="hidden sm:inline-block mx-2 h-5 w-px bg-white/[0.06]" />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="flex items-center gap-2.5 pl-1 pr-2.5 py-1 ml-1 rounded-sharp hover:bg-white/[0.04] transition-colors focus-ring press border border-transparent hover:border-white/[0.06]"
+                className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-full hover:bg-white/[0.06] transition-colors focus-ring press"
                 aria-label="Account menu"
               >
                 <span
@@ -945,9 +1000,10 @@ const TopBar = () => {
                 >
                   {initialsOf(displayName)}
                 </span>
-                <span className="hidden lg:inline text-[13px] font-medium truncate max-w-[140px]">
+                <span className="hidden xl:inline text-[13px] font-medium truncate max-w-[140px]">
                   {displayName}
                 </span>
+                <ChevronDown className="hidden xl:inline w-3.5 h-3.5 text-ink-3" aria-hidden="true" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent

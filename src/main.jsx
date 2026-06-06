@@ -50,32 +50,9 @@ try {
   /* malformed VITE_API_BASE; ignore */
 }
 
-// =============================================================================
-// Lenis smooth scroll. Off when user prefers reduced motion.
-// =============================================================================
-const prefersReduced =
-  document.documentElement.dataset.reduceMotion === 'true' ||
-  window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-
-if (!prefersReduced) {
-  import('lenis')
-    .then(({ default: Lenis }) => {
-      const lenis = new Lenis({
-        duration: 0.9,
-        easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-        smoothWheel: true,
-        smoothTouch: false,
-      });
-      const raf = (time) => {
-        lenis.raf(time);
-        requestAnimationFrame(raf);
-      };
-      requestAnimationFrame(raf);
-      window.__lenis = lenis;
-    })
-    .catch(() => {
-      /* lenis optional; native scroll is fine */
-    });
-}
+// Lenis smooth-scroll is now bootstrapped from `useLenisScroll`, which
+// mounts inside `MainLayout` once `#main-content` exists. Initialising
+// here would attach Lenis to `window`, but the real scrollport is the
+// `<main>` element — see `src/hooks/use-lenis-scroll.js`.
 
 createRoot(document.getElementById('root')).render(<App />);

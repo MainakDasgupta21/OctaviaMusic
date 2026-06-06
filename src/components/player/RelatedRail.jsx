@@ -154,7 +154,12 @@ const TrackRow = ({ track, onPlay, dense = false }) => (
   </button>
 );
 
-const RelatedRail = () => {
+// Renamed from `RelatedRail` to `PlayerRelatedRail` to avoid the name
+// collision with `SearchRelatedRail` (the search-page related rail). The
+// player rail surfaces "more from this artist" based on listening history;
+// the search rail surfaces context for a search top-result. They are distinct
+// features that previously shared a name only by accident.
+const PlayerRelatedRail = () => {
   const { currentTrack, playTrack } = usePlayer();
   const { moreByArtist, youMightLike, playsByArtist } = useRelated();
 
@@ -163,7 +168,7 @@ const RelatedRail = () => {
   const hasAnything = moreByArtist.length > 0 || youMightLike.length > 0;
 
   return (
-    <div className="h-full overflow-y-auto custom-scrollbar -mx-1 px-1 pb-1 space-y-5">
+    <div data-lenis-prevent className="h-full overflow-y-auto custom-scrollbar -mx-1 px-1 pb-1 space-y-5">
       <ArtistHero track={currentTrack} playsByArtist={playsByArtist} />
 
       {moreByArtist.length > 0 && (
@@ -201,4 +206,5 @@ const RelatedRail = () => {
   );
 };
 
-export default RelatedRail;
+export { PlayerRelatedRail };
+export default PlayerRelatedRail;

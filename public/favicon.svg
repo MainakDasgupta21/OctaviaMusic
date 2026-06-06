@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!--
+    Octavia favicon (v2). Stable brand-orange chip with a filled-O monogram.
+    The counter is raised 1 unit toward the top so the bottom of the ring
+    sits a hair heavier than the top — optical correction that reads as a
+    real letterform rather than a pixel-perfect ring.
+  -->
+  <defs>
+    <linearGradient id="chip" x1="0" y1="0" x2="1" y2="1" gradientTransform="rotate(15 0.5 0.5)">
+      <stop offset="0%" stop-color="#ed7440" />
+      <stop offset="100%" stop-color="#da5c2f" />
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#chip)" />
+  <path
+    fill="#0c0a08"
+    fill-rule="evenodd"
+    d="M 9 32 A 23 23 0 1 0 55 32 A 23 23 0 1 0 9 32 Z M 18.5 31 A 13.5 13.5 0 1 0 45.5 31 A 13.5 13.5 0 1 0 18.5 31 Z"
+  />
+</svg>

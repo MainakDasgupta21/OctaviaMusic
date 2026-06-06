@@ -28,7 +28,10 @@ const isAlbum = (topResult) =>
 const isArtist = (topResult) =>
   Boolean(topResult && (topResult._kind === 'artist' || topResult.type === 'artist'));
 
-export const RelatedRail = ({ topResult }) => {
+// Renamed from `RelatedRail` to `SearchRelatedRail` to avoid the name
+// collision with `PlayerRelatedRail`. A backwards-compatible `RelatedRail`
+// export is kept below so existing callers don't break in a single commit.
+export const SearchRelatedRail = ({ topResult }) => {
   const { playTrack, addToQueue } = usePlayer();
 
   const artistSlug = useMemo(() => slugFromTopResult(topResult), [topResult]);
@@ -206,4 +209,7 @@ const RelatedItem = ({ kind, item, onPlay, onQueue }) => {
   );
 };
 
-export default RelatedRail;
+// Backwards-compatible alias — TODO: remove once all callers migrate.
+export const RelatedRail = SearchRelatedRail;
+
+export default SearchRelatedRail;

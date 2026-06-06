@@ -33,6 +33,8 @@ import EmptyState from '@/components/ui-v2/EmptyState';
 import HeartButton from '@/components/HeartButton';
 import SmartImage from '@/components/SmartImage';
 import { fadeUp } from '@/design/motion';
+import { shuffleArray } from '@/lib/shuffle';
+import notify from '@/lib/notify';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -207,6 +209,14 @@ const PlaylistPage = () => {
     playlist.tracks.slice(1).forEach((t) => addToQueue(t));
   };
 
+  const handleShuffle = () => {
+    if (!playlist.tracks.length) return;
+    const shuffled = shuffleArray(playlist.tracks);
+    playTrack(shuffled[0]);
+    shuffled.slice(1).forEach((t) => addToQueue(t));
+    notify.info(`Shuffling \u00b7 ${playlist.name}`);
+  };
+
   const handleSave = () => {
     updatePlaylist(playlist.id, {
       name: draftName.trim() || playlist.name,
@@ -341,6 +351,7 @@ const PlaylistPage = () => {
             <Button
               variant="ghost"
               size="lg"
+              onClick={handleShuffle}
               leftIcon={<Shuffle className="w-4 h-4" />}
               disabled={!playlist.tracks.length}
             >

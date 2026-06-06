@@ -306,6 +306,7 @@ const Sidebar = ({ onNavigate }) => {
       </div>
 
       <nav
+        data-lenis-prevent
         className={cn(
           'relative z-10 flex-1 flex flex-col overflow-y-auto custom-scrollbar pb-6',
           expanded ? 'gap-5 px-3' : 'gap-4 px-2',

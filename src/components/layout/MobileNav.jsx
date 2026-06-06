@@ -1,12 +1,16 @@
-import { Home, Search, Heart, Play } from 'lucide-react';
-import { NavLink } from 'react-router-dom';
+import { Home, Search, Heart, Play, Library } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { NavLink } from '@/components/NavLink';
 import { cn } from '@/lib/utils';
 
+// Five-tab bottom nav. Library was previously drawer-only on mobile, which
+// hid a primary destination behind a hamburger. Promote it to a first-class
+// tab so playlist + favourites are reachable in one tap.
 const items = [
   { icon: Home, label: 'Feed', path: '/' },
   { icon: Search, label: 'Search', path: '/search' },
   { icon: Play, label: 'Player', path: '/player' },
+  { icon: Library, label: 'Library', path: '/library' },
   { icon: Heart, label: 'Likes', path: '/favorites' },
 ];
 
@@ -23,7 +27,7 @@ const MobileNav = () => {
       )}
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
-      <ul className="grid grid-cols-4 h-full">
+      <ul className="grid grid-cols-5 h-full">
         {items.map((item) => {
           const Icon = item.icon;
           return (

@@ -8,7 +8,10 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { SettingsProvider } from '@/contexts/SettingsContext';
 import { PlayerProvider } from '@/contexts/PlayerContext';
 import { FavoritesProvider } from '@/contexts/FavoritesContext';
+import { LikedAlbumsProvider } from '@/contexts/LikedAlbumsContext';
+import { FollowedArtistsProvider } from '@/contexts/FollowedArtistsContext';
 import { PlaylistProvider } from '@/contexts/PlaylistContext';
+import { NotificationsProvider } from '@/contexts/NotificationsContext';
 import { UIProvider } from '@/contexts/UIContext';
 import { SoundProvider } from '@/contexts/SoundContext';
 import MainLayout from '@/components/layout/MainLayout';
@@ -17,6 +20,7 @@ import TitleCardIntro from '@/components/TitleCardIntro';
 import RouteHead from '@/components/RouteHead';
 import { Loader2 } from 'lucide-react';
 import { registerPrefetch } from '@/hooks/use-route-prefetch';
+import { useAccentRotator } from '@/hooks/use-accent-rotator';
 
 // Lazy chunks — registered for hover-prefetch via the registry below.
 const HomePageImport     = () => import('@/pages/HomePage');
@@ -30,6 +34,7 @@ const ArtistPageImport   = () => import('@/pages/ArtistPage');
 const AlbumPageImport    = () => import('@/pages/AlbumPage');
 const PlaylistPageImport = () => import('@/pages/PlaylistPage');
 const ChartsPageImport   = () => import('@/pages/ChartsPage');
+const ChartsArtistsPageImport = () => import('@/pages/ChartsArtistsPage');
 const ExplorePageImport  = () => import('@/pages/ExplorePage');
 const GenresPageImport   = () => import('@/pages/GenresPage');
 const NotFoundImport     = () => import('@/pages/NotFound');
@@ -45,6 +50,7 @@ const ArtistPage = lazy(ArtistPageImport);
 const AlbumPage = lazy(AlbumPageImport);
 const PlaylistPage = lazy(PlaylistPageImport);
 const ChartsPage = lazy(ChartsPageImport);
+const ChartsArtistsPage = lazy(ChartsArtistsPageImport);
 const ExplorePage = lazy(ExplorePageImport);
 const GenresPage = lazy(GenresPageImport);
 const NotFound = lazy(NotFoundImport);
@@ -58,8 +64,15 @@ registerPrefetch('/favorites', FavoritesPageImport);
 registerPrefetch('/library', LibraryPageImport);
 registerPrefetch('/settings', SettingsPageImport);
 registerPrefetch('/charts', ChartsPageImport);
+registerPrefetch('/charts/artists', ChartsArtistsPageImport);
 registerPrefetch('/explore', ExplorePageImport);
 registerPrefetch('/genres', GenresPageImport);
+// Dynamic detail routes — registered as path *prefixes* so the prefetch hook
+// can warm the chunk regardless of slug/id (e.g. `/artist/foo`, `/album/abc`,
+// `/playlist/xyz` all resolve to their shared bundle).
+registerPrefetch('/artist', ArtistPageImport);
+registerPrefetch('/album', AlbumPageImport);
+registerPrefetch('/playlist', PlaylistPageImport);
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -87,16 +100,26 @@ const wrap = (Element) => (
   </Suspense>
 );
 
+// Singleton driver: cycles --track-accent on a 15s timer. No UI, no props.
+const AccentDriver = () => {
+  useAccentRotator();
+  return null;
+};
+
 const App = () => (
   <HelmetProvider>
   <QueryClientProvider client={queryClient}>
     <SettingsProvider>
       <PlayerProvider>
         <FavoritesProvider>
+          <LikedAlbumsProvider>
+          <FollowedArtistsProvider>
           <PlaylistProvider>
+            <NotificationsProvider>
             <UIProvider>
               <SoundProvider>
                 <TooltipProvider delayDuration={200}>
+                <AccentDriver />
                 <Toaster />
                 <Sonner position="bottom-right" theme="dark" richColors closeButton />
                 <TitleCardIntro />
@@ -110,6 +133,7 @@ const App = () => (
                         <Route path="/player" element={wrap(PlayerPage)} />
                         <Route path="/trending" element={wrap(TrendingPage)} />
                         <Route path="/charts" element={wrap(ChartsPage)} />
+                        <Route path="/charts/artists" element={wrap(ChartsArtistsPage)} />
                         <Route path="/explore" element={wrap(ExplorePage)} />
                         <Route path="/genres" element={wrap(GenresPage)} />
                         <Route path="/favorites" element={wrap(FavoritesPage)} />
@@ -126,7 +150,10 @@ const App = () => (
                 </TooltipProvider>
               </SoundProvider>
             </UIProvider>
+            </NotificationsProvider>
           </PlaylistProvider>
+          </FollowedArtistsProvider>
+          </LikedAlbumsProvider>
         </FavoritesProvider>
       </PlayerProvider>
     </SettingsProvider>

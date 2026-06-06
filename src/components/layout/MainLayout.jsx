@@ -13,6 +13,8 @@ import RouteProgress from '@/components/RouteProgress';
 import PlayerAnnouncer from '@/components/PlayerAnnouncer';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { useFirstRunHints } from '@/hooks/use-first-run-hints';
+import { useLenisScroll } from '@/hooks/use-lenis-scroll';
+import { resetPageScroll } from '@/lib/scroll';
 import { pagePush } from '@/design/motion';
 import { cn } from '@/lib/utils';
 
@@ -57,6 +59,18 @@ const MainLayout = () => {
       settings.sidebarExpanded ? '260px' : '80px',
     );
   }, [settings.sidebarExpanded]);
+
+  // Lenis owns wheel smoothing for the page-level scroller (`#main-content`).
+  // Skip on /player which locks scroll entirely — running Lenis against a
+  // hidden-overflow element does nothing useful and wastes a RAF loop.
+  useLenisScroll({ enabled: !isPlayerRoute });
+
+  // Reset the page scroller to top on pathname change. We intentionally
+  // ignore `location.search` updates (filter/deep-link param changes
+  // within the same page shouldn't yank the user back to the top).
+  useEffect(() => {
+    resetPageScroll();
+  }, [location.pathname]);
 
   return (
     <div className={cn('relative', isPlayerRoute ? 'h-screen overflow-hidden' : 'min-h-screen')}>

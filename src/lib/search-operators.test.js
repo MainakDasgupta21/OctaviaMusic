@@ -1,9 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import {
   durationMax,
+  setAlbumFilter,
+  setArtistFilter,
   setDurationMax,
+  setNegativeToken,
   setSort,
   setYearRange,
+  stripAlbumFilter,
+  stripArtistFilter,
   stripDurationFilters,
   stripSortFilter,
   stripYearFilters,
@@ -114,5 +119,58 @@ describe('strip helpers', () => {
   });
   it('stripSortFilter removes the sort hint', () => {
     expect(stripSortFilter('hits sort:newest')).toBe('hits');
+  });
+  it('stripArtistFilter removes quoted and bare artist operators', () => {
+    expect(stripArtistFilter('hits artist:"Taylor Swift" love')).toBe('hits love');
+    expect(stripArtistFilter('hits artist:drake love')).toBe('hits love');
+  });
+  it('stripAlbumFilter removes quoted and bare album operators', () => {
+    expect(stripAlbumFilter('hits album:"Folklore" love')).toBe('hits love');
+    expect(stripAlbumFilter('hits album:scorpion love')).toBe('hits love');
+  });
+});
+
+describe('setArtistFilter', () => {
+  it('quotes multi-word names', () => {
+    expect(setArtistFilter('rock', 'Taylor Swift')).toBe('rock artist:"Taylor Swift"');
+  });
+  it('leaves single-token names unquoted', () => {
+    expect(setArtistFilter('rock', 'drake')).toBe('rock artist:drake');
+  });
+  it('replaces an existing artist operator', () => {
+    expect(setArtistFilter('rock artist:drake', 'Frank Ocean')).toBe(
+      'rock artist:"Frank Ocean"',
+    );
+  });
+  it('strips when an empty value is supplied', () => {
+    expect(setArtistFilter('rock artist:drake', '')).toBe('rock');
+    expect(setArtistFilter('rock artist:drake', '   ')).toBe('rock');
+  });
+});
+
+describe('setAlbumFilter', () => {
+  it('quotes multi-word titles', () => {
+    expect(setAlbumFilter('hits', 'The Eras Tour')).toBe('hits album:"The Eras Tour"');
+  });
+  it('replaces an existing album operator', () => {
+    expect(setAlbumFilter('hits album:folklore', 'Lover')).toBe('hits album:Lover');
+  });
+  it('strips when an empty value is supplied', () => {
+    expect(setAlbumFilter('hits album:folklore', null)).toBe('hits');
+  });
+});
+
+describe('setNegativeToken', () => {
+  it('adds a leading dash to exclude a token', () => {
+    expect(setNegativeToken('hits', 'live', true)).toBe('hits -live');
+  });
+  it('flips an existing positive token into a negative', () => {
+    expect(setNegativeToken('hits live', 'live', true)).toBe('hits -live');
+  });
+  it('removes the negative token when toggled off', () => {
+    expect(setNegativeToken('hits -live', 'live', false)).toBe('hits');
+  });
+  it('is idempotent when toggling off a missing token', () => {
+    expect(setNegativeToken('hits', 'live', false)).toBe('hits');
   });
 });

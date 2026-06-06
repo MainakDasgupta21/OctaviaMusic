@@ -2,7 +2,6 @@ import { useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ListMusic, Mic2, Sparkles } from 'lucide-react';
 import { usePlayer } from '@/contexts/PlayerContext';
-import { useColorExtraction } from '@/hooks/use-color-extraction';
 import { fadeUp, isReducedMotion } from '@/design/motion';
 import Tabs from '@/components/ui-v2/Tabs';
 import EmptyState from '@/components/ui-v2/EmptyState';
@@ -12,7 +11,7 @@ import TrackHeadline from '@/components/player/TrackHeadline';
 import SeekBar from '@/components/player/SeekBar';
 import TransportControls from '@/components/player/TransportControls';
 import VolumeControl from '@/components/player/VolumeControl';
-import RelatedRail from '@/components/player/RelatedRail';
+import PlayerRelatedRail from '@/components/player/RelatedRail';
 import IssueMeta from '@/components/player/IssueMeta';
 import { pickPlaceholder, sanitizeImageUrl } from '@/lib/media-sanitize';
 import { cn } from '@/lib/utils';
@@ -103,8 +102,6 @@ const NowPlaying = ({ variant = 'page', onMinimize, onOpenFull }) => {
   const [panel, setPanel] = useState('queue');
   const swipeRef = useRef(null);
 
-  useColorExtraction(currentTrack?.thumbnail);
-
   const leftStagger = useMemo(
     () => ({
       initial: {},
@@ -182,18 +179,18 @@ const NowPlaying = ({ variant = 'page', onMinimize, onOpenFull }) => {
           variants={leftStagger}
           initial="initial"
           animate="animate"
-          className="relative w-full h-full flex flex-col min-h-0 rounded-[24px] border border-white/[0.09] bg-[linear-gradient(180deg,rgba(18,14,12,0.46),rgba(10,8,8,0.34))] backdrop-blur-2xl shadow-[0_40px_90px_-46px_rgba(0,0,0,0.95),inset_0_1px_0_rgba(255,255,255,0.06)] overflow-hidden"
+          className="relative w-full h-full flex flex-col min-h-0 rounded-card border border-white/[0.09] bg-[linear-gradient(180deg,rgba(18,14,12,0.46),rgba(10,8,8,0.34))] backdrop-blur-2xl shadow-[0_40px_90px_-46px_rgba(0,0,0,0.95),inset_0_1px_0_rgba(255,255,255,0.06)] overflow-hidden"
         >
           {/* Top inner sheen — lifts the glass and gives an edge highlight. */}
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-0 rounded-[24px] bg-[radial-gradient(120%_60%_at_50%_-10%,rgba(255,255,255,0.08),transparent_60%)]"
+            className="pointer-events-none absolute inset-0 rounded-card bg-[radial-gradient(120%_60%_at_50%_-10%,rgba(255,255,255,0.08),transparent_60%)]"
           />
           {/* Bottom inner album-accent wash — bleeds the song's colour into
               the bottom of the card for a glowing-floor look. */}
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-0 rounded-[24px]"
+            className="pointer-events-none absolute inset-0 rounded-card"
             style={{
               backgroundImage:
                 'radial-gradient(110% 55% at 50% 115%, hsl(var(--track-accent) / 0.18), transparent 62%)',
@@ -232,7 +229,7 @@ const NowPlaying = ({ variant = 'page', onMinimize, onOpenFull }) => {
           ease: [0.22, 1, 0.36, 1],
           delay: reduceMotion ? 0 : 0.24,
         }}
-        className="flex flex-1 min-h-0 md:h-full flex-col rounded-[24px] border border-white/[0.08] bg-[linear-gradient(180deg,rgba(18,14,12,0.42),rgba(10,8,8,0.32))] backdrop-blur-2xl shadow-[0_30px_80px_-40px_rgba(0,0,0,0.9)] overflow-hidden"
+        className="flex flex-1 min-h-0 md:h-full flex-col rounded-card border border-white/[0.08] bg-[linear-gradient(180deg,rgba(18,14,12,0.42),rgba(10,8,8,0.32))] backdrop-blur-2xl shadow-[0_30px_80px_-40px_rgba(0,0,0,0.9)] overflow-hidden"
       >
         <div className="shrink-0 px-4 pt-4">
           <Tabs
@@ -249,7 +246,7 @@ const NowPlaying = ({ variant = 'page', onMinimize, onOpenFull }) => {
           onTouchStart={handleSwipeStart}
           onTouchEnd={handleSwipeEnd}
         >
-          <div className="h-full rounded-[18px] border border-white/[0.06] bg-black/30 p-3">
+          <div className="h-full rounded-panel border border-white/[0.06] bg-black/30 p-3">
             <AnimatePresence mode="wait" initial={false}>
               {panel === 'queue' && (
                 <motion.div
@@ -284,7 +281,7 @@ const NowPlaying = ({ variant = 'page', onMinimize, onOpenFull }) => {
                   transition={{ duration: reduceMotion ? 0 : 0.2 }}
                   className="h-full"
                 >
-                  <RelatedRail variant={variant} />
+                  <PlayerRelatedRail variant={variant} />
                 </motion.div>
               )}
             </AnimatePresence>

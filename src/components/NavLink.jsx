@@ -4,7 +4,18 @@ import { cn } from "@/lib/utils";
 import { withViewTransition } from "@/lib/view-transition";
 
 const NavLink = forwardRef(
-  ({ className, activeClassName, pendingClassName, to, onClick, ...props }, ref) => {
+  (
+    {
+      className,
+      activeClassName,
+      pendingClassName,
+      to,
+      onClick,
+      children,
+      ...props
+    },
+    ref,
+  ) => {
     const navigate = useNavigate();
 
     // Intercept the click so we can wrap the route change in a view
@@ -34,11 +45,29 @@ const NavLink = forwardRef(
         ref={ref}
         to={to}
         onClick={handleClick}
-        className={({ isActive, isPending }) =>
-          cn(className, isActive && activeClassName, isPending && pendingClassName)
-        }
+        // Mirror react-router's NavLink: allow either a string (with optional
+        // `activeClassName` / `pendingClassName`) OR a function that receives
+        // `{ isActive, isPending }` — needed by call sites that want to
+        // toggle multiple branches per state.
+        className={({ isActive, isPending }) => {
+          if (typeof className === 'function') {
+            return className({ isActive, isPending });
+          }
+          return cn(
+            className,
+            isActive && activeClassName,
+            isPending && pendingClassName,
+          );
+        }}
         {...props}
-      />
+      >
+        {/* Render-prop children: matches the standard react-router pattern
+            so callers like MobileNav can switch icon weight/colour with the
+            same `{ isActive }` signature. */}
+        {typeof children === 'function'
+          ? ({ isActive, isPending }) => children({ isActive, isPending })
+          : children}
+      </RouterNavLink>
     );
   },
 );

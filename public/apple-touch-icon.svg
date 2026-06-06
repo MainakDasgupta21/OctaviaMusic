@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" width="180" height="180">
+  <!--
+    Octavia Apple Touch Icon (v2). 180x180. Slightly punchier orange than
+    the favicon since iOS strips low-opacity overlays at icon-render time.
+    Proportions scale 64 -> 180.
+  -->
+  <defs>
+    <linearGradient id="chip" x1="0" y1="0" x2="1" y2="1" gradientTransform="rotate(15 0.5 0.5)">
+      <stop offset="0%" stop-color="#ee8055" />
+      <stop offset="100%" stop-color="#d65528" />
+    </linearGradient>
+  </defs>
+  <rect width="180" height="180" rx="40" fill="url(#chip)" />
+  <path
+    fill="#0c0a08"
+    fill-rule="evenodd"
+    d="M 25.31 90 A 64.69 64.69 0 1 0 154.69 90 A 64.69 64.69 0 1 0 25.31 90 Z M 52.03 87.19 A 37.97 37.97 0 1 0 127.97 87.19 A 37.97 37.97 0 1 0 52.03 87.19 Z"
+  />
+</svg>

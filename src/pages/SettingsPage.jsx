@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import {
@@ -97,6 +97,7 @@ const Row = ({ title, description, children }) => (
 );
 
 const EditableField = ({ label, value, onSave, type = 'text' }) => {
+  const fieldId = useId();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
 
@@ -124,10 +125,17 @@ const EditableField = ({ label, value, onSave, type = 'text' }) => {
   return (
     <div className="flex items-center justify-between gap-4">
       <div className="min-w-0 flex-1">
-        <p className="text-[14px] font-medium text-ink">{label}</p>
+        {editing ? (
+          <label htmlFor={fieldId} className="text-[14px] font-medium text-ink">
+            {label}
+          </label>
+        ) : (
+          <p className="text-[14px] font-medium text-ink">{label}</p>
+        )}
         {editing ? (
           <div className="mt-2">
             <Input
+              id={fieldId}
               autoFocus
               type={type}
               value={draft}
@@ -137,6 +145,7 @@ const EditableField = ({ label, value, onSave, type = 'text' }) => {
                 if (e.key === 'Escape') cancel();
               }}
               size="md"
+              aria-label={label}
             />
           </div>
         ) : (

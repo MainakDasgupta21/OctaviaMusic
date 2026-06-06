@@ -55,7 +55,10 @@ const SectionRule = ({
         className="h-px w-6 bg-ink-4/30 shrink-0"
       />
       {label ? (
-        <span className={cn('eyebrow shrink-0', labelColor)}>{label}</span>
+        <span className={cn('eyebrow shrink-0 inline-flex items-center gap-2', labelColor)}>
+          <span className="w-1 h-1 rounded-full bg-track shrink-0" aria-hidden="true" />
+          {label}
+        </span>
       ) : null}
       <span
         aria-hidden="true"

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Music2, Loader2, AlertTriangle } from 'lucide-react';
+import { Music2, Loader2, AlertTriangle, Disc3 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { activeLineIndex, parseLRC } from '@/lib/lrc';
 import { getLyrics, isNotFoundError, isProviderError } from '@/lib/api';
@@ -18,10 +18,29 @@ import { cn } from '@/lib/utils';
 // - Active line auto-scrolls to center
 // =============================================================================
 
+// `2.4s` → "0:02" for screen-reader-friendly timestamps on each seek button.
+const formatSeekTime = (seconds) => {
+  if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
+  const total = Math.floor(seconds);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+};
+
+// How long auto-scroll yields after the user manually scrolls. Long enough
+// that someone reading back a verse isn't yanked away by the next active-line
+// change, short enough that focus eventually returns to the playhead.
+const USER_SCROLL_GRACE_MS = 3500;
+
 const LyricsPanel = () => {
   const { currentTrack, seekTo } = usePlayer();
   const { progress, duration } = usePlayerProgress();
   const scrollRef = useRef(null);
+  // Timestamp of the most recent user-initiated scroll. Updated by the
+  // container's `onScroll`, guarded against our own `scrollIntoView` calls
+  // via the `programmaticScrollRef` flag below.
+  const lastUserScrollRef = useRef(0);
+  const programmaticScrollRef = useRef(false);
 
   const title = currentTrack?.title || '';
   const artist = currentTrack?.artist || '';
@@ -50,10 +69,11 @@ const LyricsPanel = () => {
 
   // Memoise the parse so re-renders during playback don't re-tokenise the LRC.
   const parsed = useMemo(() => {
-    if (!data) return { synced: [], plain: '' };
+    if (!data) return { synced: [], plain: '', instrumental: false };
     return {
       synced: parseLRC(data.syncedRaw || ''),
       plain: data.plain || '',
+      instrumental: Boolean(data.instrumental),
     };
   }, [data]);
 
@@ -62,11 +82,28 @@ const LyricsPanel = () => {
 
   useEffect(() => {
     if (idx < 0 || !scrollRef.current) return;
+    // Yield to the user for a short grace period after they manually scrolled
+    // — otherwise the next active-line tick yanks the panel back and they
+    // can never browse the lyric history.
+    if (Date.now() - lastUserScrollRef.current < USER_SCROLL_GRACE_MS) return;
     const active = scrollRef.current.querySelector('[data-active="true"]');
     if (active) {
+      programmaticScrollRef.current = true;
       active.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      // The smooth scroll fires more `scroll` events; clear the guard on the
+      // next macrotask so the *next* genuine user scroll registers correctly.
+      window.setTimeout(() => {
+        programmaticScrollRef.current = false;
+      }, 600);
     }
   }, [idx]);
+
+  // Track manual scrolls. We only record them when not in the middle of our
+  // own programmatic `scrollIntoView` call.
+  const handleManualScroll = () => {
+    if (programmaticScrollRef.current) return;
+    lastUserScrollRef.current = Date.now();
+  };
 
   if (!currentTrack) {
     return (
@@ -118,6 +155,17 @@ const LyricsPanel = () => {
     );
   }
 
+  if (parsed.instrumental && !synced.length && !parsed.plain) {
+    return (
+      <EmptyState
+        icon={Disc3}
+        title="This song is instrumental"
+        description="No words to follow — sit back and let the arrangement carry."
+        className="py-12"
+      />
+    );
+  }
+
   if (!synced.length && !parsed.plain) {
     return (
       <EmptyState
@@ -133,6 +181,8 @@ const LyricsPanel = () => {
     return (
       <div
         ref={scrollRef}
+        data-lenis-prevent
+        onScroll={handleManualScroll}
         className="h-full overflow-y-auto custom-scrollbar px-4 py-16 space-y-1 text-left"
         style={{
           // Spotify-style fade at top/bottom so lines feel like they're "rising
@@ -153,8 +203,13 @@ const LyricsPanel = () => {
               type="button"
               data-active={isActive}
               onClick={() => seekTo(line.time)}
+              aria-label={`Jump to ${formatSeekTime(line.time)}`}
+              aria-current={isActive ? 'true' : undefined}
               animate={{
-                opacity: isActive ? 1 : isPast ? 0.22 : isAdjacent ? 0.55 : 0.35,
+                // Inactive opacity floor bumped to 0.4 (was 0.22) so dimmed
+                // lines still clear WCAG AA against the panel background;
+                // the active line at 1.0 keeps its dramatic contrast.
+                opacity: isActive ? 1 : isPast ? 0.4 : isAdjacent ? 0.7 : 0.5,
                 scale: isActive ? 1.04 : 1,
               }}
               transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
@@ -185,6 +240,7 @@ const LyricsPanel = () => {
 
   return (
     <div
+      data-lenis-prevent
       className="h-full overflow-y-auto custom-scrollbar px-5 py-10"
       style={{
         maskImage:

@@ -86,7 +86,7 @@ const MobileDrawer = () => {
           </div>
         </div>
 
-        <nav className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-6">
+        <nav data-lenis-prevent className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-6">
           {groups.map((group) => (
             <div key={group.label}>
               <p className="px-3 mb-2 flex items-center gap-2 font-editorial italic text-[12px] text-ink-4 tracking-wide">

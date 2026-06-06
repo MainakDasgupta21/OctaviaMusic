@@ -4,24 +4,36 @@ import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
   Play,
+  Shuffle,
   Heart,
   Share2,
+  Copy,
   MoreHorizontal,
   Clock,
   Music2,
-  AlertTriangle,
 } from 'lucide-react';
 import { usePlayer } from '@/contexts/PlayerContext';
+import { useLikedAlbums } from '@/contexts/LikedAlbumsContext';
 import HeartButton from '@/components/HeartButton';
 import Button from '@/components/ui-v2/Button';
 import EmptyState from '@/components/ui-v2/EmptyState';
 import Skeleton from '@/components/ui-v2/Skeleton';
 import SmartImage from '@/components/SmartImage';
-import { getAlbum, isNotFoundError } from '@/lib/api';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { getAlbum } from '@/lib/api';
 import { cachePolicy, queryKeys } from '@/lib/query-keys';
 import { isUsableArtistSlug } from '@/lib/slug';
 import { fadeUp, staggerChildren } from '@/design/motion';
 import { useArtistPrefetchProps } from '@/hooks/use-route-prefetch';
+import { usePageError } from '@/hooks/use-page-error';
+import { shuffleArray, shareOrCopy } from '@/lib/shuffle';
+import notify from '@/lib/notify';
 import { cn } from '@/lib/utils';
 
 const sumDuration = (tracks) => {
@@ -71,7 +83,8 @@ const AlbumPageSkeleton = () => (
 const AlbumPage = () => {
   const { id } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { playTracksInOrder, currentTrack, isPlaying } = usePlayer();
+  const { playTracksInOrder, playTrack, addToQueue, currentTrack, isPlaying } = usePlayer();
+  const { isLiked, toggleLiked } = useLikedAlbums();
   const autoplayHandledRef = useRef(false);
 
   const { data: album, isLoading, isError, error, refetch } = useQuery({
@@ -105,6 +118,50 @@ const AlbumPage = () => {
     [album?.tracks, playTracksInOrder],
   );
 
+  const handleShuffle = useCallback(() => {
+    if (!album?.tracks?.length) return;
+    const shuffled = shuffleArray(album.tracks);
+    playTrack(shuffled[0]);
+    shuffled.slice(1).forEach((t) => addToQueue(t));
+    notify.info('Shuffling album');
+  }, [album?.tracks, playTrack, addToQueue]);
+
+  const handleToggleLike = useCallback(() => {
+    if (!album?.id) return;
+    const added = toggleLiked({
+      id: album.id,
+      title: album.title,
+      artist: album.artist,
+      artistSlug: album.artistSlug,
+      thumbnail: album.cover || album.thumbnail,
+      year: album.year,
+    });
+    if (added) notify.liked(album.title);
+    else notify.unliked(album.title);
+  }, [album, toggleLiked]);
+
+  const handleShare = useCallback(async () => {
+    if (!album) return;
+    const result = await shareOrCopy({
+      title: album.title,
+      text: `${album.title} \u2014 ${album.artist || ''}`,
+      url: typeof window !== 'undefined' ? window.location.href : '',
+    });
+    if (result === 'copied') notify.copied('Album link');
+    else if (result === 'error') notify.error("Couldn't share");
+  }, [album]);
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      notify.copied('Album link');
+    } catch {
+      notify.error("Couldn't copy");
+    }
+  }, []);
+
+  const liked = album ? isLiked(album.id) : false;
+
   useEffect(() => {
     autoplayHandledRef.current = false;
   }, [id]);
@@ -124,22 +181,25 @@ const AlbumPage = () => {
     setSearchParams(next, { replace: true });
   }, [handlePlay, shouldAutoplayFromSearch, album?.tracks, searchParams, setSearchParams]);
 
+  const pageError = usePageError(error, {
+    resource: 'this album',
+    notFoundCopy: {
+      title: 'Album not found',
+      description: "We couldn't find an album with that id.",
+    },
+  });
+
   if (isLoading) return <AlbumPageSkeleton />;
 
-  if (isError) {
-    const notFound = isNotFoundError(error);
+  if (isError && pageError) {
     return (
       <div className="p-6 md:p-10 max-w-[1600px] mx-auto">
         <EmptyState
-          icon={notFound ? Music2 : AlertTriangle}
-          title={notFound ? 'Album not found' : 'Could not load this album'}
-          description={
-            notFound
-              ? "We couldn't find an album with that id."
-              : 'The catalog service is unreachable. Check your connection and try again.'
-          }
+          icon={pageError.kind === 'not-found' ? Music2 : pageError.icon}
+          title={pageError.title}
+          description={pageError.description}
           action={
-            notFound ? null : (
+            pageError.kind === 'not-found' ? null : (
               <Button onClick={() => refetch()} size="md">
                 Try again
               </Button>
@@ -238,12 +298,26 @@ const AlbumPage = () => {
                 <span className="text-ink">{album.artist || 'Unknown artist'}</span>
               )}
             </p>
+            {/* Release line — only when at least one piece of provenance is
+                available. Joined with a thin separator so missing fields
+                fold away cleanly (e.g. "Released 2024" / "Columbia Records ·
+                2024" / "Released 2024 · 12 tracks"). */}
+            {(album.year || album.label) ? (
+              <p className="font-editorial text-[13px] text-ink-3 mt-2 leading-snug">
+                {[
+                  album.year ? `Released ${album.year}` : null,
+                  album.label || null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </p>
+            ) : null}
           </div>
         </motion.div>
       </div>
 
       {/* Actions */}
-      <div className="px-5 md:px-10 max-w-[1600px] mx-auto mb-8 flex items-center gap-3">
+      <div className="px-5 md:px-10 max-w-[1600px] mx-auto mb-8 flex items-center gap-3 flex-wrap">
         <Button
           size="lg"
           onClick={() => handlePlay(0)}
@@ -251,15 +325,64 @@ const AlbumPage = () => {
         >
           Play album
         </Button>
-        <Button variant="ghost" size="icon-lg" aria-label="Like album">
-          <Heart className="w-5 h-5" />
+        <Button
+          variant="ghost"
+          size="lg"
+          onClick={handleShuffle}
+          leftIcon={<Shuffle className="w-4 h-4" />}
+        >
+          Shuffle
         </Button>
-        <Button variant="ghost" size="icon-lg" aria-label="Share">
+        <Button
+          variant="ghost"
+          size="icon-lg"
+          onClick={handleToggleLike}
+          aria-label={liked ? 'Unlike album' : 'Like album'}
+          aria-pressed={liked}
+        >
+          <Heart
+            className={cn(
+              'w-5 h-5 transition-colors',
+              liked ? 'fill-accent text-accent' : 'text-ink-2',
+            )}
+          />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-lg"
+          onClick={handleShare}
+          aria-label="Share"
+        >
           <Share2 className="w-5 h-5" />
         </Button>
-        <Button variant="ghost" size="icon-lg" aria-label="More options">
-          <MoreHorizontal className="w-5 h-5" />
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon-lg" aria-label="More options">
+              <MoreHorizontal className="w-5 h-5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            className="w-52 bg-surface-3/95 backdrop-blur-xl border-white/10"
+          >
+            <DropdownMenuItem onClick={handleShuffle}>
+              <Shuffle className="w-4 h-4 mr-2" /> Shuffle album
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleToggleLike}>
+              <Heart
+                className={cn('w-4 h-4 mr-2', liked && 'fill-accent text-accent')}
+              />
+              {liked ? 'Unlike album' : 'Like album'}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleShare}>
+              <Share2 className="w-4 h-4 mr-2" /> Share album
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleCopy}>
+              <Copy className="w-4 h-4 mr-2" /> Copy link
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Tracklist masthead strip */}

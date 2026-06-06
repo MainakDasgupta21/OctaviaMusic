@@ -69,6 +69,15 @@ export default {
         "display-lg":  ["clamp(2.25rem, 4.5vw, 4rem)",{ lineHeight: "0.96", letterSpacing: "-0.022em" }],
         "display-md":  ["clamp(1.75rem, 3vw, 2.5rem)",{ lineHeight: "1.06", letterSpacing: "-0.018em" }],
         "display-sm":  ["clamp(1.375rem, 2.4vw, 1.75rem)", { lineHeight: "1.12", letterSpacing: "-0.014em" }],
+        // Small-text utility scale — replaces the dozens of `text-[Npx]`
+        // arbitrary values littered across TopBar, FooterPlayer, and the
+        // player chrome. Names describe usage, not pixel sizes.
+        "eyebrow": ["10px",  { lineHeight: "1.1",  letterSpacing: "0.22em" }],
+        "micro":   ["11px",  { lineHeight: "1.2" }],
+        "tiny":    ["12px",  { lineHeight: "1.3" }],
+        "caption": ["12.5px",{ lineHeight: "1.35" }],
+        "label":   ["13px",  { lineHeight: "1.35" }],
+        "body":    ["14px",  { lineHeight: "1.45" }],
       },
       letterSpacing: {
         tightest: "-0.04em",
@@ -174,6 +183,11 @@ export default {
         sharp: "var(--radius-sharp)",
         soft: "var(--radius-soft)",
         blob: "var(--radius-blob)",
+        // Player card stack — 24px outer card, 18px inner panel.
+        // Replaces `rounded-[24px]` and `rounded-[18px]` literals scattered
+        // across NowPlaying so the player chrome shares one radius vocabulary.
+        card: "24px",
+        panel: "18px",
       },
       transitionTimingFunction: {
         emphasis: "cubic-bezier(0.22, 1, 0.36, 1)",

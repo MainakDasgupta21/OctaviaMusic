@@ -12,6 +12,8 @@ const PATTERNS = {
   durationAll: /\bduration(?::|<=|>=|<|>|=)\s*\d+(?::\d+)?\b/gi,
   sort: /\bsort:[a-z]+\b/gi,
   type: /\btype:(?:song|artist|album)\b/gi,
+  artist: /(?:^|\s)artist:(?:"[^"]*"|\S+)(?=\s|$)/gi,
+  album: /(?:^|\s)album:(?:"[^"]*"|\S+)(?=\s|$)/gi,
 };
 
 const stripPattern = (query, pattern) =>
@@ -26,6 +28,43 @@ export const stripYearFilters = (query) => stripPattern(query, PATTERNS.yearAll)
 export const stripDurationFilters = (query) => stripPattern(query, PATTERNS.durationAll);
 export const stripSortFilter = (query) => stripPattern(query, PATTERNS.sort);
 export const stripTypeFilter = (query) => stripPattern(query, PATTERNS.type);
+export const stripArtistFilter = (query) => stripPattern(query, PATTERNS.artist);
+export const stripAlbumFilter = (query) => stripPattern(query, PATTERNS.album);
+
+// Quote the value when it carries whitespace or special chars so the parser
+// reads it back as a single token. Single-token values stay unquoted to keep
+// the URL clean (e.g. `artist:drake` instead of `artist:"drake"`).
+const formatStringValue = (value) => {
+  const trimmed = String(value ?? '').trim();
+  if (!trimmed) return '';
+  return /[\s"]/.test(trimmed) ? `"${trimmed.replace(/"/g, '')}"` : trimmed;
+};
+
+export const setArtistFilter = (query, name) => {
+  const stripped = stripArtistFilter(query);
+  const value = formatStringValue(name);
+  if (!value) return stripped;
+  return collapseSpaces(`${stripped} artist:${value}`);
+};
+
+export const setAlbumFilter = (query, name) => {
+  const stripped = stripAlbumFilter(query);
+  const value = formatStringValue(name);
+  if (!value) return stripped;
+  return collapseSpaces(`${stripped} album:${value}`);
+};
+
+// Negative tokens like `-live` exclude a phrase from results. Toggling off
+// strips both the `-token` and any positive `token` so the user can flip
+// the same word from "include" to "exclude" without leftovers.
+export const setNegativeToken = (query, token, on) => {
+  const trimmed = String(token ?? '').trim().toLowerCase();
+  if (!trimmed) return collapseSpaces(query);
+  const re = new RegExp(`(?:^|\\s)-?${trimmed}(?=\\s|$)`, 'gi');
+  const stripped = collapseSpaces(query.replace(re, ' '));
+  if (!on) return stripped;
+  return collapseSpaces(`${stripped} -${trimmed}`);
+};
 
 export const setYearRange = (query, fromYear, toYear) => {
   let next = stripYearFilters(query);

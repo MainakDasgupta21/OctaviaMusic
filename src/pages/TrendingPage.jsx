@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Play, Clock, AlertTriangle, TrendingUp } from 'lucide-react';
+import { Play, Clock, TrendingUp, Sparkles } from 'lucide-react';
 import { usePlayer } from '@/contexts/PlayerContext';
 import HeartButton from '@/components/HeartButton';
 import Button from '@/components/ui-v2/Button';
@@ -11,6 +11,7 @@ import { getTrending } from '@/lib/api';
 import { cachePolicy, queryKeys } from '@/lib/query-keys';
 import { fadeUp, staggerChildren } from '@/design/motion';
 import { useEditorialMeta } from '@/hooks/use-editorial-meta';
+import { usePageError } from '@/hooks/use-page-error';
 import { formatPlays } from '@/lib/player-format';
 import { cn } from '@/lib/utils';
 
@@ -46,11 +47,12 @@ const TrendingPage = () => {
   const { playTrack, currentTrack, isPlaying, addToQueue } = usePlayer();
   const { masthead, issueNum } = useEditorialMeta();
 
-  const { data: trending = [], isLoading, isError, refetch } = useQuery({
+  const { data: trending = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: queryKeys.trending(20),
     queryFn: () => getTrending({ limit: 20 }),
     ...cachePolicy.trending,
   });
+  const pageError = usePageError(error, { resource: 'trending' });
 
   const handlePlayAll = () => {
     if (!trending.length) return;
@@ -104,14 +106,25 @@ const TrendingPage = () => {
         </div>
       </motion.div>
 
-      {isError ? (
+      {isError && pageError ? (
         <EmptyState
-          icon={AlertTriangle}
-          title="Trending is offline"
-          description="We couldn't reach the catalog service. Please try again in a moment."
+          icon={pageError.icon}
+          title={pageError.title}
+          description={pageError.description}
           action={
             <Button onClick={() => refetch()} size="md">
               Try again
+            </Button>
+          }
+        />
+      ) : !isLoading && trending.length === 0 ? (
+        <EmptyState
+          icon={Sparkles}
+          title="The feed is quiet"
+          description="Nothing is trending right now. Try again in a few minutes."
+          action={
+            <Button onClick={() => refetch()} size="md" variant="secondary">
+              Refresh
             </Button>
           }
         />

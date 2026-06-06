@@ -12,8 +12,13 @@ const NotFound = () => {
   const smooth = useSpring(angle, { stiffness: 60, damping: 18 });
   const [, setTilt] = useState(0);
 
+  // Only log to console in development. Prod 404s should be surfaced via
+  // a real telemetry pipeline, not a noisy console.warn.
   useEffect(() => {
-    console.warn('404:', location.pathname);
+    if (import.meta.env?.DEV) {
+      // eslint-disable-next-line no-console
+      console.warn('404:', location.pathname);
+    }
   }, [location.pathname]);
 
   const handleDrag = (_, info) => {
@@ -33,7 +38,7 @@ const NotFound = () => {
         <span className="w-8 h-px bg-white/15" />
       </div>
 
-      <LogoMark size={44} className="mb-6 opacity-90" />
+      <LogoMark size={44} variant="mono" className="mb-6 text-ink-3 opacity-70" />
 
       <motion.div
         className="relative w-64 h-64 mb-10 cursor-grab active:cursor-grabbing select-none"

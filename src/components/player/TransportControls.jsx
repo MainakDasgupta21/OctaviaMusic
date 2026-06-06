@@ -8,8 +8,7 @@ import {
   Repeat,
   Repeat1,
 } from 'lucide-react';
-import { usePlayer, usePlayerProgress } from '@/contexts/PlayerContext';
-import { useSounds } from '@/contexts/SoundContext';
+import useTransportActions from '@/hooks/use-transport-actions';
 import { isReducedMotion } from '@/design/motion';
 import { cn } from '@/lib/utils';
 
@@ -37,39 +36,27 @@ const ActiveDot = () => (
 const TransportControls = () => {
   const {
     isPlaying,
-    togglePlay,
-    playNext,
-    playPrevious,
-    canGoNext,
     shuffle,
-    toggleShuffle,
     repeat,
-    toggleRepeat,
-  } = usePlayer();
-  const { canGoPrevious } = usePlayerProgress();
+    canGoNext,
+    canGoPrevious,
+    labels,
+    onTogglePlay,
+    onPlayNext,
+    onPlayPrevious,
+    onToggleShuffle,
+    onToggleRepeat,
+  } = useTransportActions();
   const reduceMotion = isReducedMotion();
-  const { play: playSfx } = useSounds();
-
-  const handleTogglePlay = () => {
-    playSfx('pop');
-    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
-      try { navigator.vibrate(8); } catch { /* noop */ }
-    }
-    togglePlay();
-  };
-  const handleNext = () => { if (canGoNext) playSfx('click'); playNext(); };
-  const handlePrev = () => { if (canGoPrevious) playSfx('click'); playPrevious(); };
-  const handleShuffle = () => { playSfx('tick'); toggleShuffle(); };
-  const handleRepeat = () => { playSfx('tick'); toggleRepeat(); };
 
   return (
     <div className="flex items-center justify-center gap-6 lg:gap-8 w-full py-1.5">
       <motion.button
         type="button"
         whileTap={reduceMotion ? undefined : { scale: 0.92 }}
-        onClick={handleShuffle}
+        onClick={onToggleShuffle}
         className={toggleBtn(shuffle)}
-        aria-label="Toggle shuffle"
+        aria-label={labels.shuffle}
         aria-pressed={shuffle}
       >
         <Shuffle className="w-[18px] h-[18px]" strokeWidth={2} />
@@ -79,17 +66,17 @@ const TransportControls = () => {
       <motion.button
         type="button"
         whileTap={reduceMotion || !canGoPrevious ? undefined : { scale: 0.92 }}
-        onClick={handlePrev}
+        onClick={onPlayPrevious}
         disabled={!canGoPrevious}
         className={skipBtn(!canGoPrevious)}
-        aria-label="Previous track"
+        aria-label={labels.previous}
       >
         <SkipBack className="w-6 h-6 fill-current" />
       </motion.button>
 
       <motion.button
         type="button"
-        onClick={handleTogglePlay}
+        onClick={onTogglePlay}
         className={cn(
           'btn-juicy relative w-[68px] h-[68px] rounded-full text-track-fg flex items-center justify-center ring-1 ring-white/25 focus-ring',
           isPlaying && 'pulse-glow',
@@ -100,7 +87,7 @@ const TransportControls = () => {
           boxShadow:
             '0 10px 30px -6px hsl(var(--track-accent) / 0.55), 0 0 0 1px hsl(var(--track-accent) / 0.4), inset 0 1px 0 rgba(255,255,255,0.25)',
         }}
-        aria-label={isPlaying ? 'Pause' : 'Play'}
+        aria-label={labels.play}
         aria-pressed={isPlaying}
       >
         {isPlaying ? <span aria-hidden="true" className="np-main-play-ring" /> : null}
@@ -114,10 +101,10 @@ const TransportControls = () => {
       <motion.button
         type="button"
         whileTap={reduceMotion || !canGoNext ? undefined : { scale: 0.92 }}
-        onClick={handleNext}
+        onClick={onPlayNext}
         disabled={!canGoNext}
         className={skipBtn(!canGoNext)}
-        aria-label="Next track"
+        aria-label={labels.next}
       >
         <SkipForward className="w-6 h-6 fill-current" />
       </motion.button>
@@ -125,15 +112,15 @@ const TransportControls = () => {
       <motion.button
         type="button"
         whileTap={reduceMotion ? undefined : { scale: 0.92 }}
-        onClick={handleRepeat}
+        onClick={onToggleRepeat}
         className={toggleBtn(repeat !== 'off')}
-        aria-label={
-          repeat === 'one' ? 'Repeat one' : repeat === 'all' ? 'Repeat all' : 'Repeat off'
-        }
+        aria-label={labels.repeat}
         aria-pressed={repeat !== 'off'}
       >
         {repeat === 'one' ? (
-          <Repeat1 className="w-[18px] h-[18px]" strokeWidth={2} />
+          <span className="relative inline-flex">
+            <Repeat1 className="w-[18px] h-[18px]" strokeWidth={2} />
+          </span>
         ) : (
           <Repeat className="w-[18px] h-[18px]" strokeWidth={2} />
         )}
