@@ -1,80 +1,8 @@
 import { motion } from 'framer-motion';
-import {
-  CalendarRange,
-  Clock,
-  Mic,
-  Music2,
-  ShieldCheck,
-  Sparkles,
-  Waves,
-} from 'lucide-react';
-import { EMPTY_FILTERS, toggleMood } from '@/lib/search-filter-state';
+import { Sparkles } from 'lucide-react';
+import { EMPTY_FILTERS } from '@/lib/search-filter-state';
+import { PRESETS } from '@/lib/search-quick-presets';
 import { cn } from '@/lib/utils';
-
-const NOW = new Date().getFullYear();
-
-// Each preset is a pure (currentFilters) => nextFilters transform. Composing
-// through the structured state means: clicking twice doesn't double-add,
-// removing the chip restores the previous state cleanly, and combinations
-// stack ("This year" + "Clean only" works).
-const PRESETS = [
-  {
-    id: 'this-year',
-    label: 'This year',
-    hint: `Released in ${NOW}`,
-    icon: CalendarRange,
-    apply: (f) => ({ ...f, yearFrom: NOW, yearTo: NOW }),
-  },
-  {
-    id: 'last-decade',
-    label: 'The 2010s',
-    hint: 'Decade in review',
-    icon: CalendarRange,
-    apply: (f) => ({ ...f, yearFrom: 2010, yearTo: 2019 }),
-  },
-  {
-    id: 'nineties',
-    label: 'The 90s',
-    hint: 'Decade in review',
-    icon: CalendarRange,
-    apply: (f) => ({ ...f, yearFrom: 1990, yearTo: 1999 }),
-  },
-  {
-    id: 'under-three',
-    label: 'Under 3 min',
-    hint: 'Quick listens',
-    icon: Clock,
-    apply: (f) => ({ ...f, durationMax: 180 }),
-  },
-  {
-    id: 'acoustic',
-    label: 'Acoustic',
-    hint: 'Unplugged feel',
-    icon: Music2,
-    apply: (f) => toggleMood(f, 'acoustic'),
-  },
-  {
-    id: 'live',
-    label: 'Live versions',
-    hint: 'Concert energy',
-    icon: Mic,
-    apply: (f) => toggleMood(f, 'live'),
-  },
-  {
-    id: 'remix',
-    label: 'Remixes',
-    hint: 'Reworked takes',
-    icon: Waves,
-    apply: (f) => toggleMood(f, 'remix'),
-  },
-  {
-    id: 'clean',
-    label: 'Clean only',
-    hint: 'Hide explicit',
-    icon: ShieldCheck,
-    apply: (f) => ({ ...f, clean: true }),
-  },
-];
 
 export const QuickPresets = ({ filters, onFiltersChange, className }) => {
   return (

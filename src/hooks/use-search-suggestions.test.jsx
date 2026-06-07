@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Hoisted mock so the inline factory can reference the spy without TDZ.
@@ -46,10 +46,14 @@ describe('useSearchSuggestions', () => {
       ({ q }) => useSearchSuggestions(q, { minLength: 2 }),
       { wrapper: Wrapper, initialProps: { q: '' } },
     );
-    rerender({ q: 'a' });
+    await act(async () => {
+      rerender({ q: 'a' });
+    });
 
     // Drain the debounce window even though we don't expect a call.
-    await vi.advanceTimersByTimeAsync(300);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
     expect(getSearchSuggestionsMock).not.toHaveBeenCalled();
   });
 
@@ -67,16 +71,23 @@ describe('useSearchSuggestions', () => {
       ({ q }) => useSearchSuggestions(q, { debounceMs: 150 }),
       { wrapper: Wrapper, initialProps: { q: '' } },
     );
-    rerender({ q: 'mich' });
+    await act(async () => {
+      rerender({ q: 'mich' });
+    });
 
     // No call before the debounce elapses.
     expect(getSearchSuggestionsMock).not.toHaveBeenCalled();
 
-    await vi.advanceTimersByTimeAsync(160);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(160);
+    });
     await waitFor(() =>
       expect(getSearchSuggestionsMock).toHaveBeenCalledTimes(1),
     );
-    expect(getSearchSuggestionsMock).toHaveBeenCalledWith('mich');
+    expect(getSearchSuggestionsMock).toHaveBeenCalledWith(
+      'mich',
+      expect.objectContaining({ signal: expect.anything() }),
+    );
 
     await waitFor(() =>
       expect(result.current.suggestions).toEqual([
@@ -94,9 +105,13 @@ describe('useSearchSuggestions', () => {
       ({ q }) => useSearchSuggestions(q),
       { wrapper: Wrapper, initialProps: { q: '' } },
     );
-    rerender({ q: 'mich' });
+    await act(async () => {
+      rerender({ q: 'mich' });
+    });
 
-    await vi.advanceTimersByTimeAsync(200);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200);
+    });
     await waitFor(() =>
       expect(getSearchSuggestionsMock).toHaveBeenCalled(),
     );

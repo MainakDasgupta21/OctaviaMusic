@@ -35,7 +35,8 @@ const AlbumPageImport    = () => import('@/pages/AlbumPage');
 const PlaylistPageImport = () => import('@/pages/PlaylistPage');
 const ChartsPageImport   = () => import('@/pages/ChartsPage');
 const ChartsArtistsPageImport = () => import('@/pages/ChartsArtistsPage');
-const ExplorePageImport  = () => import('@/pages/ExplorePage');
+const ExplorePageImport  = () => import('@/pages/ExplorePageV2');
+const ExploreFlowPageImport = () => import('@/pages/ExploreFlowPage');
 const GenresPageImport   = () => import('@/pages/GenresPage');
 const NotFoundImport     = () => import('@/pages/NotFound');
 
@@ -52,6 +53,7 @@ const PlaylistPage = lazy(PlaylistPageImport);
 const ChartsPage = lazy(ChartsPageImport);
 const ChartsArtistsPage = lazy(ChartsArtistsPageImport);
 const ExplorePage = lazy(ExplorePageImport);
+const ExploreFlowPage = lazy(ExploreFlowPageImport);
 const GenresPage = lazy(GenresPageImport);
 const NotFound = lazy(NotFoundImport);
 
@@ -66,6 +68,7 @@ registerPrefetch('/settings', SettingsPageImport);
 registerPrefetch('/charts', ChartsPageImport);
 registerPrefetch('/charts/artists', ChartsArtistsPageImport);
 registerPrefetch('/explore', ExplorePageImport);
+registerPrefetch('/explore/flow', ExploreFlowPageImport);
 registerPrefetch('/genres', GenresPageImport);
 // Dynamic detail routes — registered as path *prefixes* so the prefetch hook
 // can warm the chunk regardless of slug/id (e.g. `/artist/foo`, `/album/abc`,
@@ -135,6 +138,7 @@ const App = () => (
                         <Route path="/charts" element={wrap(ChartsPage)} />
                         <Route path="/charts/artists" element={wrap(ChartsArtistsPage)} />
                         <Route path="/explore" element={wrap(ExplorePage)} />
+                        <Route path="/explore/flow" element={wrap(ExploreFlowPage)} />
                         <Route path="/genres" element={wrap(GenresPage)} />
                         <Route path="/favorites" element={wrap(FavoritesPage)} />
                         <Route path="/library" element={wrap(LibraryPage)} />

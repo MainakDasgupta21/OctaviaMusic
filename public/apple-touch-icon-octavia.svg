@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
+  <defs>
+    <linearGradient id="chip" x1="0" y1="0" x2="0.42" y2="0.91">
+      <stop offset="0%" stop-color="#EB6433" />
+      <stop offset="100%" stop-color="#DA481B" />
+    </linearGradient>
+  </defs>
+  <rect width="180" height="180" rx="40" fill="url(#chip)" />
+  <path
+    fill="#ffffff"
+    fill-rule="evenodd"
+    d="M 25.31 90 A 64.69 64.69 0 1 0 154.69 90 A 64.69 64.69 0 1 0 25.31 90 Z M 52.03 87.19 A 37.97 37.97 0 1 0 127.97 87.19 A 37.97 37.97 0 1 0 52.03 87.19 Z"
+  />
+</svg>

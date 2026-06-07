@@ -16,7 +16,7 @@ import { cachePolicy, queryKeys } from '@/lib/query-keys';
 
 const DEFAULT_LIMIT = 6;
 const CHARTS_REGION = 'global';
-const CHARTS_WINDOW = 'weekly';
+const CHARTS_WINDOW = 'this_week';
 const CHARTS_FETCH_SIZE = 50;
 
 const dedupeStrings = (values) => {
@@ -42,8 +42,13 @@ const extractList = (response) => {
 export const useTrendingSearches = ({ enabled = true, limit = DEFAULT_LIMIT } = {}) => {
   const { data, isLoading, isFetching } = useQuery({
     queryKey: queryKeys.charts(CHARTS_REGION, CHARTS_WINDOW, CHARTS_FETCH_SIZE),
-    queryFn: () =>
-      getCharts({ region: CHARTS_REGION, window: CHARTS_WINDOW, limit: CHARTS_FETCH_SIZE }),
+    queryFn: ({ signal }) =>
+      getCharts({
+        region: CHARTS_REGION,
+        window: CHARTS_WINDOW,
+        limit: CHARTS_FETCH_SIZE,
+        signal,
+      }),
     enabled,
     ...cachePolicy.charts,
   });

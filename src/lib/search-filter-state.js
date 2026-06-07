@@ -22,9 +22,19 @@ import {
 export const VALID_SORTS = new Set(['relevance', 'popularity', 'newest', 'shortest']);
 export const VALID_MOODS = new Set(['live', 'acoustic', 'remix', 'instrumental']);
 
-const NOW = new Date().getFullYear();
-const MIN_YEAR = 1900;
-const MAX_DURATION = 6000;
+// Shared range constants — exported so editors and the URL serializer
+// agree on a single source of truth. If these drift, an editor will
+// silently clip values that the URL/state layer happily round-trips.
+//
+// Duration is intentionally capped at 30 minutes: songs longer than that
+// are virtually nonexistent in mainstream catalogs, and capping here lets
+// the editor's slider use a usable per-pixel granularity instead of
+// stretching across 100 minutes worth of dead range.
+export const NOW = new Date().getFullYear();
+export const MIN_YEAR = 1900;
+export const MAX_YEAR = NOW;
+export const MIN_DURATION = 60;
+export const MAX_DURATION = 1800;
 
 export const EMPTY_FILTERS = Object.freeze({
   sort: 'relevance',
@@ -63,7 +73,10 @@ const clampYear = (n) => {
 const clampDuration = (n) => {
   const num = Number(n);
   if (!Number.isFinite(num) || num <= 0) return null;
-  return Math.min(MAX_DURATION, Math.round(num));
+  // Snap to whole minutes so the URL, the editor's slider step, and the
+  // minute input never round-trip a value into a slightly different one.
+  const minuteAligned = Math.round(num / 60) * 60;
+  return Math.max(MIN_DURATION, Math.min(MAX_DURATION, minuteAligned));
 };
 
 const splitCsv = (raw) =>

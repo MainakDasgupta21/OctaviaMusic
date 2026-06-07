@@ -217,9 +217,11 @@ const TopBar = () => {
     move,
     pick,
   } = useInstantSearch(searchValue, {
-    enabled: true,
+    enabled: searchOpen,
     debounceMs: 180,
     limit: 30,
+    prefetchSearchPage: searchOpen && hasSearchValue,
+    prefetchDelayMs: 600,
     onPick: runSearchRow,
   });
 

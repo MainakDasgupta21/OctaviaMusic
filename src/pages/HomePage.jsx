@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
@@ -30,6 +30,7 @@ import WorldStrip from '@/components/home/WorldStrip';
 import {
   getArtist,
   getCharts,
+  getExploreRadio,
   getGenres,
   getHomeFeed,
   isNetworkError,
@@ -40,13 +41,27 @@ import { sanitizeTrack } from '@/lib/media-sanitize';
 import { fadeUp, staggerChildren } from '@/design/motion';
 import { useEditorialMeta } from '@/hooks/use-editorial-meta';
 import { useHomeSections } from '@/hooks/use-home-sections';
+import { EXPLORE_MOODS } from '@/lib/explore-recommendations';
+import notify from '@/lib/notify';
+import {
+  addSurpriseSeenTrack,
+  buildSurpriseSeed,
+  filterUnseenSurpriseTracks,
+  getSurpriseSeenSet,
+  pickRandomItem,
+  shuffleRandomItems,
+  surpriseTrackId,
+} from '@/lib/surprise-random';
 import { cn } from '@/lib/utils';
 
 // Bumped from 20 → 40 so Home can carve a deeper "Rising now" rail (rows
 // 21-40) on top of the existing Top 12 + Fresh finds rails. The unified
 // `/api/home` endpoint clamps to 100 so the higher ask is safe.
 const TRENDING_LIMIT = 40;
-const CHARTS_LIMIT = 12;
+const CHARTS_FETCH_LIMIT = 50;
+const CHARTS_RAIL_LIMIT = 12;
+const HOME_SURPRISE_FETCH_LIMIT = 60;
+const HOME_SURPRISE_FETCH_ATTEMPTS = 3;
 
 // Inline error block that picks up the same visual voice as `EmptyState`
 // (so Home matches Charts / Trending / Artist / Album), with an optional
@@ -83,29 +98,50 @@ const HomePage = () => {
   const { history, playTrack, playTracksInOrder, currentTrack } = usePlayer();
   const { list: favorites } = useFavorites();
   const { settings } = useSettings();
+  const [homeSurpriseLoading, setHomeSurpriseLoading] = useState(false);
 
   const { greeting, masthead, issueNum } = useEditorialMeta({ includeGreeting: true });
   const firstName = (settings.displayName || '').split(' ')[0] || 'there';
 
   const homeQuery = useQuery({
     queryKey: queryKeys.homeFeed(TRENDING_LIMIT),
-    queryFn: () => getHomeFeed({ limit: TRENDING_LIMIT }),
+    queryFn: ({ signal }) => getHomeFeed({ limit: TRENDING_LIMIT, signal }),
     ...cachePolicy.homeFeed,
   });
+
+  const chartsKey = queryKeys.charts('global', 'this_week', CHARTS_FETCH_LIMIT);
+  const hasWarmGenresCache = Boolean(queryClient.getQueryData(queryKeys.genres()));
+  const hasWarmChartsCache = Boolean(queryClient.getQueryData(chartsKey));
+  const shouldDeferSecondaryQueries =
+    homeQuery.isPending && !homeQuery.data && !hasWarmGenresCache && !hasWarmChartsCache;
 
   // Genres feed the on-Home "Browse genres" rail. Independent query so it
   // caches & retries on its own without coupling to the home feed.
   const genresQuery = useQuery({
     queryKey: queryKeys.genres(),
-    queryFn: getGenres,
+    queryFn: ({ signal }) => getGenres({ signal }),
+    enabled: !shouldDeferSecondaryQueries || hasWarmGenresCache,
     ...cachePolicy.genres,
   });
 
   // Top Charts rail — distinct from "trending". Charts give us the absolute
   // most-played list, ordered by rank. /api/charts returns { items, meta }.
   const chartsQuery = useQuery({
-    queryKey: queryKeys.charts('global', 'weekly', CHARTS_LIMIT),
-    queryFn: () => getCharts({ region: 'global', window: 'weekly', limit: CHARTS_LIMIT }),
+    queryKey: chartsKey,
+    queryFn: ({ signal }) =>
+      getCharts({
+        region: 'global',
+        window: 'this_week',
+        limit: CHARTS_FETCH_LIMIT,
+        signal,
+      }),
+    enabled: !shouldDeferSecondaryQueries || hasWarmChartsCache,
+    select: (payload) => ({
+      ...payload,
+      items: Array.isArray(payload?.items)
+        ? payload.items.slice(0, CHARTS_RAIL_LIMIT)
+        : [],
+    }),
     ...cachePolicy.charts,
   });
 
@@ -113,6 +149,16 @@ const HomePage = () => {
   const trending = homeQuery.data?.trending ?? [];
   const charts = chartsQuery.data?.items ?? [];
   const genres = genresQuery.data ?? [];
+  const homeSurpriseLocalPool = useMemo(() => {
+    const merged = [...trending, ...charts, ...featured];
+    const seen = new Set();
+    return merged.filter((track) => {
+      const trackId = surpriseTrackId(track);
+      if (!trackId || seen.has(trackId)) return false;
+      seen.add(trackId);
+      return true;
+    });
+  }, [trending, charts, featured]);
 
   useEffect(() => {
     if (trending.length > 0) {
@@ -138,13 +184,26 @@ const HomePage = () => {
     favorites,
   });
 
+  useEffect(() => {
+    if (!spotlightSeed?.slug) return;
+    queryClient
+      .prefetchQuery({
+        queryKey: queryKeys.artist(spotlightSeed.slug),
+        queryFn: ({ signal }) => getArtist(spotlightSeed.slug, { signal }),
+        ...cachePolicy.artist,
+      })
+      .catch(() => {
+        /* best-effort prefetch; spotlight query retries on render */
+      });
+  }, [queryClient, spotlightSeed?.slug]);
+
   // Spotlight artist — only fetched once we have a seed with a resolvable
   // slug. The `enabled` guard prevents a wasted call before charts/trending
   // arrive. Uses the same cache policy as ArtistPage so a follow-up visit
   // to /artist/<slug> hits a warm cache.
   const spotlightArtistQuery = useQuery({
     queryKey: queryKeys.artist(spotlightSeed?.slug || ''),
-    queryFn: () => getArtist(spotlightSeed.slug),
+    queryFn: ({ signal }) => getArtist(spotlightSeed.slug, { signal }),
     enabled: Boolean(spotlightSeed?.slug),
     ...cachePolicy.artist,
   });
@@ -156,6 +215,53 @@ const HomePage = () => {
   const backendOffline = homeQuery.isError && isNetworkError(homeQuery.error);
   const pageError = usePageError(homeQuery.error, { resource: 'the home feed' });
   const heroTrack = sanitizeTrack(hero?.track, { requirePlayable: true });
+  const handleHomeSurprise = useCallback(async () => {
+    if (homeSurpriseLoading) return;
+    setHomeSurpriseLoading(true);
+    try {
+      let pick = null;
+
+      for (let attempt = 0; attempt < HOME_SURPRISE_FETCH_ATTEMPTS; attempt += 1) {
+        const randomMood = pickRandomItem(EXPLORE_MOODS);
+        const randomGenre = pickRandomItem(genres);
+        try {
+          const radio = await getExploreRadio({
+            mood: randomMood?.id || '',
+            genre: randomGenre?.label || '',
+            seed: buildSurpriseSeed(),
+            diversity: 'high',
+            limit: HOME_SURPRISE_FETCH_LIMIT,
+          });
+          const fetchedItems = Array.isArray(radio?.items) ? radio.items : [];
+          const unseenFromFetch = filterUnseenSurpriseTracks(
+            shuffleRandomItems(fetchedItems),
+            { seenSet: getSurpriseSeenSet() },
+          );
+          pick = pickRandomItem(unseenFromFetch);
+          if (pick) break;
+        } catch {
+          /* retry with fresh surprise seed */
+        }
+      }
+
+      if (!pick) {
+        const unseenLocalPool = filterUnseenSurpriseTracks(homeSurpriseLocalPool, {
+          seenSet: getSurpriseSeenSet(),
+        });
+        pick = pickRandomItem(shuffleRandomItems(unseenLocalPool));
+      }
+
+      if (!pick) {
+        notify.info('No new surprise songs left this session. Try again later.');
+        return;
+      }
+
+      addSurpriseSeenTrack(pick);
+      playTrack(pick);
+    } finally {
+      setHomeSurpriseLoading(false);
+    }
+  }, [homeSurpriseLoading, genres, homeSurpriseLocalPool, playTrack]);
 
   return (
     <div className="p-5 md:p-10 max-w-[1600px] mx-auto">
@@ -237,6 +343,8 @@ const HomePage = () => {
         trending={trending}
         onPlayTrack={playTrack}
         onPlayTracks={playTracksInOrder}
+        onSurprise={handleHomeSurprise}
+        surpriseLoading={homeSurpriseLoading}
         isLoading={homeQuery.isLoading && !homeQuery.data}
       />
 

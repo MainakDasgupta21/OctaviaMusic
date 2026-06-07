@@ -66,6 +66,7 @@ export const useInstantSearch = (
     type = 'all',
     onPick,
     prefetchSearchPage = true,
+    prefetchDelayMs = 500,
     sortHint = null,
   } = {},
 ) => {
@@ -100,7 +101,11 @@ export const useInstantSearch = (
   // request on Enter.
   const { data: serverResults = [], isLoading, isFetching, isError } = useQuery({
     queryKey: queryKeys.search(serverQuery, effectiveType, serverLimit),
-    queryFn: () => searchMusic(serverQuery, effectiveType, { limit: serverLimit }),
+    queryFn: ({ signal }) =>
+      searchMusic(serverQuery, effectiveType, {
+        limit: serverLimit,
+        signal,
+      }),
     enabled: shouldFetchServer,
     ...cachePolicy.search,
     placeholderData: keepPreviousData,
@@ -114,20 +119,35 @@ export const useInstantSearch = (
   useEffect(() => {
     if (!prefetchSearchPage) return;
     if (!shouldFetchServer) return;
+    if (isLoading || isFetching) return;
     if (serverLimit >= PREFETCH_LIMIT) return; // already at SearchPage size
-    // Always prefetch the 'all' bucket since the SearchPage opens to All by
-    // default; the chip filter will narrow on the client without refetching.
-    const key = queryKeys.search(serverQuery, 'all', PREFETCH_LIMIT);
-    queryClient
-      .prefetchQuery({
-        queryKey: key,
-        queryFn: () => searchMusic(serverQuery, 'all', { limit: PREFETCH_LIMIT }),
-        ...cachePolicy.search,
-      })
-      .catch(() => {
-        /* best-effort prefetch; the SearchPage will retry on its own. */
-      });
-  }, [prefetchSearchPage, shouldFetchServer, serverQuery, serverLimit, queryClient]);
+    const timer = setTimeout(() => {
+      // Always prefetch the 'all' bucket since the SearchPage opens to All by
+      // default; the chip filter will narrow on the client without refetching.
+      const key = queryKeys.search(serverQuery, 'all', PREFETCH_LIMIT);
+      queryClient
+        .prefetchQuery({
+          queryKey: key,
+          queryFn: ({ signal }) =>
+            searchMusic(serverQuery, 'all', { limit: PREFETCH_LIMIT, signal }),
+          ...cachePolicy.search,
+        })
+        .catch(() => {
+          /* best-effort prefetch; the SearchPage will retry on its own. */
+        });
+    }, Math.max(0, Number(prefetchDelayMs) || 0));
+
+    return () => clearTimeout(timer);
+  }, [
+    prefetchSearchPage,
+    shouldFetchServer,
+    isLoading,
+    isFetching,
+    serverQuery,
+    serverLimit,
+    queryClient,
+    prefetchDelayMs,
+  ]);
 
   // Delegate the rank+merge to `useRankedSearch`. It is a sync ranker for
   // small candidate pools (the TopBar's typical 10–30 row payload) and

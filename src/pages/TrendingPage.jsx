@@ -15,6 +15,9 @@ import { usePageError } from '@/hooks/use-page-error';
 import { formatPlays } from '@/lib/player-format';
 import { cn } from '@/lib/utils';
 
+const TRENDING_SHARED_LIMIT = 40;
+const TRENDING_PAGE_LIMIT = 20;
+
 const NowPlayingBars = () => (
   <span className="inline-flex items-end gap-0.5 h-4" aria-label="Now playing">
     <span className="w-0.5 h-2 bg-accent rounded-full animate-pulse" />
@@ -48,8 +51,9 @@ const TrendingPage = () => {
   const { masthead, issueNum } = useEditorialMeta();
 
   const { data: trending = [], isLoading, isError, error, refetch } = useQuery({
-    queryKey: queryKeys.trending(20),
-    queryFn: () => getTrending({ limit: 20 }),
+    queryKey: queryKeys.trending(TRENDING_SHARED_LIMIT),
+    queryFn: ({ signal }) => getTrending({ limit: TRENDING_SHARED_LIMIT, signal }),
+    select: (rows) => (Array.isArray(rows) ? rows.slice(0, TRENDING_PAGE_LIMIT) : []),
     ...cachePolicy.trending,
   });
   const pageError = usePageError(error, { resource: 'trending' });

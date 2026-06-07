@@ -26,6 +26,11 @@ const TTL = {
   charts:  num(process.env.YTM_CACHE_CHARTS_MIN,   60) * 60_000,
   genres:  num(process.env.YTM_CACHE_GENRES_MIN,   60) * 60_000,
 };
+const REQUEST_TIMEOUT_MS = num(process.env.YTM_REQUEST_TIMEOUT_MS, 10_000);
+const RETRY_COUNT = (() => {
+  const n = Number(process.env.YTM_REQUEST_RETRY_COUNT);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n) : 1;
+})();
 
 const CHARTS_PLAYLIST   = (process.env.YTM_CHARTS_PLAYLIST   || '').trim();
 const TRENDING_PLAYLIST = (process.env.YTM_TRENDING_PLAYLIST || '').trim();
@@ -46,7 +51,11 @@ const getYTMusic = () => {
   if (!ytmusicPromise) {
     ytmusicPromise = (async () => {
       const instance = new YTMusic();
-      await instance.initialize();
+      await withTimeout(
+        () => instance.initialize(),
+        Math.max(REQUEST_TIMEOUT_MS, 15_000),
+        'ytmusic.initialize',
+      );
       return instance;
     })().catch((err) => {
       // Allow a retry on the next call instead of pinning a failed instance.
@@ -108,16 +117,48 @@ const memo = async (key, ttlMs, producer) => {
 };
 
 // -----------------------------------------------------------------------------
-// Single-retry helper. The upstream occasionally times out / returns 5xx; a
-// quick retry usually clears it.
+// Timed + retried helper for upstream calls. A hung InnerTube call should
+// fail fast so routes can fall back to local/static data.
 // -----------------------------------------------------------------------------
-const withRetry = async (fn) => {
+const withTimeout = async (producer, timeoutMs = REQUEST_TIMEOUT_MS, label = 'ytmusic') => {
+  let timer = null;
   try {
-    return await fn();
-  } catch (err) {
-    return fn();
+    return await Promise.race([
+      Promise.resolve().then(producer),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 };
+
+const withRetry = async (fn, { retries = RETRY_COUNT } = {}) => {
+  let lastError = null;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      if (attempt >= retries) break;
+    }
+  }
+  throw lastError || new Error('YTMusic request failed');
+};
+
+const runYTMusic = (label, fn, options = {}) =>
+  withRetry(
+    () =>
+      withTimeout(
+        fn,
+        options.timeoutMs || REQUEST_TIMEOUT_MS,
+        label,
+      ),
+    { retries: options.retries },
+  );
 
 // -----------------------------------------------------------------------------
 // Wrappers consumed by the route handlers. Each is cached and resolves to
@@ -148,7 +189,7 @@ const isLikelySong = (row) => {
 const searchSongs = async (q, limit = 30) => {
   const rows = await memo(`search:vid:${q}`, TTL.search, async () => {
     const yt = await getYTMusic();
-    const result = await withRetry(() => yt.searchVideos(q));
+    const result = await runYTMusic(`ytm.searchVideos(${q})`, () => yt.searchVideos(q));
     return Array.isArray(result) ? result.filter(isLikelySong) : [];
   });
   return rows.slice(0, limit);
@@ -157,7 +198,7 @@ const searchSongs = async (q, limit = 30) => {
 const searchArtists = async (q, limit = 20) => {
   const rows = await memo(`search:artist:${q}`, TTL.search, async () => {
     const yt = await getYTMusic();
-    const result = await withRetry(() => yt.searchArtists(q));
+    const result = await runYTMusic(`ytm.searchArtists(${q})`, () => yt.searchArtists(q));
     return Array.isArray(result) ? result : [];
   });
   return rows.slice(0, limit);
@@ -166,7 +207,7 @@ const searchArtists = async (q, limit = 20) => {
 const searchAlbums = async (q, limit = 20) => {
   const rows = await memo(`search:album:${q}`, TTL.search, async () => {
     const yt = await getYTMusic();
-    const result = await withRetry(() => yt.searchAlbums(q));
+    const result = await runYTMusic(`ytm.searchAlbums(${q})`, () => yt.searchAlbums(q));
     return Array.isArray(result) ? result : [];
   });
   return rows.slice(0, limit);
@@ -179,7 +220,7 @@ const resolveVideoId = (songName, artistName) =>
   memo(`resolve:${artistName}|${songName}`, TTL.detail, async () => {
     const yt = await getYTMusic();
     const q = `${songName} ${artistName || ''}`.trim();
-    const rows = await withRetry(() => yt.searchVideos(q));
+    const rows = await runYTMusic(`ytm.resolveVideoId(${q})`, () => yt.searchVideos(q));
     const hit = (rows || []).find((r) => r?.videoId);
     return hit || null;
   });
@@ -273,7 +314,10 @@ const searchByType = async (q, type, limit, options = {}) => {
 const getSearchSuggestions = (q) =>
   memo(`suggestions:${q}`, TTL.search, async () => {
     const yt = await getYTMusic();
-    const rows = await withRetry(() => yt.getSearchSuggestions(q));
+    const rows = await runYTMusic(
+      `ytm.getSearchSuggestions(${q})`,
+      () => yt.getSearchSuggestions(q),
+    );
     if (!Array.isArray(rows)) return [];
     // Defensive normalization: `getSearchSuggestions` returns `string[]` in
     // v5.3.1, but if a future version starts returning objects we don't want
@@ -287,13 +331,13 @@ const getSearchSuggestions = (q) =>
 const getAlbum = (albumId) =>
   memo(`album:${albumId}`, TTL.detail, async () => {
     const yt = await getYTMusic();
-    return withRetry(() => yt.getAlbum(albumId));
+    return runYTMusic(`ytm.getAlbum(${albumId})`, () => yt.getAlbum(albumId));
   });
 
 const getArtist = (artistId) =>
   memo(`artist:${artistId}`, TTL.detail, async () => {
     const yt = await getYTMusic();
-    return withRetry(() => yt.getArtist(artistId));
+    return runYTMusic(`ytm.getArtist(${artistId})`, () => yt.getArtist(artistId));
   });
 
 // Direct fan-out to an artist's full album list. We use this as a fallback in
@@ -305,7 +349,10 @@ const getArtist = (artistId) =>
 const getArtistAlbums = async (artistId, limit = 20) => {
   const rows = await memo(`artistAlbums:${artistId}`, TTL.detail, async () => {
     const yt = await getYTMusic();
-    const result = await withRetry(() => yt.getArtistAlbums(artistId));
+    const result = await runYTMusic(
+      `ytm.getArtistAlbums(${artistId})`,
+      () => yt.getArtistAlbums(artistId),
+    );
     return Array.isArray(result) ? result : [];
   });
   return rows.slice(0, limit);
@@ -314,7 +361,10 @@ const getArtistAlbums = async (artistId, limit = 20) => {
 const getPlaylistTracks = (playlistId) =>
   memo(`playlist:${playlistId}`, TTL.charts, async () => {
     const yt = await getYTMusic();
-    const rows = await withRetry(() => yt.getPlaylistVideos(playlistId));
+    const rows = await runYTMusic(
+      `ytm.getPlaylistVideos(${playlistId})`,
+      () => yt.getPlaylistVideos(playlistId),
+    );
     return Array.isArray(rows) ? rows.filter(isLikelySong) : [];
   });
 

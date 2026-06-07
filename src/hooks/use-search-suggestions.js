@@ -32,7 +32,7 @@ export const useSearchSuggestions = (
 
   const { data, isFetching, isLoading } = useQuery({
     queryKey: queryKeys.searchSuggestions(debounced),
-    queryFn: () => getSearchSuggestions(debounced),
+    queryFn: ({ signal }) => getSearchSuggestions(debounced, { signal }),
     enabled: shouldFetch,
     ...cachePolicy.searchSuggestions,
     placeholderData: keepPreviousData,

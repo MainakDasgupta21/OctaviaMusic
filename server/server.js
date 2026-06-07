@@ -12,7 +12,17 @@ const {
   toArtistSummaryDTO,
   toArtistDetailDTO,
 } = require('./lib/mappers');
-const { aggregateTopArtists } = require('./lib/aggregators');
+const {
+  fetchRealChartData,
+  normalizeWindow: normalizeChartWindow,
+  getWindowTtlMs,
+} = require('./lib/charts-service');
+const {
+  fetchExplorePulse,
+  fetchExploreRadio,
+  fetchExploreSimilar,
+  fetchExploreJourney,
+} = require('./lib/explore-service');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -154,7 +164,7 @@ const dedupeById = (rows) => {
 };
 
 const setCacheHeaders = (res, ttlSec = Number(process.env.HOME_CACHE_TTL_SEC) || 300) => {
-  const safeTtl = Math.max(30, Math.min(3600, ttlSec));
+  const safeTtl = Math.max(30, Math.min(86_400, ttlSec));
   // Origin TTL = `safeTtl`. SWR window doubles that so a CDN can serve a
   // slightly stale answer instantly while it revalidates in the background.
   const swr = Math.min(3600, safeTtl * 2);
@@ -167,6 +177,9 @@ const setCacheHeaders = (res, ttlSec = Number(process.env.HOME_CACHE_TTL_SEC) ||
     `public, max-age=${browserMaxAge}, s-maxage=${safeTtl}, stale-while-revalidate=${swr}`,
   );
 };
+
+const chartCacheSeconds = (chartWindow) =>
+  Math.max(30, Math.round(getWindowTtlMs(normalizeChartWindow(chartWindow)) / 1000));
 
 // =============================================================================
 // Search — `type` matches the UI filter chips. The frontend expects a flat
@@ -317,70 +330,53 @@ app.get('/api/artist/:slugOrId', detailLimiter, async (req, res) => {
 });
 
 // =============================================================================
-// Charts — synthesize rank + previous rank so the UI can render the arrows.
+// Charts — real Last.fm ranking + Spotify enrichment.
 // =============================================================================
 app.get('/api/charts', searchLimiter, async (req, res) => {
   const limit = Math.max(1, Math.min(100, Number(req.query.limit) || 50));
-  // region/window are reserved for when the live source supports them; we
-  // accept them today so the query key on the client is stable.
   const region = String(req.query.region || 'global');
-  const chartWindow = String(req.query.window || 'weekly');
-
-  const live = async () => {
-    const rows = await ytm.getChartsLive(limit);
-    const tracks = dedupeById(rows.map((r) => toTrackDTO(r)).filter(Boolean)).slice(0, limit);
-    if (tracks.length === 0) throw new Error('no live charts');
-    return {
-      items: tracks.map((t, i) => ({ ...t, rank: i + 1 })),
-      meta: { source: 'live', region, window: chartWindow, generatedAt: new Date().toISOString() },
-    };
-  };
-
-  const fallback = () => {
-    const items = catalog.getCharts(limit);
-    return {
-      items,
-      meta: { source: 'fallback', region, window: chartWindow, generatedAt: new Date().toISOString() },
-    };
-  };
-  setCacheHeaders(res);
-  res.json(await liveOrFallback(live, fallback, 'charts', { treatEmptyAsFailure: false }));
+  const chartWindow = String(req.query.window || 'this_week');
+  try {
+    const payload = await fetchRealChartData({
+      mode: 'songs',
+      region,
+      window: chartWindow,
+      limit,
+    });
+    setCacheHeaders(res, chartCacheSeconds(chartWindow));
+    res.json(payload);
+  } catch (error) {
+    console.warn('[charts] real data fetch failed:', error?.message || error);
+    res.status(502).json({
+      error: 'Chart data provider unavailable',
+      detail: error?.message || 'Unknown charts error',
+    });
+  }
 });
 
 // =============================================================================
-// Charts — artists. Derived by aggregating the per-track chart by artist (see
-// server/lib/aggregators.js). region/window are accepted for symmetry with
-// /api/charts so the client's query key stays stable across regional toggles
-// once the upstream supports them. We pull a wider 200-track sample upstream
-// to give the aggregator enough signal for a useful Top-50 artist ranking.
+// Charts — artists. Same real-data pipeline as /api/charts.
 // =============================================================================
 app.get('/api/charts/artists', searchLimiter, async (req, res) => {
   const limit = Math.max(1, Math.min(100, Number(req.query.limit) || 50));
   const region = String(req.query.region || 'global');
-  const chartWindow = String(req.query.window || 'weekly');
-
-  const live = async () => {
-    const rows = await ytm.getChartsLive(200);
-    const tracks = dedupeById(rows.map((r) => toTrackDTO(r)).filter(Boolean))
-      .map((t, i) => ({ ...t, rank: i + 1 }));
-    const items = aggregateTopArtists(tracks, { limit });
-    if (items.length === 0) throw new Error('no live artist chart');
-    return {
-      items,
-      meta: { source: 'live', region, window: chartWindow, generatedAt: new Date().toISOString() },
-    };
-  };
-
-  const fallback = () => {
-    const items = aggregateTopArtists(catalog.getCharts(200), { limit });
-    return {
-      items,
-      meta: { source: 'fallback', region, window: chartWindow, generatedAt: new Date().toISOString() },
-    };
-  };
-
-  setCacheHeaders(res);
-  res.json(await liveOrFallback(live, fallback, 'charts:artists', { treatEmptyAsFailure: false }));
+  const chartWindow = String(req.query.window || 'this_week');
+  try {
+    const payload = await fetchRealChartData({
+      mode: 'artists',
+      region,
+      window: chartWindow,
+      limit,
+    });
+    setCacheHeaders(res, chartCacheSeconds(chartWindow));
+    res.json(payload);
+  } catch (error) {
+    console.warn('[charts:artists] real data fetch failed:', error?.message || error);
+    res.status(502).json({
+      error: 'Artist chart data provider unavailable',
+      detail: error?.message || 'Unknown charts error',
+    });
+  }
 });
 
 // =============================================================================
@@ -522,6 +518,87 @@ app.get('/api/genres', searchLimiter, async (_req, res) => {
   const fallback = () => catalog.getGenres();
   setCacheHeaders(res, 60 * 60);
   res.json(await liveOrFallback(live, fallback, 'genres'));
+});
+
+// =============================================================================
+// Explore APIs (additive layer for playful + social discovery)
+// =============================================================================
+app.get('/api/explore/pulse', homeLimiter, async (req, res) => {
+  const region = String(req.query.region || 'global');
+  try {
+    const payload = await fetchExplorePulse({ region });
+    setCacheHeaders(res, 120);
+    res.json(payload);
+  } catch (error) {
+    console.warn('[explore:pulse] failed:', error?.message || error);
+    res.status(502).json({
+      error: 'Explore pulse unavailable',
+      detail: error?.message || 'Unknown pulse error',
+    });
+  }
+});
+
+app.get('/api/explore/radio', searchLimiter, async (req, res) => {
+  const mood = String(req.query.mood || '');
+  const genre = String(req.query.genre || '');
+  const seed = String(req.query.seed || '');
+  const diversity = String(req.query.diversity || 'default').trim().toLowerCase() === 'high'
+    ? 'high'
+    : 'default';
+  const limit = Math.max(6, Math.min(60, Number(req.query.limit) || 24));
+  try {
+    const payload = await fetchExploreRadio({
+      mood,
+      genre,
+      seed,
+      diversity,
+      limit,
+    });
+    setCacheHeaders(res, 90);
+    res.json(payload);
+  } catch (error) {
+    console.warn('[explore:radio] failed:', error?.message || error);
+    res.status(502).json({
+      error: 'Explore radio unavailable',
+      detail: error?.message || 'Unknown radio error',
+    });
+  }
+});
+
+app.get('/api/explore/similar', searchLimiter, async (req, res) => {
+  const trackId = String(req.query.trackId || '').trim();
+  const limit = Math.max(4, Math.min(30, Number(req.query.limit) || 12));
+  if (!trackId) {
+    return res.status(400).json({ error: 'trackId is required' });
+  }
+  try {
+    const payload = await fetchExploreSimilar({ trackId, limit });
+    setCacheHeaders(res, 300);
+    res.json(payload);
+  } catch (error) {
+    console.warn('[explore:similar] failed:', error?.message || error);
+    res.status(502).json({
+      error: 'Explore similar unavailable',
+      detail: error?.message || 'Unknown similar error',
+    });
+  }
+});
+
+app.get('/api/explore/journeys/:id', homeLimiter, async (req, res) => {
+  const journeyId = String(req.params.id || '').trim();
+  const region = String(req.query.region || 'global');
+  if (!journeyId) return res.status(400).json({ error: 'journey id is required' });
+  try {
+    const payload = await fetchExploreJourney({ journeyId, region });
+    setCacheHeaders(res, 180);
+    res.json(payload);
+  } catch (error) {
+    console.warn('[explore:journey] failed:', error?.message || error);
+    res.status(502).json({
+      error: 'Explore journey unavailable',
+      detail: error?.message || 'Unknown journey error',
+    });
+  }
 });
 
 // =============================================================================

@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, X } from 'lucide-react';
-import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import {
+  MAX_DURATION,
+  MAX_YEAR,
+  MIN_DURATION,
+  MIN_YEAR,
   addExclude,
   clearFilter,
   removeExclude,
@@ -16,11 +19,17 @@ import { cn } from '@/lib/utils';
 // Each editor is a tiny self-contained popover body. They share a single
 // styling toolkit (input class, button classes, FieldLabel) so the editor
 // surface feels visually consistent regardless of dimension.
+//
+// Range constants intentionally come from `search-filter-state` so the URL
+// parser and the editor inputs always agree about which values are
+// representable. Diverging here used to silently clip values and erase user
+// input at boundaries.
+//
+// Year and Duration intentionally do NOT use a slider: a 4px hairline track
+// inside a popover is too fragile to grab on touch, and the underlying value
+// space is small enough (a handful of decades, a handful of minutes) that
+// presets + a numeric input are both faster and more reliable.
 // =============================================================================
-
-const NOW = new Date().getFullYear();
-const MIN_YEAR = 1950;
-const MAX_DURATION = 600;
 
 export const baseInputClass = cn(
   'w-full h-9 rounded-sharp bg-transparent border border-white/[0.10] px-3 text-[13px]',
@@ -48,9 +57,13 @@ const FieldLabel = ({ children }) => (
 // Shell every editor renders inside. Title + optional hint + Done/Cancel
 // row at the bottom, which gives the user a consistent way to close the
 // popover whether the dimension submits inline or commits-on-blur.
-export const EditorShell = ({ title, hint, children, footer }) => (
-  <div className="w-[300px]">
-    <div className="px-3.5 py-2.5 border-b border-white/[0.04] bg-white/[0.015]">
+//
+// `embedded` lets the editor inherit its container's width — used when the
+// shell is rendered inside the Add-filter palette so we don't stack two
+// fixed-width surfaces and create a visual seam.
+export const EditorShell = ({ title, hint, children, footer, embedded = false }) => (
+  <div className={cn(embedded ? 'w-full' : 'w-[300px]')}>
+    <div className="px-4 pt-3 pb-2.5 border-b border-white/[0.04]">
       <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-3">
         {title}
       </p>
@@ -60,9 +73,9 @@ export const EditorShell = ({ title, hint, children, footer }) => (
         </p>
       ) : null}
     </div>
-    <div className="p-3.5">{children}</div>
+    <div className="p-4">{children}</div>
     {footer ? (
-      <div className="px-3.5 pb-3.5 -mt-1 flex items-center justify-end gap-2">
+      <div className="px-4 pb-4 -mt-1 flex items-center justify-end gap-2">
         {footer}
       </div>
     ) : null}
@@ -80,10 +93,10 @@ const SORT_OPTIONS = [
   { id: 'shortest', label: 'Shortest', hint: 'Quick listens' },
 ];
 
-export const SortEditor = ({ filters, onChange, onClose }) => {
+export const SortEditor = ({ filters, onChange, onClose, embedded }) => {
   const current = filters?.sort || 'relevance';
   return (
-    <EditorShell title="Sort results">
+    <EditorShell title="Sort results" embedded={embedded}>
       <div className="space-y-1">
         {SORT_OPTIONS.map((opt) => {
           const active = current === opt.id;
@@ -126,38 +139,168 @@ export const SortEditor = ({ filters, onChange, onClose }) => {
 
 // =============================================================================
 // Year range
+//
+// Two layered controls so users can land a value the way they prefer:
+//   1. Two numeric inputs ("From" / "To") for precise typing.
+//   2. Decade chips (60s, 70s, …) for one-click presets.
+//
+// Both write back through the same `onChange` so the editor never gets out
+// of sync with the chip rail or URL.
 // =============================================================================
 
-export const YearEditor = ({ filters, onChange }) => {
-  const from = Number.isFinite(filters?.yearFrom) ? filters.yearFrom : MIN_YEAR;
-  const to = Number.isFinite(filters?.yearTo) ? filters.yearTo : NOW;
-  const fromClamped = Math.max(MIN_YEAR, Math.min(NOW, from));
-  const toClamped = Math.max(MIN_YEAR, Math.min(NOW, to));
+const clampYearValue = (n) =>
+  Math.max(MIN_YEAR, Math.min(MAX_YEAR, Math.round(Number(n) || 0)));
 
-  const handle = (range) => {
-    if (!Array.isArray(range) || range.length !== 2) return;
-    const [a, b] = range;
-    onChange({
-      ...filters,
-      yearFrom: a > MIN_YEAR ? a : null,
-      yearTo: b < NOW ? b : null,
-    });
+const decadeStart = (year) => Math.floor(year / 10) * 10;
+
+const buildDecadePresets = () => {
+  const presets = [];
+  // Walk from the 1960s up to whatever decade we're currently in. Music
+  // search has effectively zero demand for pre-1960 decade buckets, but the
+  // numeric From/To inputs still accept anything down to MIN_YEAR for users
+  // who care about earlier eras.
+  const startDecade = 1960;
+  const endDecade = decadeStart(MAX_YEAR);
+  for (let d = startDecade; d <= endDecade; d += 10) {
+    const label = `${String(d).slice(2)}s`;
+    const from = d;
+    const to = Math.min(d + 9, MAX_YEAR);
+    presets.push({ label, from, to });
+  }
+  return presets;
+};
+
+const DECADE_PRESETS = buildDecadePresets();
+
+const presetChipClass = (active) =>
+  cn(
+    'rounded-sharp px-2.5 py-1 text-[11px] font-mono uppercase tracking-[0.14em] focus-ring transition-colors',
+    active
+      ? 'bg-track/15 text-accent border border-track/40'
+      : 'border border-white/[0.10] text-ink-3 hover:text-ink hover:border-white/25 hover:bg-white/[0.04]',
+  );
+
+export const YearEditor = ({ filters, onChange, embedded }) => {
+  const yearFrom = Number.isFinite(filters?.yearFrom) ? filters.yearFrom : null;
+  const yearTo = Number.isFinite(filters?.yearTo) ? filters.yearTo : null;
+
+  // Local input state lets the user type a multi-digit year without us
+  // committing partial values like 20 or 201 mid-keystroke.
+  const [fromInput, setFromInput] = useState(yearFrom != null ? String(yearFrom) : '');
+  const [toInput, setToInput] = useState(yearTo != null ? String(yearTo) : '');
+  useEffect(() => {
+    setFromInput(yearFrom != null ? String(yearFrom) : '');
+  }, [yearFrom]);
+  useEffect(() => {
+    setToInput(yearTo != null ? String(yearTo) : '');
+  }, [yearTo]);
+
+  const commit = (next) => {
+    onChange({ ...filters, ...next });
   };
 
+  const commitInput = (which, raw, fallback) => {
+    const trimmed = String(raw).trim();
+    if (!trimmed) {
+      commit({ [which]: null });
+      return;
+    }
+    const num = Math.round(Number(trimmed));
+    if (!Number.isFinite(num)) {
+      // Restore the on-screen text to whatever's currently in state.
+      fallback();
+      return;
+    }
+    const clamped = clampYearValue(num);
+    commit({ [which]: clamped });
+  };
+
+  const presetActive = (preset) =>
+    yearFrom === preset.from && yearTo === preset.to;
+  const noBoundsActive = yearFrom == null && yearTo == null;
+
   return (
-    <EditorShell title="Release year" hint={`${fromClamped} – ${toClamped}`}>
-      <Slider
-        min={MIN_YEAR}
-        max={NOW}
-        step={1}
-        value={[fromClamped, toClamped]}
-        onValueChange={handle}
-        aria-label="Release year range"
-        className="[&_[role=slider]]:bg-track"
-      />
-      <div className="mt-3 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.16em] text-ink-4">
-        <span>{MIN_YEAR}</span>
-        <span>{NOW}</span>
+    <EditorShell title="Release year" embedded={embedded}>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <FieldLabel>From</FieldLabel>
+          <input
+            type="number"
+            inputMode="numeric"
+            value={fromInput}
+            min={MIN_YEAR}
+            max={MAX_YEAR}
+            onChange={(e) => setFromInput(e.target.value)}
+            onBlur={() =>
+              commitInput('yearFrom', fromInput, () =>
+                setFromInput(yearFrom != null ? String(yearFrom) : ''),
+              )
+            }
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commitInput('yearFrom', fromInput, () =>
+                  setFromInput(yearFrom != null ? String(yearFrom) : ''),
+                );
+              }
+            }}
+            placeholder={String(MIN_YEAR)}
+            aria-label="From year"
+            className={cn(baseInputClass, 'mt-1.5')}
+          />
+        </div>
+        <div>
+          <FieldLabel>To</FieldLabel>
+          <input
+            type="number"
+            inputMode="numeric"
+            value={toInput}
+            min={MIN_YEAR}
+            max={MAX_YEAR}
+            onChange={(e) => setToInput(e.target.value)}
+            onBlur={() =>
+              commitInput('yearTo', toInput, () =>
+                setToInput(yearTo != null ? String(yearTo) : ''),
+              )
+            }
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commitInput('yearTo', toInput, () =>
+                  setToInput(yearTo != null ? String(yearTo) : ''),
+                );
+              }
+            }}
+            placeholder={String(MAX_YEAR)}
+            aria-label="To year"
+            className={cn(baseInputClass, 'mt-1.5')}
+          />
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <FieldLabel>Quick pick</FieldLabel>
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          {DECADE_PRESETS.map((p) => (
+            <button
+              key={p.label}
+              type="button"
+              onClick={() => commit({ yearFrom: p.from, yearTo: p.to })}
+              aria-pressed={presetActive(p)}
+              className={presetChipClass(presetActive(p))}
+            >
+              {p.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => commit({ yearFrom: null, yearTo: null })}
+            aria-pressed={noBoundsActive}
+            className={presetChipClass(noBoundsActive)}
+          >
+            Any
+          </button>
+        </div>
       </div>
     </EditorShell>
   );
@@ -177,38 +320,106 @@ const formatDuration = (seconds) => {
   return `${seconds}s`;
 };
 
-export const DurationEditor = ({ filters, onChange }) => {
-  const cap = Number.isFinite(filters?.durationMax)
-    ? filters.durationMax
-    : MAX_DURATION;
-  const clamped = Math.max(30, Math.min(MAX_DURATION, cap));
+// Editor stores duration in seconds (matches state) but the user interacts
+// in whole minutes — easier to reason about and matches typical music UX.
+const secondsToMinutesString = (seconds) =>
+  Number.isFinite(seconds) && seconds > 0
+    ? String(Math.max(1, Math.round(seconds / 60)))
+    : '';
 
-  const handle = (range) => {
-    if (!Array.isArray(range) || range.length === 0) return;
-    const v = range[range.length - 1];
-    onChange({
-      ...filters,
-      durationMax: v < MAX_DURATION ? v : null,
-    });
+const DURATION_PRESETS = [
+  { label: '1m', value: 60 },
+  { label: '3m', value: 180 },
+  { label: '5m', value: 300 },
+  { label: '10m', value: 600 },
+  { label: '20m', value: 1200 },
+];
+
+const clampDurationValue = (n) =>
+  Math.max(MIN_DURATION, Math.min(MAX_DURATION, Math.round(Number(n) || 0)));
+
+export const DurationEditor = ({ filters, onChange, embedded }) => {
+  const cap = Number.isFinite(filters?.durationMax) ? filters.durationMax : null;
+
+  const [minutesInput, setMinutesInput] = useState(secondsToMinutesString(cap));
+  useEffect(() => {
+    setMinutesInput(secondsToMinutesString(cap));
+  }, [cap]);
+
+  const commit = (next) => {
+    onChange({ ...filters, ...next });
   };
 
+  const commitMinutes = (raw) => {
+    const trimmed = String(raw).trim();
+    if (!trimmed) {
+      commit({ durationMax: null });
+      return;
+    }
+    const minutes = Math.round(Number(trimmed));
+    if (!Number.isFinite(minutes) || minutes <= 0) {
+      setMinutesInput(secondsToMinutesString(cap));
+      return;
+    }
+    const seconds = clampDurationValue(minutes * 60);
+    // Match the Year editor's contract: snapping all the way to the editor
+    // ceiling means "no cap". Anywhere below that ceiling is a real cap.
+    commit({ durationMax: seconds < MAX_DURATION ? seconds : null });
+  };
+
+  const presetActive = (preset) => cap === preset.value;
+  const anyActive = cap == null;
+
   return (
-    <EditorShell
-      title="Max duration"
-      hint={cap >= MAX_DURATION ? 'Any length' : `≤ ${formatDuration(clamped)}`}
-    >
-      <Slider
-        min={30}
-        max={MAX_DURATION}
-        step={30}
-        value={[clamped]}
-        onValueChange={handle}
-        aria-label="Max song duration"
-        className="[&_[role=slider]]:bg-track"
-      />
-      <div className="mt-3 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.16em] text-ink-4">
-        <span>0:30</span>
-        <span>10:00</span>
+    <EditorShell title="Max duration" embedded={embedded}>
+      <FieldLabel>Up to</FieldLabel>
+      <div className="mt-1.5 flex items-center gap-2">
+        <input
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={Math.round(MAX_DURATION / 60)}
+          value={minutesInput}
+          onChange={(e) => setMinutesInput(e.target.value)}
+          onBlur={() => commitMinutes(minutesInput)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              commitMinutes(minutesInput);
+            }
+          }}
+          placeholder={String(Math.round(MAX_DURATION / 60))}
+          aria-label="Max minutes"
+          className={cn(baseInputClass, 'flex-1')}
+        />
+        <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-3 shrink-0">
+          minutes
+        </span>
+      </div>
+
+      <div className="mt-4">
+        <FieldLabel>Quick pick</FieldLabel>
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          {DURATION_PRESETS.map((p) => (
+            <button
+              key={p.label}
+              type="button"
+              onClick={() => commit({ durationMax: p.value })}
+              aria-pressed={presetActive(p)}
+              className={presetChipClass(presetActive(p))}
+            >
+              {p.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => commit({ durationMax: null })}
+            aria-pressed={anyActive}
+            className={presetChipClass(anyActive)}
+          >
+            Any
+          </button>
+        </div>
       </div>
     </EditorShell>
   );
@@ -218,7 +429,7 @@ export const DurationEditor = ({ filters, onChange }) => {
 // Artist / Album text editors
 // =============================================================================
 
-const TextScopeEditor = ({ filters, onChange, onClose, dimension, title, hint, placeholder }) => {
+const TextScopeEditor = ({ filters, onChange, onClose, dimension, title, hint, placeholder, embedded }) => {
   const initial = filters?.[dimension] || '';
   const [value, setValue] = useState(initial);
   const ref = useRef(null);
@@ -227,7 +438,11 @@ const TextScopeEditor = ({ filters, onChange, onClose, dimension, title, hint, p
     ref.current?.select();
   }, []);
   const trimmed = value.trim();
+  // Enter and the submit button must follow the same disabled-when-empty
+  // contract — otherwise pressing Enter on a blank input silently wipes an
+  // existing artist/album filter.
   const commit = () => {
+    if (!trimmed) return;
     onChange(setFilter(filters, dimension, trimmed));
     onClose?.();
   };
@@ -239,6 +454,7 @@ const TextScopeEditor = ({ filters, onChange, onClose, dimension, title, hint, p
     <EditorShell
       title={title}
       hint={hint}
+      embedded={embedded}
       footer={
         <>
           {initial ? (
@@ -307,10 +523,10 @@ const MOOD_LABELS = {
   instrumental: 'Instrumental',
 };
 
-export const MoodEditor = ({ filters, onChange }) => {
+export const MoodEditor = ({ filters, onChange, embedded }) => {
   const current = useMemo(() => new Set(filters?.mood || []), [filters?.mood]);
   return (
-    <EditorShell title="Mood / Version" hint="Pick one or more variants">
+    <EditorShell title="Mood / Version" hint="Pick one or more variants" embedded={embedded}>
       <div className="grid grid-cols-2 gap-1.5">
         {Array.from(VALID_MOODS).map((tag) => {
           const active = current.has(tag);
@@ -340,8 +556,8 @@ export const MoodEditor = ({ filters, onChange }) => {
 // Clean only (boolean)
 // =============================================================================
 
-export const CleanEditor = ({ filters, onChange }) => (
-  <EditorShell title="Explicit content" hint="Hide explicit results">
+export const CleanEditor = ({ filters, onChange, embedded }) => (
+  <EditorShell title="Explicit content" hint="Hide explicit results" embedded={embedded}>
     <div className="flex items-center justify-between gap-3">
       <div>
         <p className="text-[13px] text-ink">Clean only</p>
@@ -362,7 +578,7 @@ export const CleanEditor = ({ filters, onChange }) => (
 // Exclude (multi-token)
 // =============================================================================
 
-export const ExcludeEditor = ({ filters, onChange }) => {
+export const ExcludeEditor = ({ filters, onChange, embedded }) => {
   const [value, setValue] = useState('');
   const ref = useRef(null);
   useEffect(() => {
@@ -380,6 +596,7 @@ export const ExcludeEditor = ({ filters, onChange }) => {
     <EditorShell
       title="Exclude words"
       hint="Filter results that mention these"
+      embedded={embedded}
     >
       <FieldLabel>Add a word</FieldLabel>
       <div className="mt-1.5 flex items-center gap-1.5">

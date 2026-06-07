@@ -4,29 +4,29 @@ import { Play, Shuffle, Sparkles } from 'lucide-react';
 import Button from '@/components/ui-v2/Button';
 import Skeleton from '@/components/ui-v2/Skeleton';
 import { shuffleArray } from '@/lib/shuffle';
+import { pickRandomItem } from '@/lib/surprise-random';
 import { fadeUp, staggerChildren } from '@/design/motion';
+import { EXPLORE_MOODS } from '@/lib/explore-recommendations';
 import { cn } from '@/lib/utils';
 
-// Editorial mood pills shown directly on Home. The actual radio playback
-// happens on /explore — these pills are deep links into the existing
-// `?mood=…` flow (ExplorePage auto-plays on that param), so we don't have
-// to duplicate the keyword-matching logic.
-const HOME_MOODS = [
-  { id: 'focus', label: 'Focus', gradient: 'from-cyan-500/55 to-sky-700/65' },
-  { id: 'morning', label: 'Morning', gradient: 'from-amber-400/65 to-orange-600/65' },
-  { id: 'workout', label: 'Workout', gradient: 'from-rose-500/65 to-red-600/65' },
-  { id: 'lounge', label: 'Lounge', gradient: 'from-violet-500/60 to-fuchsia-700/60' },
-  { id: 'evening', label: 'Evening', gradient: 'from-indigo-500/55 to-purple-700/60' },
-  { id: 'cafe', label: 'Cafe', gradient: 'from-emerald-500/55 to-teal-700/60' },
-];
+const HOME_MOODS = EXPLORE_MOODS.map((mood) => ({
+  id: mood.id,
+  label: mood.chipLabel || mood.label,
+  gradient: mood.chipGradient,
+}));
 
 const DiscoverRibbon = ({
   trending = [],
   onPlayTrack,
   onPlayTracks,
+  onSurprise,
+  surpriseLoading = false,
   isLoading = false,
 }) => {
   const hasTrending = Array.isArray(trending) && trending.length > 0;
+  const canSurprise =
+    typeof onSurprise === 'function'
+    || (hasTrending && typeof onPlayTrack === 'function');
 
   const playDiscoverMix = () => {
     if (!hasTrending || typeof onPlayTracks !== 'function') return;
@@ -35,8 +35,12 @@ const DiscoverRibbon = ({
   };
 
   const surpriseMe = () => {
+    if (typeof onSurprise === 'function') {
+      onSurprise();
+      return;
+    }
     if (!hasTrending || typeof onPlayTrack !== 'function') return;
-    const pick = trending[Math.floor(Math.random() * trending.length)];
+    const pick = pickRandomItem(trending);
     if (pick) onPlayTrack(pick);
   };
 
@@ -88,7 +92,8 @@ const DiscoverRibbon = ({
                 variant="glass"
                 size="lg"
                 onClick={surpriseMe}
-                disabled={!hasTrending}
+                loading={surpriseLoading}
+                disabled={!canSurprise}
                 leftIcon={<Play className="w-4 h-4 fill-current" />}
               >
                 Surprise me

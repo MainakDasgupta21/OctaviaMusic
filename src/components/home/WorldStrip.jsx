@@ -79,7 +79,7 @@ const WorldStrip = ({ onPlayTracks }) => {
     try {
       const data = await queryClient.fetchQuery({
         queryKey: queryKeys.search(scene.query, 'song', 12),
-        queryFn: () => searchMusic(scene.query, 'song', { limit: 12 }),
+        queryFn: ({ signal }) => searchMusic(scene.query, 'song', { limit: 12, signal }),
         ...cachePolicy.search,
       });
       const tracks = extractTracks(data);

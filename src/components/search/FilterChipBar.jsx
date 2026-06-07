@@ -1,4 +1,10 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Album,
@@ -6,6 +12,8 @@ import {
   Ban,
   CalendarRange,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Disc,
   ListMusic,
@@ -42,8 +50,8 @@ import { cn } from '@/lib/utils';
 // Type tabs live on their own row above the chips because Type is structurally
 // different (it scopes the *result kind*, not a property of a result). Every
 // other dimension is rendered as a clickable chip when set; clicking it opens
-// its editor popover. A trailing `+ Add filter` button opens a menu of
-// dimensions; selecting one immediately opens that dimension's editor.
+// its editor popover. A trailing `+ Add filter` button opens a simple
+// dimension picker; selecting one opens that dimension's editor in-place.
 //
 // The whole component reads from a single structured `filters` object and
 // writes back through `onFiltersChange(next)` — no operator-string surgery
@@ -188,126 +196,283 @@ const FilterChip = ({ dimension, filters, onFiltersChange }) => {
 };
 
 // =============================================================================
-// + Add filter — single button. Picker is in-popover; selecting a dimension
-// immediately swaps the popover content to that dimension's editor (no
-// double-clicking required). On close, we reset for next time.
+// Add-filter menu — a quiet, premium dropdown:
+//   - active === null  -> flat list of every filter dimension
+//   - active === <id>  -> that dimension's editor, behind a contextual Back row
+//
+// No header band, no search field, no group headings, no icon tiles — just a
+// clean menu of rows (icon tile + label + value subtitle + chevron). Each row
+// drills into its editor; the editor owns its own title so headers never
+// stack.
 // =============================================================================
+
+const MENU_WIDTH = 'w-[280px]';
+
+const AddFilterPalette = ({
+  filters,
+  onFiltersChange,
+  onRequestClose,
+  active,
+  setActive,
+}) => {
+  const listRef = useRef(null);
+
+  // Flat list of focusable rows in DOM order — feeds the arrow-key walker.
+  const collectFocusables = useCallback(() => {
+    const root = listRef.current;
+    if (!root) return [];
+    return Array.from(
+      root.querySelectorAll('button[data-menu-item]:not([disabled])'),
+    );
+  }, []);
+
+  // When the menu (re)appears, land focus on the first row so keyboard users
+  // can arrow straight down — and so returning from an editor doesn't drop
+  // focus to the page body.
+  useEffect(() => {
+    if (active) return;
+    const first = listRef.current?.querySelector('button[data-menu-item]');
+    first?.focus();
+  }, [active]);
+
+  const handleMenuKeyDown = useCallback(
+    (e) => {
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      const focusables = collectFocusables();
+      if (!focusables.length) return;
+      e.preventDefault();
+      const idx = focusables.indexOf(document.activeElement);
+      const dir = e.key === 'ArrowDown' ? 1 : -1;
+      const start = idx === -1 ? (dir === 1 ? -1 : 0) : idx;
+      const next = (start + dir + focusables.length) % focusables.length;
+      focusables[next]?.focus();
+    },
+    [collectFocusables],
+  );
+
+  // ===========================================================================
+  // Editor view — contextual Back row showing the active dimension, then the
+  // editor body. The Back row mirrors the menu rows' icon-tile rhythm so the
+  // drill-in feels like the same surface, not a separate panel.
+  // ===========================================================================
+  if (active) {
+    const ActiveDim = DIMENSION_BY_ID[active];
+    const ActiveEditor = ActiveDim?.Editor;
+    if (!ActiveEditor) return null;
+    const ActiveIcon = ActiveDim.icon;
+    return (
+      <div className={MENU_WIDTH}>
+        <button
+          type="button"
+          onClick={() => setActive(null)}
+          className={cn(
+            'group flex w-full items-center gap-3 pl-3 pr-3 py-2.5 text-left',
+            'border-b border-white/[0.06]',
+            // Same hover wash + transition profile as menu rows.
+            'hover:bg-white/[0.035]',
+            'focus-ring transition-colors duration-200 ease-out',
+          )}
+          aria-label="Back to filter picker"
+        >
+          <ChevronLeft className="w-3.5 h-3.5 shrink-0 text-ink-3 group-hover:text-ink-2 transition-colors" />
+          <span className="font-mono text-[10px] uppercase tracking-[0.20em] text-ink-3 group-hover:text-ink-2 transition-colors">
+            Back
+          </span>
+          <span className="flex-1" />
+          {ActiveIcon ? (
+            <span
+              aria-hidden="true"
+              className={cn(
+                'inline-flex items-center justify-center w-6 h-6 rounded-sharp shrink-0',
+                'text-accent border border-track/35',
+                'bg-gradient-to-b from-track/[0.22] to-track/[0.06]',
+                'shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]',
+              )}
+            >
+              <ActiveIcon className="w-3 h-3" aria-hidden="true" />
+            </span>
+          ) : null}
+          <span className="font-editorial italic text-[12.5px] text-accent/85">
+            {ActiveDim.label}
+          </span>
+        </button>
+        <ActiveEditor
+          filters={filters}
+          onChange={onFiltersChange}
+          onClose={onRequestClose}
+          embedded
+        />
+      </div>
+    );
+  }
+
+  // ===========================================================================
+  // Menu view — flat list of dimensions, each row a small "card" with an
+  // icon tile, the dimension label, and (when set) an italic value subtitle.
+  // Rows where the filter is currently set carry an accent left-rule, a
+  // gentle gradient wash, and a tinted icon tile so users can scan the
+  // active dimensions at a glance. Hover/focus apply the same low-key wash
+  // — never a saturated bg — so the menu stays calm even with motion off.
+  // ===========================================================================
+  return (
+    <div
+      ref={listRef}
+      role="menu"
+      aria-label="Add a filter"
+      onKeyDown={handleMenuKeyDown}
+      className={cn(
+        MENU_WIDTH,
+        'py-1.5 max-h-[min(440px,var(--radix-popover-content-available-height,80vh))] overflow-y-auto',
+      )}
+    >
+      {DIMENSIONS.map((d) => {
+        const Icon = d.icon;
+        const isSet = filterIsSet(filters, d.id);
+        const value = isSet ? formatFilterValue(filters, d.id) : '';
+        return (
+          <button
+            key={d.id}
+            type="button"
+            role="menuitem"
+            data-menu-item
+            onClick={() => setActive(d.id)}
+            aria-label={value ? `${d.label}, ${value}` : d.label}
+            className={cn(
+              'group relative flex w-full items-center gap-3 pl-3.5 pr-3 py-2.5',
+              'text-left transition-[background-color,color] duration-200 ease-out',
+              'focus-ring',
+              isSet
+                ? 'bg-gradient-to-r from-track/[0.05] via-transparent to-transparent hover:from-track/[0.08]'
+                : 'hover:bg-white/[0.035]',
+            )}
+          >
+            {isSet ? (
+              <span
+                aria-hidden="true"
+                className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-[2px] rounded-full bg-track"
+              />
+            ) : null}
+            <span
+              className={cn(
+                'inline-flex items-center justify-center w-8 h-8 rounded-sharp shrink-0',
+                'transition-[background-color,border-color,color,box-shadow] duration-200 ease-out',
+                isSet
+                  ? cn(
+                      'text-accent border border-track/35',
+                      'bg-gradient-to-b from-track/[0.22] to-track/[0.06]',
+                      'shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]',
+                    )
+                  : cn(
+                      'text-ink-3 border border-white/[0.07]',
+                      'bg-gradient-to-b from-white/[0.04] to-white/[0.01]',
+                      'group-hover:text-ink-2 group-hover:border-white/[0.12]',
+                      'group-hover:from-white/[0.06] group-hover:to-white/[0.02]',
+                    ),
+              )}
+            >
+              <Icon className="w-3.5 h-3.5" aria-hidden="true" />
+            </span>
+            <span className="flex-1 min-w-0">
+              <span
+                className={cn(
+                  'block text-[13px] leading-tight truncate transition-colors duration-200',
+                  isSet
+                    ? 'text-ink font-medium tracking-[-0.005em]'
+                    : 'text-ink-2 group-hover:text-ink',
+                )}
+              >
+                {d.label}
+              </span>
+              {value ? (
+                <span className="block mt-0.5 font-editorial italic text-[11.5px] text-accent/75 truncate">
+                  {value}
+                </span>
+              ) : null}
+            </span>
+            <ChevronRight
+              className={cn(
+                'w-3.5 h-3.5 shrink-0',
+                'text-ink-4/30 -translate-x-0.5 transition-[color,transform] duration-200 ease-out',
+                'group-hover:text-ink-3 group-hover:translate-x-0',
+                'group-focus-visible:text-ink-3 group-focus-visible:translate-x-0',
+              )}
+              aria-hidden="true"
+            />
+          </button>
+        );
+      })}
+    </div>
+  );
+};
 
 const AddFilterButton = ({ filters, onFiltersChange }) => {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(null);
+  const wasOpenRef = useRef(false);
 
-  const reset = useCallback(() => setActive(null), []);
-
-  // Dimensions that ARE NOT already set float to the top of the picker so
-  // the user adds new things first; already-set ones drop to a secondary
-  // group ("Edit existing") so clicking them re-opens the editor.
-  const { unsetDims, setDims } = useMemo(() => {
-    const unset = [];
-    const setList = [];
-    for (const d of DIMENSIONS) {
-      if (filterIsSet(filters, d.id)) setList.push(d);
-      else unset.push(d);
+  // Normalize all close paths (outside click, Esc, editor-driven close) so the
+  // next open always starts back on the menu view rather than a stale editor.
+  useEffect(() => {
+    if (wasOpenRef.current && !open) {
+      setActive(null);
     }
-    return { unsetDims: unset, setDims: setList };
-  }, [filters]);
+    wasOpenRef.current = open;
+  }, [open]);
 
-  const ActiveEditor = active ? DIMENSION_BY_ID[active]?.Editor : null;
+  const handleClose = useCallback(() => {
+    setOpen(false);
+  }, []);
 
   return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (!next) reset();
-      }}
-    >
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           type="button"
           aria-label="Add filter"
           className={cn(
-            'group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-sharp font-mono text-[10.5px] uppercase tracking-[0.16em]',
-            'border border-dashed border-white/[0.18] text-ink-3',
-            'hover:text-accent hover:border-accent/40 hover:bg-accent/[0.06]',
-            'focus-ring whitespace-nowrap transition-colors',
+            'group inline-flex items-center gap-1.5 px-3 py-[5px] rounded-sharp',
+            'font-mono text-[10.5px] uppercase tracking-[0.18em]',
+            // Solid hairline + a barely-there top→bottom gradient and inset
+            // highlight reads more "designed object" than the older dashed
+            // outline, while staying just as quiet at rest.
+            'text-ink-3 border border-white/[0.10]',
+            'bg-gradient-to-b from-white/[0.04] to-white/[0.01]',
+            'shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]',
+            'hover:text-accent hover:border-accent/40',
+            'hover:from-accent/[0.07] hover:to-accent/[0.02]',
+            'focus-ring whitespace-nowrap transition-[color,border-color,background-color] duration-200 ease-out',
+            // Open-state mirrors hover so the trigger reads as paired with
+            // its popover (calmly, no extra glow).
+            'data-[state=open]:text-accent data-[state=open]:border-accent/40',
+            'data-[state=open]:from-accent/[0.07] data-[state=open]:to-accent/[0.02]',
           )}
         >
-          <Plus className="w-3 h-3" />
+          <Plus className="w-3 h-3 transition-transform duration-300 ease-out group-hover:rotate-90 group-data-[state=open]:rotate-45" />
           Add filter
         </button>
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        sideOffset={8}
-        className="p-0 rounded-sharp border border-white/[0.10] bg-surface-3/95 backdrop-blur-2xl shadow-elev-5"
-      >
-        {ActiveEditor ? (
-          <ActiveEditor
-            filters={filters}
-            onChange={(next) => {
-              onFiltersChange(next);
-            }}
-            onClose={() => setOpen(false)}
-          />
-        ) : (
-          <div className="w-[300px]">
-            <div className="px-3.5 py-2.5 border-b border-white/[0.08]">
-              <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-3">
-                Add a filter
-              </p>
-              <p className="font-editorial italic text-[11.5px] text-ink-4 mt-0.5">
-                Pick the dimension you want to refine
-              </p>
-            </div>
-            <div className="p-1.5 max-h-[360px] overflow-y-auto">
-              {unsetDims.map((d) => {
-                const Icon = d.icon;
-                return (
-                  <button
-                    key={d.id}
-                    type="button"
-                    onClick={() => setActive(d.id)}
-                    className="w-full flex items-center gap-3 px-2.5 py-2 rounded-sharp text-left hover:bg-white/[0.05] focus-ring"
-                  >
-                    <span className="w-7 h-7 rounded-sharp border border-white/[0.10] bg-white/[0.02] flex items-center justify-center text-ink-2">
-                      <Icon className="w-3.5 h-3.5" />
-                    </span>
-                    <p className="text-[13px] text-ink leading-tight">{d.label}</p>
-                  </button>
-                );
-              })}
-              {setDims.length > 0 ? (
-                <div className="mt-2 pt-2 border-t border-white/[0.06]">
-                  <p className="px-2.5 pt-1 pb-1 font-mono text-[10px] uppercase tracking-[0.16em] text-ink-4">
-                    Already active
-                  </p>
-                  {setDims.map((d) => {
-                    const Icon = d.icon;
-                    return (
-                      <button
-                        key={d.id}
-                        type="button"
-                        onClick={() => setActive(d.id)}
-                        className="w-full flex items-center gap-3 px-2.5 py-2 rounded-sharp text-left hover:bg-white/[0.05] focus-ring"
-                      >
-                        <span className="w-7 h-7 rounded-sharp border border-track/30 bg-track/[0.08] flex items-center justify-center text-accent">
-                          <Icon className="w-3.5 h-3.5" />
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[13px] text-ink leading-tight">{d.label}</p>
-                          <p className="font-editorial italic text-[11.5px] text-ink-4 truncate mt-0.5">
-                            {formatFilterValue(filters, d.id)}
-                          </p>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : null}
-            </div>
-          </div>
+        sideOffset={10}
+        collisionPadding={16}
+        className={cn(
+          'p-0 rounded-sharp overflow-hidden',
+          'border border-white/[0.10] bg-surface-3/95 backdrop-blur-2xl',
+          // Layered shadow: a long soft drop, a tight close-shadow for
+          // crispness, an inner top highlight (1px white) for a glassy
+          // edge, and a subtle outer ring so the panel reads as a floating
+          // object on any background — without any extra animation noise.
+          'shadow-[0_24px_60px_-22px_rgba(0,0,0,0.7),0_4px_12px_-4px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.05)]',
+          'ring-1 ring-black/30',
         )}
+      >
+        <AddFilterPalette
+          filters={filters}
+          onFiltersChange={onFiltersChange}
+          onRequestClose={handleClose}
+          active={active}
+          setActive={setActive}
+        />
       </PopoverContent>
     </Popover>
   );

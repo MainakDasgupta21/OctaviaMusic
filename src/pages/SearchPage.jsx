@@ -135,7 +135,8 @@ const SearchPage = () => {
   const { masthead } = useEditorialMeta();
   const { onAlbum: prefetchAlbumRoute, onArtist: prefetchArtistRoute } = useHoverPrefetch();
   const { historyArtistCounts, recentSearchTerms } = usePersonalizationSignals();
-  const { terms: trendingTerms } = useTrendingSearches();
+  const showTrendingWhenIdle = !userText.trim() && !hasAnyFilter(filters);
+  const { terms: trendingTerms } = useTrendingSearches({ enabled: showTrendingWhenIdle });
 
   // The synthetic operator string the existing parseQuery() ranker pipeline
   // expects. Built from userText + structured filters — internal only.
@@ -233,8 +234,8 @@ const SearchPage = () => {
     refetch,
   } = useQuery({
     queryKey: queryKeys.search(serverQuery, serverType || 'all', SEARCH_LIMIT),
-    queryFn: () =>
-      searchMusic(serverQuery, serverType || 'all', { limit: SEARCH_LIMIT }),
+    queryFn: ({ signal }) =>
+      searchMusic(serverQuery, serverType || 'all', { limit: SEARCH_LIMIT, signal }),
     enabled: shouldFetchServer,
     ...cachePolicy.search,
     // v5: keep the prior results painted while the next query resolves so the

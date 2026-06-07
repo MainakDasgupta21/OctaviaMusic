@@ -198,7 +198,8 @@ const CommandPalette = () => {
 
   const { data: rawResults = [], isFetching: searching } = useQuery({
     queryKey: queryKeys.search(serverQuery, serverType, PALETTE_SEARCH_LIMIT),
-    queryFn: () => searchMusic(serverQuery, serverType, { limit: PALETTE_SEARCH_LIMIT }),
+    queryFn: ({ signal }) =>
+      searchMusic(serverQuery, serverType, { limit: PALETTE_SEARCH_LIMIT, signal }),
     enabled,
     ...cachePolicy.search,
     placeholderData: keepPreviousData,

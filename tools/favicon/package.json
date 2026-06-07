@@ -1,0 +1,14 @@
+{
+  "name": "octavia-favicon-gen",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "One-off generator for public/favicon.ico (rasterised from favicon-octavia.svg). Kept out of the main package.json so the heavy native dep (sharp) doesn't bloat install for app developers.",
+  "scripts": {
+    "build": "node gen.mjs"
+  },
+  "dependencies": {
+    "png-to-ico": "^3.0.1",
+    "sharp": "^0.34.5"
+  }
+}

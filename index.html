@@ -14,10 +14,16 @@
     <link rel="canonical" href="/" />
 
     <!-- Favicon + Apple touch icon — mirror the brand LogoMark
-         (src/components/brand/Logo.jsx). Standalone files (not data URIs)
-         so the browser can cache them across reloads. -->
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.svg" />
+         (src/components/brand/Logo.jsx). The SVG filenames carry a version
+         suffix (favicon-octavia.svg) because many browsers cache favicons
+         by URL path and silently ignore ?v= query strings; a real path
+         change is the only guaranteed bust. Rename on the next redesign.
+         The .ico is a raster fallback for legacy browsers and link-preview
+         crawlers that don't accept SVG; regenerate with
+         tools/favicon/gen.mjs whenever the SVG changes. -->
+    <link rel="icon" type="image/svg+xml" sizes="any" href="/favicon-octavia.svg" />
+    <link rel="alternate icon" type="image/x-icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon-octavia.svg" />
 
     <!-- Open Graph / Twitter -->
     <meta property="og:title" content="Octavia" />
@@ -26,7 +32,7 @@
       content="A modern music streaming experience — discover, search, and play, beautifully."
     />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="/og-image.svg" />
+    <meta property="og:image" content="/og-image.svg?v=4" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:site_name" content="Octavia" />
@@ -37,7 +43,7 @@
       name="twitter:description"
       content="A modern music streaming experience — discover, search, and play, beautifully."
     />
-    <meta name="twitter:image" content="/og-image.svg" />
+    <meta name="twitter:image" content="/og-image.svg?v=4" />
 
     <!-- Performance: preconnect to the asset hosts the player + thumbnails load from -->
     <link rel="preconnect" href="https://www.youtube.com" />

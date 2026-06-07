@@ -6,23 +6,55 @@
 
 const normalizeQuery = (q) => String(q ?? '').trim().toLowerCase();
 const normalizeType = (type) => String(type ?? 'all').trim().toLowerCase();
+const normalizeToken = (value) => String(value ?? '').trim().toLowerCase();
 const normalizeLimit = (limit) => {
   if (!Number.isFinite(limit) || limit <= 0) return null;
   return Math.round(limit);
+};
+const CHART_WINDOW_ALIASES = {
+  daily: 'today',
+  weekly: 'this_week',
+  monthly: 'this_month',
+  alltime: 'all_time',
+};
+const CHART_WINDOWS = new Set(['today', 'this_week', 'this_month', 'all_time']);
+const CHART_REGION_ALIASES = {
+  in: 'india',
+  jp: 'japan',
+  gb: 'uk',
+};
+const CHART_REGIONS = new Set(['global', 'us', 'uk', 'japan', 'india']);
+const normalizeChartWindow = (window = 'this_week') => {
+  const raw = String(window ?? '').trim().toLowerCase();
+  const normalized = CHART_WINDOW_ALIASES[raw] || raw;
+  return CHART_WINDOWS.has(normalized) ? normalized : 'this_week';
+};
+const normalizeChartRegion = (region = 'global') => {
+  const raw = String(region ?? '').trim().toLowerCase();
+  const normalized = CHART_REGION_ALIASES[raw] || raw;
+  return CHART_REGIONS.has(normalized) ? normalized : 'global';
 };
 
 export const queryKeys = {
   homeFeed: (limit = 20) => ['home', { limit }],
   homeFeatured: () => ['home', 'featured'],
   trending: (limit = 20) => ['trending', { limit }],
-  charts: (region = 'global', window = 'weekly', limit = 50) => [
+  charts: (region = 'global', window = 'this_week', limit = 50) => [
     'charts',
-    { region, window, limit },
+    {
+      region: normalizeChartRegion(region),
+      window: normalizeChartWindow(window),
+      limit: normalizeLimit(limit) ?? 50,
+    },
   ],
-  chartsArtists: (region = 'global', window = 'weekly', limit = 50) => [
+  chartsArtists: (region = 'global', window = 'this_week', limit = 50) => [
     'charts',
     'artists',
-    { region, window, limit },
+    {
+      region: normalizeChartRegion(region),
+      window: normalizeChartWindow(window),
+      limit: normalizeLimit(limit) ?? 50,
+    },
   ],
   genres: () => ['genres'],
   // `limit` is part of the key so a 30-row TopBar request and a 60-row
@@ -44,6 +76,31 @@ export const queryKeys = {
   ],
   album: (id) => ['album', id],
   artist: (slug) => ['artist', slug],
+  explorePulse: (region = 'global') => ['explore', 'pulse', { region: normalizeChartRegion(region) }],
+  exploreRadio: ({
+    mood = '',
+    genre = '',
+    seed = '',
+    limit = 24,
+  } = {}) => [
+    'explore',
+    'radio',
+    {
+      mood: normalizeToken(mood),
+      genre: normalizeToken(genre),
+      seed: normalizeToken(seed),
+      limit: normalizeLimit(limit) ?? 24,
+    },
+  ],
+  exploreSimilar: ({ trackId = '', limit = 12 } = {}) => [
+    'explore',
+    'similar',
+    {
+      trackId: normalizeToken(trackId),
+      limit: normalizeLimit(limit) ?? 12,
+    },
+  ],
+  exploreJourney: (journeyId) => ['explore', 'journey', normalizeToken(journeyId)],
   lyrics: (title, artist, durationSec) => [
     'lyrics',
     {
@@ -77,6 +134,10 @@ export const cachePolicy = {
   searchSuggestions:  { staleTime: 5 * MIN,    gcTime: 30 * MIN },
   album:              { staleTime: 30 * MIN,   gcTime: 6 * HOUR },
   artist:             { staleTime: 30 * MIN,   gcTime: 6 * HOUR },
+  explorePulse:       { staleTime: 2 * MIN,    gcTime: 30 * MIN },
+  exploreRadio:       { staleTime: 60_000,     gcTime: 15 * MIN },
+  exploreSimilar:     { staleTime: 2 * MIN,    gcTime: 30 * MIN },
+  exploreJourney:     { staleTime: 5 * MIN,    gcTime: 30 * MIN },
   lyrics:             { staleTime: 6 * HOUR,   gcTime: DAY },
 };
 

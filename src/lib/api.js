@@ -65,14 +65,14 @@ const upgradeAllImages = (value) => {
 // the real failure and render an error state.
 // =============================================================================
 
-export const searchMusic = async (query, type = 'all', { limit } = {}) => {
+export const searchMusic = async (query, type = 'all', { limit, signal } = {}) => {
   const params = { q: query, type };
   if (Number.isFinite(limit) && limit > 0) {
     // Backend clamps to 1..60; let it pick the default when not supplied so
     // smaller surfaces (TopBar) don't ask for more rows than they can render.
     params.limit = Math.round(limit);
   }
-  const response = await api.get('/search', { params });
+  const response = await api.get('/search', { params, signal });
   return upgradeAllImages(response.data);
 };
 
@@ -80,11 +80,11 @@ export const searchMusic = async (query, type = 'all', { limit } = {}) => {
 // `[]` so the input never becomes blocked (suggestions are an enhancement,
 // not a requirement). The backend already swallows upstream errors, but we
 // belt-and-braces here for network/CORS issues.
-export const getSearchSuggestions = async (query) => {
+export const getSearchSuggestions = async (query, { signal } = {}) => {
   const q = String(query || '').trim();
   if (!q) return [];
   try {
-    const response = await api.get('/search/suggestions', { params: { q } });
+    const response = await api.get('/search/suggestions', { params: { q }, signal });
     const list = Array.isArray(response.data?.suggestions) ? response.data.suggestions : [];
     return list
       .map((s) => (typeof s === 'string' ? s.trim() : ''))
@@ -94,26 +94,25 @@ export const getSearchSuggestions = async (query) => {
   }
 };
 
-export const getAlbum = async (id) => {
-  const response = await api.get(`/album/${encodeURIComponent(id)}`);
+export const getAlbum = async (id, { signal } = {}) => {
+  const response = await api.get(`/album/${encodeURIComponent(id)}`, { signal });
   return upgradeAllImages(response.data);
 };
 
-export const getArtist = async (slugOrId) => {
-  const response = await api.get(`/artist/${encodeURIComponent(slugOrId)}`);
+export const getArtist = async (slugOrId, { signal } = {}) => {
+  const response = await api.get(`/artist/${encodeURIComponent(slugOrId)}`, { signal });
   return upgradeAllImages(response.data);
 };
 
-// `region`/`window` are accepted today as pass-through query params so the
-// React Query key stays stable across selections; the backend currently
-// ignores them but will use them once it supports regional charts.
 export const getCharts = async ({
   region = 'global',
-  window: chartWindow = 'weekly',
+  window: chartWindow = 'this_week',
   limit = 50,
+  signal,
 } = {}) => {
   const response = await api.get('/charts', {
     params: { region, window: chartWindow, limit },
+    signal,
   });
   return upgradeAllImages(response.data);
 };
@@ -123,30 +122,32 @@ export const getCharts = async ({
 // ranked artist (`{ id, slug, humanSlug, name, thumbnail, tracks, plays, rank }`).
 export const getChartsArtists = async ({
   region = 'global',
-  window: chartWindow = 'weekly',
+  window: chartWindow = 'this_week',
   limit = 50,
+  signal,
 } = {}) => {
   const response = await api.get('/charts/artists', {
     params: { region, window: chartWindow, limit },
+    signal,
   });
   return upgradeAllImages(response.data);
 };
 
-export const getTrending = async ({ limit = 20 } = {}) => {
-  const response = await api.get('/trending', { params: { limit } });
+export const getTrending = async ({ limit = 20, signal } = {}) => {
+  const response = await api.get('/trending', { params: { limit }, signal });
   return upgradeAllImages(response.data);
 };
 
-export const getHomeFeatured = async () => {
-  const response = await api.get('/home/featured');
+export const getHomeFeatured = async ({ signal } = {}) => {
+  const response = await api.get('/home/featured', { signal });
   return upgradeAllImages(response.data);
 };
 
-export const getHomeFeed = async ({ limit = 20 } = {}) => {
+export const getHomeFeed = async ({ limit = 20, signal } = {}) => {
   const composeLegacyHomeFeed = async () => {
     const [featured, trending] = await Promise.all([
-      getHomeFeatured(),
-      getTrending({ limit }),
+      getHomeFeatured({ signal }),
+      getTrending({ limit, signal }),
     ]);
     return upgradeAllImages({
       featured,
@@ -159,7 +160,7 @@ export const getHomeFeed = async ({ limit = 20 } = {}) => {
   // legacy `/featured` + `/trending` compose only when the new route 404s
   // (e.g. an outdated backend hasn't been restarted yet).
   try {
-    const response = await api.get('/home', { params: { limit } });
+    const response = await api.get('/home', { params: { limit }, signal });
     return upgradeAllImages(response.data);
   } catch (error) {
     if (error?.response?.status === 404) {
@@ -169,8 +170,50 @@ export const getHomeFeed = async ({ limit = 20 } = {}) => {
   }
 };
 
-export const getGenres = async () => {
-  const response = await api.get('/genres');
+export const getGenres = async ({ signal } = {}) => {
+  const response = await api.get('/genres', { signal });
+  return upgradeAllImages(response.data);
+};
+
+export const getExplorePulse = async ({ region = 'global', signal } = {}) => {
+  const response = await api.get('/explore/pulse', {
+    params: { region },
+    signal,
+  });
+  return upgradeAllImages(response.data);
+};
+
+export const getExploreRadio = async ({
+  mood = '',
+  genre = '',
+  seed = '',
+  diversity = '',
+  limit = 24,
+  signal,
+} = {}) => {
+  const response = await api.get('/explore/radio', {
+    params: {
+      mood,
+      genre,
+      seed,
+      limit,
+      ...(diversity ? { diversity } : {}),
+    },
+    signal,
+  });
+  return upgradeAllImages(response.data);
+};
+
+export const getExploreSimilar = async ({ trackId = '', limit = 12, signal } = {}) => {
+  const response = await api.get('/explore/similar', {
+    params: { trackId, limit },
+    signal,
+  });
+  return upgradeAllImages(response.data);
+};
+
+export const getExploreJourney = async (journeyId, { signal } = {}) => {
+  const response = await api.get(`/explore/journeys/${encodeURIComponent(journeyId)}`, { signal });
   return upgradeAllImages(response.data);
 };
 

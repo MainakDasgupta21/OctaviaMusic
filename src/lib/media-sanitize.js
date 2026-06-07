@@ -11,6 +11,12 @@ const SAFE_IMAGE_HOSTS = new Set([
   'yt3.ggpht.com',
   'yt3.googleusercontent.com',
   'lh3.googleusercontent.com',
+  'i.scdn.co',
+  'mosaic.scdn.co',
+  'lineup-images.scdn.co',
+  'lastfm.freetls.fastly.net',
+  'lastfm-img2.akamaized.net',
+  'coverartarchive.org',
   ...LOCAL_HOSTS,
 ]);
 

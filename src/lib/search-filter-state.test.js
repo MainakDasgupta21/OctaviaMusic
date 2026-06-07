@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
   EMPTY_FILTERS,
+  MAX_DURATION,
+  MAX_YEAR,
+  MIN_DURATION,
+  MIN_YEAR,
+  NOW,
   addExclude,
   clearFilter,
   composeQuery,
@@ -36,6 +41,7 @@ describe('filtersFromSearchParams', () => {
       mood: 'live,acoustic',
       exclude: 'karaoke,cover',
     });
+    // duration=180 is already minute-aligned so it round-trips unchanged.
     expect(filtersFromSearchParams(sp)).toEqual({
       sort: 'popularity',
       yearFrom: 2010,
@@ -61,6 +67,58 @@ describe('filtersFromSearchParams', () => {
     const out = filtersFromSearchParams(sp);
     expect(out.yearFrom).toBeNull();
     expect(out.yearTo).toBeNull();
+  });
+
+  it('preserves boundary values that match the exported MIN_YEAR / MAX_YEAR', () => {
+    // Round-trip test for the bug class where editor-local bounds (1950 /
+    // 600s) used to silently clip URL-supplied values that the parser
+    // happily accepted. With shared constants, MIN_YEAR is a real value.
+    const sp = makeParams({ yearFrom: String(MIN_YEAR), yearTo: String(MAX_YEAR) });
+    const out = filtersFromSearchParams(sp);
+    expect(out.yearFrom).toBe(MIN_YEAR);
+    expect(out.yearTo).toBe(MAX_YEAR);
+  });
+
+  it('preserves duration caps anywhere up to MAX_DURATION', () => {
+    // Use a minute-aligned value so the round-trip is exact.
+    const target = MAX_DURATION - 60;
+    const sp = makeParams({ duration: String(target) });
+    const out = filtersFromSearchParams(sp);
+    expect(out.durationMax).toBe(target);
+  });
+
+  it('snaps off-step duration values to the nearest minute', () => {
+    // 1770s is half-way between 29 and 30 minutes; the editor's slider
+    // step is one minute, so the URL should normalize to 30:00 rather
+    // than silently shifting on the next editor commit.
+    const sp = makeParams({ duration: '1770' });
+    const out = filtersFromSearchParams(sp);
+    expect(out.durationMax % 60).toBe(0);
+  });
+});
+
+describe('shared range constants', () => {
+  it('exposes year/duration extents that editors can reuse', () => {
+    expect(MIN_YEAR).toBeLessThan(MAX_YEAR);
+    expect(MAX_YEAR).toBe(NOW);
+    expect(MIN_DURATION).toBeGreaterThan(0);
+    expect(MIN_DURATION).toBeLessThan(MAX_DURATION);
+    // Duration extents must be minute-aligned so the editor's slider can
+    // hit both ends exactly.
+    expect(MIN_DURATION % 60).toBe(0);
+    expect(MAX_DURATION % 60).toBe(0);
+  });
+
+  it('clamps duration values above MAX_DURATION instead of dropping them', () => {
+    const sp = makeParams({ duration: String(MAX_DURATION + 1000) });
+    const out = filtersFromSearchParams(sp);
+    expect(out.durationMax).toBe(MAX_DURATION);
+  });
+
+  it('clamps duration values below MIN_DURATION up to the floor', () => {
+    const sp = makeParams({ duration: '15' });
+    const out = filtersFromSearchParams(sp);
+    expect(out.durationMax).toBe(MIN_DURATION);
   });
 });
 
