@@ -5,6 +5,7 @@ import {
   Home,
   Search,
   TrendingUp,
+  BarChart3,
   Heart,
   Library,
   Play,
@@ -25,6 +26,7 @@ import {
   Compass,
   HelpCircle,
   ArrowRight,
+  Plus,
   Hash,
   AtSign,
   ChevronRight,
@@ -33,7 +35,7 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { useUI } from '@/contexts/UIContext';
 import { usePlayer } from '@/contexts/PlayerContext';
 import { useFavorites } from '@/contexts/FavoritesContext';
-import { usePlaylists } from '@/contexts/PlaylistContext';
+import usePlaylistActions from '@/hooks/use-playlist-actions';
 import { searchMusic } from '@/lib/api';
 import { parseQuery } from '@/lib/search-rank';
 import { useRankedSearch } from '@/hooks/use-ranked-search';
@@ -70,7 +72,8 @@ const SCOPES = [
 const navItems = [
   { id: 'nav-home', label: 'Go to Home', path: '/', icon: Home },
   { id: 'nav-search', label: 'Go to Search', path: '/search', icon: Search },
-  { id: 'nav-charts', label: 'Go to Charts', path: '/charts', icon: TrendingUp },
+  { id: 'nav-trending', label: 'Go to Trending', path: '/trending', icon: TrendingUp },
+  { id: 'nav-charts', label: 'Go to Charts', path: '/charts', icon: BarChart3 },
   { id: 'nav-explore', label: 'Go to Explore', path: '/explore', icon: Compass },
   { id: 'nav-favorites', label: 'Go to Favorites', path: '/favorites', icon: Heart },
   { id: 'nav-library', label: 'Go to Library', path: '/library', icon: Library },
@@ -148,7 +151,12 @@ const CommandPalette = () => {
     addToQueue,
   } = usePlayer();
   const { list: favoritesList } = useFavorites();
-  const { playlists } = usePlaylists();
+  const {
+    playlists,
+    isTrackInPlaylist,
+    addTrackToPlaylistWithFeedback,
+    createPlaylistFromTrack,
+  } = usePlaylistActions();
   const { onAlbum: prefetchAlbumRoute, onArtist: prefetchArtistRoute } = useHoverPrefetch();
   // Personalization parity with the TopBar / SearchPage ranker.
   const { historyArtistCounts, recentSearchTerms } = usePersonalizationSignals();
@@ -370,6 +378,36 @@ const CommandPalette = () => {
     ],
   );
 
+  const playlistActionItems = useMemo(() => {
+    if (!currentTrack?.id) return [];
+    const items = [
+      {
+        id: 'pl-create-current',
+        label: 'Create playlist from current track',
+        icon: Plus,
+        run: () => createPlaylistFromTrack({ track: currentTrack }),
+        disabled: false,
+      },
+    ];
+    playlists.slice(0, 8).forEach((playlist) => {
+      const alreadyAdded = isTrackInPlaylist(playlist, currentTrack);
+      items.push({
+        id: `pl-add-${playlist.id}`,
+        label: `Add current to ${playlist.name}`,
+        icon: ListMusic,
+        run: () => addTrackToPlaylistWithFeedback({ playlist, track: currentTrack }),
+        disabled: alreadyAdded,
+      });
+    });
+    return items;
+  }, [
+    currentTrack,
+    playlists,
+    createPlaylistFromTrack,
+    isTrackInPlaylist,
+    addTrackToPlaylistWithFeedback,
+  ]);
+
   const showNav =
     !scopeInfo || scopeInfo.scope.prefix === ':' || scopeInfo.scope.prefix === '?';
   const showActions =
@@ -381,6 +419,8 @@ const CommandPalette = () => {
   const showFavorites = !scopeInfo;
   const showRecents = !query && !scopeInfo && recents.length > 0;
   const showHelp = scopeInfo?.scope.prefix === '?';
+  const showLoadingSkeletons =
+    searching && Boolean(effectiveQuery.trim()) && effectiveQuery.trim().length >= 2;
 
   const artistOptions = useMemo(() => {
     const set = new Map();
@@ -442,6 +482,24 @@ const CommandPalette = () => {
                 No results found.
               </p>
             </Command.Empty>
+
+            {showLoadingSkeletons ? (
+              <Command.Group heading="Searching" className={GROUP_HEADING}>
+                {Array.from({ length: 5 }).map((_, idx) => (
+                  <div
+                    key={`palette-skeleton-${idx}`}
+                    aria-hidden="true"
+                    className="relative flex items-center gap-3 pl-5 pr-3 py-2.5 rounded-sharp"
+                  >
+                    <span className="h-8 w-8 rounded-sharp bg-white/[0.08] skeleton-pulse-iris" />
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      <span className="block h-3 w-[62%] rounded bg-white/[0.08] skeleton-pulse-iris" />
+                      <span className="block h-2.5 w-[45%] rounded bg-white/[0.06] skeleton-pulse-iris" />
+                    </div>
+                  </div>
+                ))}
+              </Command.Group>
+            ) : null}
 
             {showHelp ? (
               <Command.Group heading="Help" className={GROUP_HEADING}>
@@ -543,6 +601,29 @@ const CommandPalette = () => {
                       id: item.id,
                       label: item.label,
                       kind: 'action',
+                      icon: item.icon,
+                    })}
+                    className={ITEM_BASE}
+                  >
+                    <SelectedBar />
+                    <item.icon className="w-4 h-4" strokeWidth={1.75} />
+                    <span>{item.label}</span>
+                  </Command.Item>
+                ))}
+              </Command.Group>
+            ) : null}
+
+            {showActions && playlistActionItems.length > 0 ? (
+              <Command.Group heading="Playlist actions" className={GROUP_HEADING}>
+                {playlistActionItems.map((item) => (
+                  <Command.Item
+                    key={item.id}
+                    value={`playlist-action ${item.label}`}
+                    disabled={item.disabled}
+                    onSelect={runAndClose(item.run, {
+                      id: item.id,
+                      label: item.label,
+                      kind: 'playlist-action',
                       icon: item.icon,
                     })}
                     className={ITEM_BASE}

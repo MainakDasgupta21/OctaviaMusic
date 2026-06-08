@@ -27,15 +27,13 @@ export const useKeyboardShortcuts = () => {
     toggleMute,
     isMuted,
   } = usePlayer();
-  const { toggleFavorite, isFavorite } = useFavorites();
+  const { toggleFavorite } = useFavorites();
   const {
     togglePalette,
     closePalette,
-    closeExpandedPlayer,
     closeMobileDrawer,
     focusGlobalSearch,
     paletteOpen,
-    expandedPlayerOpen,
     mobileDrawerOpen,
   } = useUI();
 
@@ -50,10 +48,6 @@ export const useKeyboardShortcuts = () => {
       if (e.key === 'Escape') {
         if (paletteOpen) {
           closePalette();
-          return;
-        }
-        if (expandedPlayerOpen) {
-          closeExpandedPlayer();
           return;
         }
         if (mobileDrawerOpen) {
@@ -107,6 +101,9 @@ export const useKeyboardShortcuts = () => {
         case 'l':
         case 'L': {
           if (!currentTrack) return;
+          const listNavigationActive =
+            typeof document !== 'undefined' && document.body.dataset.listNavActive === 'true';
+          if (listNavigationActive) return;
           e.preventDefault();
           const wasAdded = toggleFavorite(currentTrack);
           toast(wasAdded ? 'Added to favorites' : 'Removed from favorites', {
@@ -138,14 +135,11 @@ export const useKeyboardShortcuts = () => {
     toggleMute,
     isMuted,
     toggleFavorite,
-    isFavorite,
     togglePalette,
     closePalette,
-    closeExpandedPlayer,
     closeMobileDrawer,
     focusGlobalSearch,
     paletteOpen,
-    expandedPlayerOpen,
     mobileDrawerOpen,
   ]);
 };

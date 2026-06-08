@@ -18,7 +18,7 @@ const dateToken = () => new Date().toISOString().slice(0, 10);
 
 const ChartsPage = () => {
   const navigate = useNavigate();
-  const { playTrack, addToQueue, currentTrack, isPlaying } = usePlayer();
+  const { playTrack, currentTrack, isPlaying } = usePlayer();
   const { toggleFavorite } = useFavorites();
 
   const {
@@ -92,11 +92,6 @@ const ChartsPage = () => {
 
   const handlePlayArtistTrack = (track) => {
     playTrack(track);
-  };
-
-  const handleAddSongToPlaylist = (song) => {
-    addToQueue(song);
-    notify.added(song.title);
   };
 
   const handleFavoriteSong = (song) => {
@@ -176,7 +171,6 @@ const ChartsPage = () => {
         isPlaying={isPlaying}
         onPlaySong={handlePlaySong}
         onShareSong={setShareEntry}
-        onAddSongToPlaylist={handleAddSongToPlaylist}
         onFavoriteSong={handleFavoriteSong}
         onSongGoAlbum={handleGoAlbum}
         onSongGoArtist={handleGoArtist}

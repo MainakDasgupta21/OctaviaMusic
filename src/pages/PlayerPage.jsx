@@ -4,7 +4,7 @@ import NowPlaying from '@/components/player/NowPlaying';
 // Thin route wrapper around the canonical now-playing surface.
 // Owns only the page-level concern: hard-locking document scroll while the
 // `/player` route is mounted. The footer-player gutter (pb-[104px]) and all
-// hero content live inside <NowPlaying variant="page" />.
+// hero content live inside <NowPlaying />.
 const PlayerPage = () => {
   useEffect(() => {
     if (typeof document === 'undefined') return undefined;
@@ -19,7 +19,7 @@ const PlayerPage = () => {
     };
   }, []);
 
-  return <NowPlaying variant="page" />;
+  return <NowPlaying />;
 };
 
 export default PlayerPage;

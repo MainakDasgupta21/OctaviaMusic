@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   ChevronDown,
   ChevronLeft,
@@ -90,34 +90,36 @@ const ROUTE_TITLES = {
 
 const Breadcrumb = () => {
   const location = useLocation();
-  const params = useParams();
   const { playlists } = usePlaylists();
 
   const crumbs = useMemo(() => {
     const path = location.pathname;
     if (ROUTE_TITLES[path]) {
-      return [{ label: ROUTE_TITLES[path] }];
+      return [{ label: ROUTE_TITLES[path], to: path }];
     }
     if (path.startsWith('/artist/')) {
       const slug = path.split('/')[2] || '';
       return [
-        { label: 'Discover' },
+        { label: 'Discover', to: '/' },
         { label: slug.replace(/-/g, ' ') },
       ];
     }
     if (path.startsWith('/album/')) {
-      return [{ label: 'Album' }];
+      return [
+        { label: 'Discover', to: '/' },
+        { label: 'Album' },
+      ];
     }
     if (path.startsWith('/playlist/')) {
       const id = path.split('/')[2];
       const playlist = playlists.find((p) => p.id === id);
       return [
-        { label: 'Library' },
+        { label: 'Library', to: '/library' },
         { label: playlist?.name || 'Playlist' },
       ];
     }
     return [];
-  }, [location.pathname, params, playlists]);
+  }, [location.pathname, playlists]);
 
   if (!crumbs.length) return null;
 
@@ -127,11 +129,20 @@ const Breadcrumb = () => {
       className="hidden lg:flex items-center gap-1.5 text-[13px] font-medium"
     >
       {crumbs.map((c, i) => (
-        <span key={i} className="flex items-center gap-1.5 capitalize">
+        <span key={`${c.label}-${c.to || i}`} className="flex items-center gap-1.5 capitalize">
           {i > 0 && <span className="text-ink-4">·</span>}
-          <span className={cn(i === crumbs.length - 1 ? 'text-ink' : 'text-ink-3')}>
-            {c.label}
-          </span>
+          {c.to && i !== crumbs.length - 1 ? (
+            <Link
+              to={c.to}
+              className="text-ink-3 hover:text-ink transition-colors focus-ring rounded-sharp"
+            >
+              {c.label}
+            </Link>
+          ) : (
+            <span className={cn(i === crumbs.length - 1 ? 'text-ink' : 'text-ink-3')}>
+              {c.label}
+            </span>
+          )}
         </span>
       ))}
     </nav>
@@ -185,6 +196,8 @@ const TopBar = () => {
 
   const canGoBack = historyIdx > 0;
   const canGoForward = historyIdx < historyLen - 1;
+  const showMobileBack =
+    canGoBack && /^(\/artist\/|\/album\/|\/playlist\/)/.test(location.pathname);
   const hasSearchValue = searchValue.trim().length > 0;
 
   const runSearchRow = useCallback(
@@ -393,14 +406,25 @@ const TopBar = () => {
           />
         ) : null}
 
-        <button
-          type="button"
-          onClick={openMobileDrawer}
-          className="md:hidden w-9 h-9 inline-flex items-center justify-center rounded-full text-ink-3 hover:text-ink hover:bg-white/[0.06] transition-colors focus-ring"
-          aria-label="Open navigation"
-        >
-          <Menu className="w-5 h-5" />
-        </button>
+        {showMobileBack ? (
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="md:hidden w-9 h-9 inline-flex items-center justify-center rounded-full text-ink-3 hover:text-ink hover:bg-white/[0.06] transition-colors focus-ring"
+            aria-label="Back"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={openMobileDrawer}
+            className="md:hidden w-9 h-9 inline-flex items-center justify-center rounded-full text-ink-3 hover:text-ink hover:bg-white/[0.06] transition-colors focus-ring"
+            aria-label="Open navigation"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+        )}
 
         <div className="hidden md:flex items-center">
           {/* Back/forward grouped inside a single hairline pill so they
@@ -446,9 +470,9 @@ const TopBar = () => {
         <form onSubmit={handleSubmit} role="search" className="flex-1 max-w-md mx-auto lg:mx-0">
           <button
             type="button"
-            onClick={openPalette}
+            onClick={() => navigate('/search')}
             className="md:hidden w-full flex items-center justify-center gap-2 h-10 rounded-full border border-white/10 text-ink-3 hover:text-ink hover:bg-white/[0.06] transition-colors focus-ring"
-            aria-label="Open search"
+            aria-label="Go to search"
           >
             <SearchIcon className="w-4 h-4" />
             <span className="text-[13px]">Search</span>

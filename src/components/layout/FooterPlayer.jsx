@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { usePlayer, usePlayerProgress } from '@/contexts/PlayerContext';
-import { useUI } from '@/contexts/UIContext';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useTransportActions } from '@/hooks/use-transport-actions';
 import { usePlaybackLoading } from '@/hooks/use-playback-loading';
@@ -22,18 +22,20 @@ import {
   Shuffle,
   Repeat,
   Repeat1,
-  Maximize2,
   ListMusic,
   AlertTriangle,
 } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import QueuePanel from '@/components/player/QueuePanel';
+import ProgressRing from '@/components/player/ProgressRing';
 import { motion, AnimatePresence } from 'framer-motion';
 import HeartButton from '@/components/HeartButton';
+import AddToPlaylistButton from '@/components/playlist/AddToPlaylistButton';
 import { useColorExtraction } from '@/hooks/use-color-extraction';
 import { formatTime } from '@/lib/player-format';
 import { pickPlaceholder, sanitizeImageUrl, sanitizeVideoId } from '@/lib/media-sanitize';
+import { isReducedMotion } from '@/design/motion';
 import { cn } from '@/lib/utils';
 
 const QUALITY_PREFERENCE_ORDER = [
@@ -70,8 +72,10 @@ const FooterPlayer = () => {
     canGoNext,
   } = usePlayer();
   const { progress, duration, canGoPrevious } = usePlayerProgress();
-  const { openExpandedPlayer } = useUI();
+  const navigate = useNavigate();
+  const location = useLocation();
   const { settings } = useSettings();
+  const reduceMotion = isReducedMotion();
   // Shared transport handlers — picks up SFX + haptic for visible buttons.
   // Media session keeps the raw `togglePlay/playNext/playPrevious` above so
   // OS-level triggers don't double up on click sounds.
@@ -88,6 +92,7 @@ const FooterPlayer = () => {
   // Crossfade gain (0..1) multiplies the user's volume so the controller can
   // ramp the track in/out without clobbering the user's slider position.
   const [fadeGain, setFadeGain] = useState(1);
+  const [seekPreview, setSeekPreview] = useState(null);
   const crossfadeSeconds = Math.max(0, Number(settings?.crossfadeSeconds) || 0);
   const crossfadeRef = useRef(null);
   if (!crossfadeRef.current) {
@@ -120,8 +125,8 @@ const FooterPlayer = () => {
 
   useEffect(() => () => crossfadeRef.current?.dispose(), []);
 
-  // Mobile long-press quick-actions sheet. Tap on the mini-player still opens
-  // the expanded player; a ~500ms press-and-hold opens this lightweight sheet.
+  // Mobile long-press quick-actions sheet. Tap on the mini-player opens the
+  // full player page; a ~500ms press-and-hold opens this lightweight sheet.
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
   const longPressTimerRef = useRef(null);
   const longPressFiredRef = useRef(false);
@@ -166,6 +171,19 @@ const FooterPlayer = () => {
   );
 
   useEffect(() => clearLongPressTimer, [clearLongPressTimer]);
+  const isPlayerRoute = location.pathname.startsWith('/player');
+  const displayedProgress = seekPreview ?? progress;
+  const canSeek = Number.isFinite(duration) && duration > 0;
+
+  useEffect(() => {
+    setSeekPreview(null);
+  }, [currentTrack?.id]);
+
+  useEffect(() => {
+    if (isPlayerRoute && mobileSheetOpen) {
+      setMobileSheetOpen(false);
+    }
+  }, [isPlayerRoute, mobileSheetOpen]);
 
   const highQualityAudio = settings?.highQualityAudio !== false;
   const safeVideoId = sanitizeVideoId(currentTrack?.videoId);
@@ -183,8 +201,6 @@ const FooterPlayer = () => {
   // reflect the current album art.
   useColorExtraction(safeThumbnail);
 
-  const handleSeek = (value) => seekTo(value[0]);
-
   const handleTimeUpdate = useCallback(
     (e) => reportProgress(e.currentTarget?.currentTime),
     [reportProgress],
@@ -197,6 +213,18 @@ const FooterPlayer = () => {
     (e) => reportDuration(e.currentTarget?.duration),
     [reportDuration],
   );
+  const handleEnded = useCallback(() => {
+    const media = playerRef.current;
+    const mediaDuration = Number(media?.duration);
+    const endSeconds =
+      Number.isFinite(mediaDuration) && mediaDuration > 0
+        ? mediaDuration
+        : duration;
+    if (Number.isFinite(endSeconds) && endSeconds > 0) {
+      reportProgress(endSeconds);
+    }
+    handleTrackEnded();
+  }, [playerRef, duration, reportProgress, handleTrackEnded]);
   const playerConfig = useMemo(
     () => ({
       youtube: {
@@ -391,7 +419,7 @@ const FooterPlayer = () => {
           onTimeUpdate={handleTimeUpdate}
           onDurationChange={handleDurationChange}
           onLoadedMetadata={handleLoadedMetadata}
-          onEnded={handleTrackEnded}
+          onEnded={handleEnded}
           width="0"
           height="0"
           style={{ display: 'none' }}
@@ -400,6 +428,7 @@ const FooterPlayer = () => {
 
       <AnimatePresence>
         {/* Desktop / tablet footer */}
+        {!isPlayerRoute ? (
         <motion.footer
           key="desktop-footer"
           initial={{ y: 100, opacity: 0 }}
@@ -439,24 +468,38 @@ const FooterPlayer = () => {
             <div className="flex items-center gap-4 w-72 min-w-0">
               <button
                 type="button"
-                onClick={openExpandedPlayer}
+                onClick={() => navigate('/player')}
                 className="flex items-center gap-3 min-w-0 flex-1 text-left focus-ring rounded-sharp p-1 -m-1 hover:bg-white/[0.04] transition-colors"
-                aria-label="Expand now playing"
+                aria-label="Open now playing page"
               >
-                <motion.img
-                  layoutId="footer-art"
-                  key={currentTrack.id}
-                  initial={{ scale: 0.85, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  src={safeThumbnail}
-                  alt={currentTrack.title || ''}
-                  onError={handleArtError}
-                  loading="eager"
-                  decoding="async"
-                  referrerPolicy="no-referrer"
-                  style={{ viewTransitionName: 'vt-now-cover' }}
-                  className="w-14 h-14 rounded-sharp object-cover ring-1 ring-white/10 shadow-elev-2 flex-shrink-0"
-                />
+                {/* Album thumb wrapped in a thin progress ring — the single
+                    timeline language carries from /player into the footer.
+                    Scrubbing happens by tapping the thumb to open /player. */}
+                <ProgressRing
+                  progress={displayedProgress}
+                  duration={duration}
+                  playing={isPlaying}
+                  startAt="left"
+                  thickness={2.2}
+                  size={60}
+                  className="flex-shrink-0"
+                  innerClassName="p-[10%]"
+                >
+                  <motion.img
+                    layoutId="footer-art"
+                    key={currentTrack.id}
+                    initial={{ scale: 0.85, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    src={safeThumbnail}
+                    alt={currentTrack.title || ''}
+                    onError={handleArtError}
+                    loading="eager"
+                    decoding="async"
+                    referrerPolicy="no-referrer"
+                    style={{ viewTransitionName: 'vt-now-cover' }}
+                    className="h-full w-full rounded-[28%] object-cover"
+                  />
+                </ProgressRing>
                 <div className="min-w-0 flex-1">
                   <h4
                     className={cn(
@@ -474,11 +517,21 @@ const FooterPlayer = () => {
                 </div>
               </button>
               <HeartButton track={currentTrack} size="sm" />
+              <AddToPlaylistButton
+                track={currentTrack}
+                className="p-2"
+                align="start"
+                side="top"
+                sideOffset={12}
+              />
             </div>
 
-            <div className="flex-1 flex flex-col items-center gap-2 min-w-0">
+            <div className="flex-1 flex flex-col items-center gap-1.5 min-w-0">
               <div className="flex items-center gap-4">
-                <button
+                <motion.button
+                  type="button"
+                  whileHover={reduceMotion ? undefined : { scale: 1.02 }}
+                  whileTap={reduceMotion ? undefined : { scale: 0.92 }}
                   onClick={transport.onToggleShuffle}
                   className={cn(
                     'p-2 rounded-full transition-colors focus-ring',
@@ -488,18 +541,21 @@ const FooterPlayer = () => {
                   aria-pressed={shuffle}
                 >
                   <Shuffle className="w-4 h-4" />
-                </button>
-                <button
+                </motion.button>
+                <motion.button
+                  type="button"
+                  whileTap={reduceMotion || !canGoPrevious ? undefined : { scale: 0.92 }}
                   onClick={transport.onPlayPrevious}
                   disabled={!canGoPrevious}
                   className="p-2 text-ink-3 hover:text-ink transition-colors focus-ring rounded-full disabled:opacity-40 disabled:cursor-not-allowed"
                   aria-label={transport.labels.previous}
                 >
                   <SkipBack className="w-5 h-5" />
-                </button>
+                </motion.button>
                 <motion.button
-                  whileHover={{ scale: 1.04 }}
-                  whileTap={{ scale: 0.94 }}
+                  type="button"
+                  whileHover={reduceMotion ? undefined : { scale: 1.04 }}
+                  whileTap={reduceMotion ? undefined : { scale: 0.94 }}
                   onClick={transport.onTogglePlay}
                   className={cn(
                     'relative w-12 h-12 rounded-full gradient-accent text-track-fg flex items-center justify-center shadow-accent focus-premium ring-1 ring-white/15',
@@ -523,15 +579,19 @@ const FooterPlayer = () => {
                     <Play className="w-[18px] h-[18px] fill-current ml-0.5" />
                   )}
                 </motion.button>
-                <button
+                <motion.button
+                  type="button"
+                  whileTap={reduceMotion || !canGoNext ? undefined : { scale: 0.92 }}
                   onClick={transport.onPlayNext}
                   disabled={!canGoNext}
                   className="p-2 text-ink-3 hover:text-ink transition-colors focus-ring rounded-full disabled:opacity-40 disabled:cursor-not-allowed"
                   aria-label={transport.labels.next}
                 >
                   <SkipForward className="w-5 h-5" />
-                </button>
-                <button
+                </motion.button>
+                <motion.button
+                  type="button"
+                  whileTap={reduceMotion ? undefined : { scale: 0.92 }}
                   onClick={transport.onToggleRepeat}
                   className={cn(
                     'relative p-2 rounded-full transition-colors focus-ring',
@@ -557,37 +617,41 @@ const FooterPlayer = () => {
                       1
                     </span>
                   ) : null}
-                </button>
+                </motion.button>
               </div>
 
-              <div className="relative w-full max-w-xl flex items-center gap-3 group/seek">
-                {/* Buffering shimmer — sits over the seekbar lane so the
-                    user sees the player working before progress ticks.
-                    Reuses the `.skeleton` shimmer keyframe so it matches the
-                    rest of the app's loading vocabulary. */}
-                {isBuffering ? (
-                  <span
-                    aria-hidden="true"
-                    className="pointer-events-none absolute left-12 right-12 top-1/2 -translate-y-1/2 h-[3px] rounded-full skeleton"
-                    style={{ opacity: 0.85 }}
-                  />
-                ) : null}
-                <span className="text-[10.5px] font-mono text-ink-3 w-10 text-right tabular tracking-tight">
-                  {formatTime(progress)}
+              {/* Linear seek bar — the ring around the artwork is still the
+                  primary "you are here" indicator, but a slim interactive
+                  bar gives quick random-access scrubbing without leaving
+                  the footer. The Slider's range fills with the runtime
+                  --track-accent gradient, so it tracks the same chameleon
+                  palette as the ring and the play button. */}
+              <div
+                className={cn(
+                  'flex w-full max-w-[560px] items-center gap-2.5',
+                  isBuffering && 'animate-pulse',
+                )}
+              >
+                <span className="w-10 shrink-0 text-right font-mono text-[10.5px] tabular tracking-tight text-ink-3">
+                  {formatTime(displayedProgress)}
                 </span>
                 <Slider
-                  value={[progress]}
-                  max={duration || 100}
+                  value={[Math.min(displayedProgress || 0, duration || 0)]}
+                  max={duration > 0 ? duration : 100}
                   step={1}
-                  onValueChange={handleSeek}
-                  // Delicate idle (2px) → tactile interaction (4px). The
-                  // descendant selectors target the Radix Slider internals
-                  // emitted with `slider-track` / `slider-range` classes by
-                  // the shared shadcn Slider primitive.
-                  className="flex-1 [&_.slider-track]:h-[2px] [&_.slider-track]:transition-[height] [&_.slider-track]:duration-med [&_.slider-track]:ease-emphasis hover:[&_.slider-track]:h-[4px] focus-within:[&_.slider-track]:h-[4px] [&[data-state=active]_.slider-track]:h-[4px]"
+                  onValueChange={(value) => setSeekPreview(value[0])}
+                  onValueCommit={(value) => {
+                    setSeekPreview(null);
+                    seekTo(value[0]);
+                  }}
+                  disabled={!canSeek}
+                  // Delicate-then-tactile thickness: hairline at rest,
+                  // bumps to 4px on hover / focus-within so the affordance
+                  // is unmistakable without crowding the footer chrome.
+                  className="flex-1 [&_.slider-track]:h-[2px] [&_.slider-track]:transition-[height] [&_.slider-track]:duration-med [&_.slider-track]:ease-emphasis hover:[&_.slider-track]:h-[4px] focus-within:[&_.slider-track]:h-[4px]"
                   aria-label="Seek"
                 />
-                <span className="text-[10.5px] font-mono text-ink-4 w-10 tabular tracking-tight">
+                <span className="w-10 shrink-0 font-mono text-[10.5px] tabular tracking-tight text-ink-4">
                   {formatTime(duration)}
                 </span>
               </div>
@@ -644,7 +708,7 @@ const FooterPlayer = () => {
                     <p className="eyebrow text-ink-3">Up next</p>
                     <button
                       type="button"
-                      onClick={openExpandedPlayer}
+                      onClick={() => navigate('/player?panel=queue')}
                       className="text-[11px] font-mono uppercase tracking-[0.18em] text-ink-3 hover:text-ink focus-ring rounded-sharp px-1.5 py-0.5"
                     >
                       Open player
@@ -655,103 +719,126 @@ const FooterPlayer = () => {
                   </div>
                 </PopoverContent>
               </Popover>
-              <button
-                onClick={openExpandedPlayer}
-                className="p-2 rounded-full text-ink-3 hover:text-ink hover:bg-white/5 transition-colors focus-ring"
-                aria-label="Expand player"
-              >
-                <Maximize2 className="w-4 h-4" />
-              </button>
             </div>
           </div>
         </motion.footer>
+        ) : null}
 
         {/* Mobile compact footer */}
-        <motion.div
-          key="mobile-footer"
-          initial={{ y: 100, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 100, opacity: 0 }}
-          className="md:hidden fixed inset-x-2 bottom-[5.25rem] z-40 h-16 rounded-soft glass-strong overflow-hidden ring-1 ring-white/[0.06]"
-          style={{
-            // Same rim-light vocabulary as the desktop footer.
-            boxShadow:
-              'inset 0 1px 0 hsl(var(--ink-primary) / 0.07), var(--shadow-3)',
-          }}
-        >
-          <button
-            type="button"
-            onClick={(e) => {
-              if (longPressFiredRef.current) {
-                // Long press already opened the sheet — don't *also* expand.
-                e.preventDefault();
-                return;
-              }
-              openExpandedPlayer();
+        {!isPlayerRoute ? (
+          <motion.div
+            key="mobile-footer"
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="md:hidden fixed inset-x-2 bottom-[4.75rem] z-40 h-[60px] rounded-soft glass-strong overflow-hidden ring-1 ring-white/[0.06]"
+            style={{
+              // Same rim-light vocabulary as the desktop footer.
+              boxShadow:
+                'inset 0 1px 0 hsl(var(--ink-primary) / 0.07), var(--shadow-3)',
             }}
-            onPointerDown={handleMobilePressStart}
-            onPointerUp={handleMobilePressEnd}
-            onPointerCancel={handleMobilePressCancel}
-            onPointerLeave={handleMobilePressCancel}
-            onContextMenu={(e) => e.preventDefault()}
-            className="absolute inset-0 flex items-center pl-2 pr-16 gap-3 text-left focus-ring"
-            aria-label="Expand now playing (long-press for quick actions)"
-            aria-haspopup="dialog"
           >
-            <motion.img
-              layoutId="footer-art"
-              key={currentTrack.id}
-              src={safeThumbnail}
-              alt={currentTrack.title || ''}
-              onError={handleArtError}
-              loading="eager"
-              decoding="async"
-              referrerPolicy="no-referrer"
-              style={{ viewTransitionName: 'vt-now-cover' }}
-              className="w-12 h-12 rounded-sharp object-cover ring-1 ring-white/10 flex-shrink-0"
-            />
-            <div className="flex-1 min-w-0">
-              <p className="font-display text-[15px] leading-tight truncate text-ink tracking-tight">
-                {currentTrack.title}
-              </p>
-              <p className="text-[11.5px] text-ink-3 truncate mt-1 leading-tight">
-                <span className="font-editorial">by</span> {currentTrack.artist || 'Unknown artist'}
-              </p>
-            </div>
-          </button>
-          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+            {/* Slim progress strip along the bottom edge. The entire tile
+                is a tap-to-open-/player target, so this strip is purely
+                informational — interactive scrubbing lives on the full
+                player page. The fill uses the same chameleon gradient as
+                the ring and the desktop seek bar. */}
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-[2px] bg-white/[0.06]"
+            >
+              <span
+                className={cn(
+                  'block h-full transition-[width] duration-150 ease-linear',
+                  isBuffering && 'animate-pulse',
+                )}
+                style={{
+                  width: `${
+                    Number.isFinite(duration) && duration > 0
+                      ? Math.min(100, Math.max(0, ((progress || 0) / duration) * 100))
+                      : 0
+                  }%`,
+                  backgroundImage:
+                    'linear-gradient(90deg, hsl(var(--track-accent)), hsl(var(--track-accent-strong)))',
+                }}
+              />
+            </span>
             <button
               type="button"
               onClick={(e) => {
-                e.stopPropagation();
-                transport.onTogglePlay();
+                if (longPressFiredRef.current) {
+                  // Long press already opened the sheet — don't *also* navigate.
+                  e.preventDefault();
+                  return;
+                }
+                navigate('/player');
               }}
-              className="w-11 h-11 rounded-full gradient-accent text-track-fg flex items-center justify-center shadow-accent focus-ring ring-1 ring-white/15"
-              aria-label={transport.labels.play}
-              style={{
-                backgroundImage:
-                  'radial-gradient(circle at 30% 25%, hsl(var(--ink-primary) / 0.22), transparent 55%), linear-gradient(135deg, hsl(var(--track-accent)), hsl(var(--track-accent-strong)))',
-              }}
+              onPointerDown={handleMobilePressStart}
+              onPointerUp={handleMobilePressEnd}
+              onPointerCancel={handleMobilePressCancel}
+              onPointerLeave={handleMobilePressCancel}
+              onContextMenu={(e) => e.preventDefault()}
+              className="absolute inset-0 flex items-center pl-2 pr-16 gap-3 text-left focus-ring"
+              aria-label="Open now playing page (long-press for quick actions)"
             >
-              {isPlaying ? (
-                <Pause className="w-[18px] h-[18px] fill-current" />
-              ) : (
-                <Play className="w-[18px] h-[18px] fill-current ml-0.5" />
-              )}
+              {/* Mobile mini — same ring vocabulary as desktop, just smaller.
+                  Replaces the old bottom-edge progress strip; the ring IS
+                  the progress now. */}
+              <ProgressRing
+                progress={progress}
+                duration={duration}
+                playing={isPlaying}
+                startAt="left"
+                thickness={2.2}
+                size={56}
+                className="flex-shrink-0"
+                innerClassName="p-[10%]"
+              >
+                <motion.img
+                  layoutId="footer-art"
+                  key={currentTrack.id}
+                  src={safeThumbnail}
+                  alt={currentTrack.title || ''}
+                  onError={handleArtError}
+                  loading="eager"
+                  decoding="async"
+                  referrerPolicy="no-referrer"
+                  style={{ viewTransitionName: 'vt-now-cover' }}
+                  className="h-full w-full rounded-[28%] object-cover"
+                />
+              </ProgressRing>
+              <div className="flex-1 min-w-0">
+                <p className="font-display text-[15px] leading-tight truncate text-ink tracking-tight">
+                  {currentTrack.title}
+                </p>
+                <p className="text-[11.5px] text-ink-3 truncate mt-1 leading-tight">
+                  <span className="font-editorial">by</span> {currentTrack.artist || 'Unknown artist'}
+                </p>
+              </div>
             </button>
-          </div>
-          <div className="absolute inset-x-0 bottom-0 h-0.5 bg-white/[0.08]">
-            <div
-              className="h-full bg-track transition-[width] duration-300 ease-out"
-              style={{
-                width: `${
-                  duration > 0 ? Math.min(100, (progress / duration) * 100) : 0
-                }%`,
-                boxShadow: '0 0 8px hsl(var(--track-accent) / 0.6)',
-              }}
-            />
-          </div>
-        </motion.div>
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  transport.onTogglePlay();
+                }}
+                className="w-11 h-11 rounded-full gradient-accent text-track-fg flex items-center justify-center shadow-accent focus-ring ring-1 ring-white/15"
+                aria-label={transport.labels.play}
+                style={{
+                  backgroundImage:
+                    'radial-gradient(circle at 30% 25%, hsl(var(--ink-primary) / 0.22), transparent 55%), linear-gradient(135deg, hsl(var(--track-accent)), hsl(var(--track-accent-strong)))',
+                }}
+              >
+                {isPlaying ? (
+                  <Pause className="w-[18px] h-[18px] fill-current" />
+                ) : (
+                  <Play className="w-[18px] h-[18px] fill-current ml-0.5" />
+                )}
+              </button>
+            </div>
+          </motion.div>
+        ) : null}
       </AnimatePresence>
       <MobileMiniPlayerSheet
         open={mobileSheetOpen}

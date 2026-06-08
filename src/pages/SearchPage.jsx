@@ -56,6 +56,7 @@ import KindBadge from '@/components/ui-v2/KindBadge';
 import TrendingChips from '@/components/search/TrendingChips';
 import { useTrendingSearches } from '@/hooks/use-trending-searches';
 import VoiceSearchButton from '@/components/search/VoiceSearchButton';
+import AddToPlaylistButton from '@/components/playlist/AddToPlaylistButton';
 import { cn } from '@/lib/utils';
 
 const RECENT_KEY = 'octavia.recent-searches.v1';
@@ -554,7 +555,15 @@ const SearchPage = () => {
           <CornerDownLeft className="w-3 h-3" />
         </span>
       ) : null}
-      <div onClick={(e) => e.stopPropagation()} className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-75">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-75 flex items-center gap-1"
+      >
+        <AddToPlaylistButton
+          track={toTrack(track)}
+          className="p-1.5"
+          buttonLabel={`Add ${track.title} to playlist`}
+        />
         <HeartButton track={toTrack(track)} size="sm" />
       </div>
       {track.duration ? (
@@ -566,7 +575,7 @@ const SearchPage = () => {
   );
 
   return (
-    <div className="relative isolate p-5 md:p-10 max-w-[1600px] mx-auto pb-12">
+    <div className="relative isolate page-shell pt-5 md:pt-10">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute -top-32 -left-32 w-[720px] h-[720px] -z-10 opacity-60 mix-blend-screen"
@@ -714,7 +723,7 @@ const SearchPage = () => {
             <EmptyState
               icon={ListMusic}
               title="Playlists live in your library"
-              description="Search doesn't cover community playlists yet. Browse the ones you've created on the Library page."
+              description="Search doesn't cover community playlists yet. Open Library and switch to the Playlists tab."
             />
           </motion.div>
         ) : isIdle ? (
@@ -909,7 +918,15 @@ const SearchPage = () => {
                           {librarySourceLabel(r)}
                         </p>
                       </div>
-                      <div onClick={(e) => e.stopPropagation()} className="opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1"
+                      >
+                        <AddToPlaylistButton
+                          track={toTrack(r)}
+                          className="p-1.5"
+                          buttonLabel={`Add ${r.title} to playlist`}
+                        />
                         <HeartButton track={toTrack(r)} size="sm" />
                       </div>
                     </motion.div>

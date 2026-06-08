@@ -1,15 +1,13 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import { usePlayer } from '@/contexts/PlayerContext';
 import HeartButton from '@/components/HeartButton';
+import AddToPlaylistButton from '@/components/playlist/AddToPlaylistButton';
+import { durations, easings, isReducedMotion } from '@/design/motion';
 import { artistSlug } from '@/lib/player-format';
 
-// Premium title block.
-// - Splits bracketed subtitles ("Title [Subtitle]") onto a second line.
-// - Never truncates: the headline wraps and is balanced.
-// - Quiet artist / album line beneath, with the artist tinted in the album
-//   accent (the standard Apple Music affordance).
-const TrackHeadline = ({ onNavigate }) => {
+const TrackHeadline = () => {
   const { currentTrack } = usePlayer();
 
   const split = useMemo(() => {
@@ -29,64 +27,89 @@ const TrackHeadline = ({ onNavigate }) => {
   if (!currentTrack) return null;
 
   const slug = artistSlug(currentTrack);
-  const handleNavigate = () => onNavigate?.();
   const album = currentTrack.album || 'Single';
+  const trackKey = currentTrack.id || `${currentTrack.title}-${currentTrack.artist}`;
+  const reduceMotion = isReducedMotion();
 
   return (
     <div className="w-full min-w-0">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.24em] text-ink-3">
-            <span
-              aria-hidden="true"
-              className="relative inline-flex h-1.5 w-1.5 rounded-full bg-track"
-            >
-              <span className="absolute inset-0 rounded-full bg-track animate-ping opacity-70" />
-            </span>
-            Now playing
-          </p>
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={trackKey}
+          initial={{ opacity: 0, y: reduceMotion ? 0 : 8 }}
+          animate={{
+            opacity: 1,
+            y: 0,
+            transition: {
+              duration: reduceMotion ? 0 : durations.short,
+              ease: easings.emphasis,
+            },
+          }}
+          exit={{
+            opacity: 0,
+            y: reduceMotion ? 0 : -6,
+            transition: {
+              duration: reduceMotion ? 0 : durations.short,
+              ease: easings.accel,
+            },
+          }}
+          className="flex items-start justify-between gap-3"
+        >
+          <div className="min-w-0 flex-1 max-w-[48ch]">
+            <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-4/90">
+              Now playing
+            </p>
 
-          <h1
-            className="np-title mt-3 font-display font-semibold text-ink leading-[1.04] tracking-[-0.025em] [text-wrap:balance]"
-            style={{ fontSize: 'clamp(28px, min(5vh, 3.2vw), 48px)' }}
-          >
-            <span className="block">{split.headline}</span>
-            {split.subhead ? (
-              <span className="block mt-1 text-[0.6em] leading-[1.18] tracking-[-0.01em] text-ink-2 font-medium">
-                {split.subhead}
-              </span>
-            ) : null}
-          </h1>
-
-          <p className="mt-3 text-[14.5px] text-ink-2 truncate">
-            <Link
-              to={slug ? `/artist/${slug}` : '#'}
-              onClick={handleNavigate}
-              // Premium link treatment — always-on hairline underline at
-              // 6px offset, ink-quaternary by default, lifts to accent on
-              // hover. Reads as "this is a link" without competing with
-              // the title typography above.
-              className="text-track underline decoration-1 underline-offset-[6px] decoration-white/15 hover:decoration-accent transition-colors focus-ring rounded-sm font-medium"
+            <h1
+              className="np-title mt-2 font-display font-semibold leading-[1.05] tracking-tightest text-ink [text-wrap:balance]"
+              style={{ fontSize: 'clamp(30px, min(4.2vw, 5.2vh), 44px)' }}
             >
-              {currentTrack.artist || 'Unknown artist'}
-            </Link>
-            <span className="text-ink-4 mx-1.5">·</span>
-            {currentTrack.albumId ? (
+              <span className="block">{split.headline}</span>
+              {split.subhead ? (
+                <span className="mt-1 block text-[0.56em] font-medium leading-[1.16] tracking-[-0.01em] text-ink-2">
+                  {split.subhead}
+                </span>
+              ) : null}
+            </h1>
+
+            <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-body text-ink-2">
               <Link
-                to={`/album/${currentTrack.albumId}`}
-                onClick={handleNavigate}
-                className="text-ink-3 underline decoration-1 underline-offset-[6px] decoration-transparent hover:decoration-white/20 hover:text-ink transition-colors focus-ring rounded-sm"
+                to={slug ? `/artist/${slug}` : '#'}
+                className="rounded-sm font-medium text-track underline decoration-1 decoration-white/15 underline-offset-[6px] transition-colors hover:decoration-accent focus-ring"
               >
-                {album}
+                {currentTrack.artist || 'Unknown artist'}
               </Link>
-            ) : (
-              <span className="text-ink-3">{album}</span>
-            )}
-          </p>
-        </div>
+              <span aria-hidden="true" className="text-ink-4">•</span>
+              {currentTrack.albumId ? (
+                <Link
+                  to={`/album/${currentTrack.albumId}`}
+                  className="rounded-sm text-ink-3 underline decoration-1 decoration-transparent underline-offset-[6px] transition-colors hover:text-ink hover:decoration-white/20 focus-ring"
+                >
+                  {album}
+                </Link>
+              ) : (
+                <span className="text-ink-3">{album}</span>
+              )}
+            </p>
+          </div>
 
-        <HeartButton track={currentTrack} size="lg" className="shrink-0 mt-0.5" />
-      </div>
+          <div className="mt-0.5 shrink-0 flex items-center gap-2">
+            <AddToPlaylistButton
+              track={currentTrack}
+              className="border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.06]"
+              align="end"
+              side="bottom"
+              sideOffset={10}
+              buttonLabel={`Add ${currentTrack.title || 'current track'} to playlist`}
+            />
+            <HeartButton
+              track={currentTrack}
+              size="md"
+              className="border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.06]"
+            />
+          </div>
+        </motion.div>
+      </AnimatePresence>
     </div>
   );
 };

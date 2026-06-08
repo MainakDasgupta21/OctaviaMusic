@@ -152,13 +152,13 @@ export const NotificationsProvider = ({ children }) => {
       return;
     }
     if (playlists.length > prev) {
-      const latest = playlists[0];
+      const latest = playlists[playlists.length - 1];
       if (latest) {
         add({
           id: `playlist-${latest.id}`,
           kind: 'playlist',
           title: `Playlist created: ${latest.name}`,
-          description: 'Add songs to it from the song context menu.',
+          description: 'Add songs from any track row or mini player.',
           to: `/playlist/${latest.id}`,
         });
       }

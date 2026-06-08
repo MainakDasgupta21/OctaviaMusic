@@ -32,12 +32,9 @@ const SortableQueueItem = ({ track, index, onPlay, onRemove, isCurrent }) => {
       ref={setNodeRef}
       style={style}
       className={cn(
-        'group grid grid-cols-[1.6rem_2.5rem_1fr_auto_auto] items-center gap-2.5 px-2 py-2 rounded-xl',
-        // `row-hover` provides the tinted-slide-in language used across the
-        // app for list rows. The `isCurrent` branch still gets its own
-        // active state so the now-playing row reads first.
+        'group grid grid-cols-[1.5rem_2.25rem_1fr_auto_auto] items-center gap-2.5 rounded-panel px-2 py-2',
         isCurrent
-          ? 'bg-track/[0.12] border border-track/30'
+          ? 'border border-track/25 bg-track/[0.1]'
           : 'row-hover',
       )}
       {...attributes}
@@ -48,7 +45,7 @@ const SortableQueueItem = ({ track, index, onPlay, onRemove, isCurrent }) => {
       >
         <span
           className={cn(
-            'font-mono text-[12px] tabular-nums transition-all duration-short',
+            'font-mono text-tiny tabular-nums transition-all duration-short',
             'group-hover:opacity-0 group-hover:-translate-y-0.5',
             isCurrent ? 'text-accent' : 'text-ink-4',
           )}
@@ -68,7 +65,7 @@ const SortableQueueItem = ({ track, index, onPlay, onRemove, isCurrent }) => {
         alt=""
         kind="track"
         rounded="rounded-lg"
-        className="w-10 h-10 flex-shrink-0 ring-1 ring-white/10"
+        className="h-9 w-9 flex-shrink-0 ring-1 ring-white/10"
         imgClassName="object-cover"
       />
       <button
@@ -78,19 +75,16 @@ const SortableQueueItem = ({ track, index, onPlay, onRemove, isCurrent }) => {
       >
         <p
           className={cn(
-            'text-[13.5px] font-medium truncate',
+            'truncate text-label font-medium',
             isCurrent ? 'text-accent' : 'text-ink',
           )}
         >
           {track.title}
         </p>
-        <p className="text-[12px] text-ink-3 truncate mt-0.5">
+        <p className="mt-0.5 truncate text-tiny text-ink-3">
           by {track.artist || 'Unknown artist'}
         </p>
       </button>
-      {/* Drag handle is always rendered at low opacity (keyboard-discoverable)
-          and lifts to full visibility on hover/focus. Touch users can long-
-          press anywhere on the row instead. */}
       <button
         type="button"
         {...listeners}
@@ -112,7 +106,7 @@ const SortableQueueItem = ({ track, index, onPlay, onRemove, isCurrent }) => {
 };
 
 const QueuePanel = () => {
-  const { queue, currentTrack, isPlaying, playTrack, removeFromQueue, reorderQueue } = usePlayer();
+  const { queue, currentTrack, playTrack, removeFromQueue, reorderQueue } = usePlayer();
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -130,46 +124,12 @@ const QueuePanel = () => {
 
   return (
     <div className="h-full flex flex-col pr-0.5">
-      <div className="px-2.5 mb-3 pb-2.5 border-b border-white/[0.06] flex items-center justify-between">
-        <h3 className="eyebrow">Now playing</h3>
-        <span className="eyebrow tabular">
-          {queue.length} up next
+      <div className="mb-3 flex items-center justify-between border-b border-white/[0.06] px-2 pb-2">
+        <h3 className="font-mono text-eyebrow uppercase tracking-[0.2em] text-ink-4">Up next</h3>
+        <span className="font-mono text-micro uppercase tracking-[0.18em] text-ink-4 tabular-nums">
+          {queue.length} queued
         </span>
       </div>
-
-      {currentTrack ? (
-        <div className="relative grid grid-cols-[2.5rem_1fr_auto] items-center gap-3 p-2.5 pl-3 mb-3 rounded-xl border border-track/40 bg-track/[0.14] shadow-[0_10px_26px_hsl(var(--track-accent)/0.14)] overflow-hidden">
-          <span
-            aria-hidden="true"
-            className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-track"
-          />
-          <SmartImage
-            src={currentTrack.thumbnail}
-            alt=""
-            kind="track"
-            rounded="rounded-lg"
-            className="w-10 h-10 ring-1 ring-white/10"
-            imgClassName="object-cover"
-          />
-          <div className="flex-1 min-w-0">
-            <p className="text-[13.5px] font-semibold truncate text-accent">
-              {currentTrack.title}
-            </p>
-            <p className="text-[12px] text-ink-3 truncate mt-0.5">
-              by {currentTrack.artist || 'Unknown artist'}
-            </p>
-          </div>
-          {isPlaying ? (
-            <span aria-hidden="true" className="inline-flex items-end gap-0.5 h-3.5">
-              <span className="sidebar-playing-bar [animation-delay:-0.3s]" />
-              <span className="sidebar-playing-bar [animation-delay:-0.15s]" />
-              <span className="sidebar-playing-bar" />
-            </span>
-          ) : (
-            <Play className="w-4 h-4 text-accent fill-current" />
-          )}
-        </div>
-      ) : null}
 
       <div data-lenis-prevent className="flex-1 overflow-y-auto custom-scrollbar -mx-1 px-1">
         {queue.length === 0 ? (
@@ -191,7 +151,7 @@ const QueuePanel = () => {
                     key={t.id}
                     track={t}
                     index={i}
-                    isCurrent={false}
+                    isCurrent={currentTrack?.id === t.id}
                     onPlay={() => playTrack(t)}
                     onRemove={() => removeFromQueue(t.id)}
                   />

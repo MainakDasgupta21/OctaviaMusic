@@ -33,7 +33,7 @@ const SectionHeader = ({
       ? 'font-display text-display-md text-ink leading-none'
       : size === 'sm'
         ? 'font-display text-xl md:text-2xl text-ink leading-tight'
-        : 'font-display text-2xl md:text-[34px] text-ink leading-[1.05] tracking-tight';
+        : 'font-display text-display-sm md:text-display-md text-ink leading-[1.05] tracking-tight';
 
   return (
     <header className={cn('mb-5', className)}>
@@ -74,7 +74,7 @@ const SectionHeader = ({
       </div>
       {rule ? <div className="editorial-rule" /> : null}
       {subtitle ? (
-        <p className="text-[13px] text-ink-3 mt-3 max-w-2xl leading-relaxed">
+        <p className="text-label text-ink-3 mt-3 max-w-2xl leading-relaxed">
           {subtitle}
         </p>
       ) : null}

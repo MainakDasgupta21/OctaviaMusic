@@ -8,15 +8,8 @@ import { queryKeys, cachePolicy } from '@/lib/query-keys';
 import { usePlayer, usePlayerProgress } from '@/contexts/PlayerContext';
 import EmptyState from '@/components/ui-v2/EmptyState';
 import { Button } from '@/components/ui-v2/Button';
+import Skeleton from '@/components/ui-v2/Skeleton';
 import { cn } from '@/lib/utils';
-
-// =============================================================================
-// Lyrics screen — Spotify Now-Playing inspired.
-// - Bold display-weight typography (no editorial italics)
-// - Big dramatic active line, dim past/future lines
-// - Click any line to seek there
-// - Active line auto-scrolls to center
-// =============================================================================
 
 // `2.4s` → "0:02" for screen-reader-friendly timestamps on each seek button.
 const formatSeekTime = (seconds) => {
@@ -27,18 +20,12 @@ const formatSeekTime = (seconds) => {
   return `${m}:${String(s).padStart(2, '0')}`;
 };
 
-// How long auto-scroll yields after the user manually scrolls. Long enough
-// that someone reading back a verse isn't yanked away by the next active-line
-// change, short enough that focus eventually returns to the playhead.
 const USER_SCROLL_GRACE_MS = 3500;
 
 const LyricsPanel = () => {
   const { currentTrack, seekTo } = usePlayer();
   const { progress, duration } = usePlayerProgress();
   const scrollRef = useRef(null);
-  // Timestamp of the most recent user-initiated scroll. Updated by the
-  // container's `onScroll`, guarded against our own `scrollIntoView` calls
-  // via the `programmaticScrollRef` flag below.
   const lastUserScrollRef = useRef(0);
   const programmaticScrollRef = useRef(false);
 
@@ -67,7 +54,6 @@ const LyricsPanel = () => {
     },
   });
 
-  // Memoise the parse so re-renders during playback don't re-tokenise the LRC.
   const parsed = useMemo(() => {
     if (!data) return { synced: [], plain: '', instrumental: false };
     return {
@@ -82,24 +68,17 @@ const LyricsPanel = () => {
 
   useEffect(() => {
     if (idx < 0 || !scrollRef.current) return;
-    // Yield to the user for a short grace period after they manually scrolled
-    // — otherwise the next active-line tick yanks the panel back and they
-    // can never browse the lyric history.
     if (Date.now() - lastUserScrollRef.current < USER_SCROLL_GRACE_MS) return;
     const active = scrollRef.current.querySelector('[data-active="true"]');
     if (active) {
       programmaticScrollRef.current = true;
       active.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      // The smooth scroll fires more `scroll` events; clear the guard on the
-      // next macrotask so the *next* genuine user scroll registers correctly.
       window.setTimeout(() => {
         programmaticScrollRef.current = false;
       }, 600);
     }
   }, [idx]);
 
-  // Track manual scrolls. We only record them when not in the middle of our
-  // own programmatic `scrollIntoView` call.
   const handleManualScroll = () => {
     if (programmaticScrollRef.current) return;
     lastUserScrollRef.current = Date.now();
@@ -118,15 +97,26 @@ const LyricsPanel = () => {
 
   if (isLoading) {
     return (
-      <div className="h-full flex items-center justify-center gap-2 text-ink-3 text-[14px]">
-        <Loader2 className="w-4 h-4 animate-spin" /> Loading lyrics…
+      <div className="h-full overflow-y-auto custom-scrollbar px-4 py-11 sm:px-5 sm:py-13 space-y-3">
+        <div className="flex items-center justify-center gap-2 text-ink-3 text-[13px] mb-6">
+          <Loader2 className="w-4 h-4 animate-spin" /> Syncing lyrics…
+        </div>
+        {Array.from({ length: 7 }).map((_, index) => (
+          <Skeleton
+            key={`lyrics-skeleton-${index}`}
+            className={cn(
+              'h-7 rounded-sharp',
+              index % 3 === 0 && 'w-[86%]',
+              index % 3 === 1 && 'w-[72%]',
+              index % 3 === 2 && 'w-[64%]',
+            )}
+          />
+        ))}
       </div>
     );
   }
 
   if (isError) {
-    // 404 = "no lyrics available", treated as an empty state rather than an
-    // error. 5xx / network failures get a retry button.
     if (isNotFoundError(error)) {
       return (
         <EmptyState
@@ -183,14 +173,12 @@ const LyricsPanel = () => {
         ref={scrollRef}
         data-lenis-prevent
         onScroll={handleManualScroll}
-        className="h-full overflow-y-auto custom-scrollbar px-4 py-16 space-y-1 text-left"
+        className="h-full overflow-y-auto custom-scrollbar px-4 py-11 text-left sm:px-5 sm:py-13 space-y-1"
         style={{
-          // Spotify-style fade at top/bottom so lines feel like they're "rising
-          // out" and "sinking back into" the panel rather than hard-cutting.
           maskImage:
-            'linear-gradient(180deg, transparent 0%, #000 14%, #000 86%, transparent 100%)',
+            'linear-gradient(180deg, transparent 0%, #000 12%, #000 88%, transparent 100%)',
           WebkitMaskImage:
-            'linear-gradient(180deg, transparent 0%, #000 14%, #000 86%, transparent 100%)',
+            'linear-gradient(180deg, transparent 0%, #000 12%, #000 88%, transparent 100%)',
         }}
       >
         {synced.map((line, i) => {
@@ -206,28 +194,21 @@ const LyricsPanel = () => {
               aria-label={`Jump to ${formatSeekTime(line.time)}`}
               aria-current={isActive ? 'true' : undefined}
               animate={{
-                // Inactive opacity floor bumped to 0.4 (was 0.22) so dimmed
-                // lines still clear WCAG AA against the panel background;
-                // the active line at 1.0 keeps its dramatic contrast.
-                opacity: isActive ? 1 : isPast ? 0.4 : isAdjacent ? 0.7 : 0.5,
-                scale: isActive ? 1.04 : 1,
+                opacity: isActive ? 1 : isPast ? 0.44 : isAdjacent ? 0.72 : 0.58,
+                scale: isActive ? 1.01 : 1,
               }}
-              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
               style={{
-                // Soft ember glow on the active line — a gentle text-shadow
-                // tinted by the album accent. Quietly turned off for the
-                // non-active rows. Pairs with the 1.04× scale above so the
-                // current line truly "reads" as the focal point.
                 textShadow: isActive
-                  ? '0 0 14px hsl(var(--track-accent) / 0.45), 0 0 30px hsl(var(--track-accent) / 0.20)'
+                  ? '0 0 16px hsl(var(--track-accent) / 0.24)'
                   : undefined,
                 transformOrigin: 'left center',
               }}
               className={cn(
-                'block w-full text-left px-2 py-2 rounded-lg font-display tracking-tight leading-[1.18] focus-ring transition-colors',
+                'block w-full rounded-lg px-2 py-1.5 text-left font-display leading-[1.2] tracking-tight transition-colors focus-ring',
                 isActive
-                  ? 'text-white font-bold text-[24px] md:text-[28px]'
-                  : 'text-ink-2 hover:text-ink font-semibold text-[19px] md:text-[22px]',
+                  ? 'text-ink font-semibold text-[21px] md:text-[23px]'
+                  : 'font-medium text-[16.5px] md:text-[18px] text-ink-3 hover:text-ink-2',
               )}
             >
               {line.text || '\u00a0'}
@@ -249,7 +230,7 @@ const LyricsPanel = () => {
           'linear-gradient(180deg, transparent 0%, #000 8%, #000 92%, transparent 100%)',
       }}
     >
-      <pre className="whitespace-pre-wrap font-display font-semibold text-[19px] md:text-[20px] text-ink-2 leading-[1.45] tracking-tight">
+      <pre className="whitespace-pre-wrap font-display font-medium text-[17px] md:text-[19px] text-ink-2 leading-[1.55] tracking-tight">
         {parsed.plain}
       </pre>
     </div>

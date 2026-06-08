@@ -6,13 +6,6 @@ import { artistSlugOf, isUsableArtistSlug } from '@/lib/slug';
 import SmartImage from '@/components/SmartImage';
 import { cn } from '@/lib/utils';
 
-// =============================================================================
-// Spotify-style "About the artist" + "More by this artist".
-// The right-rail Related tab leads with a hero artist card (image header,
-// name, stat line, Go-to-artist CTA), followed by tracks by the same artist
-// and a "You might also like" tail.
-// =============================================================================
-
 const formatCount = (n) => {
   if (!Number.isFinite(n) || n <= 0) return '—';
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -44,8 +37,8 @@ const useRelated = () => {
     );
     const playsByArtist = history.filter((t) => t.artist === artist).length;
     return {
-      moreByArtist: sameArtist.slice(0, 4),
-      youMightLike: others.slice(0, 4),
+      moreByArtist: sameArtist.slice(0, 3),
+      youMightLike: others.slice(0, 3),
       playsByArtist,
     };
   }, [history, currentTrack?.id, currentTrack?.artist]);
@@ -58,7 +51,7 @@ const ArtistHero = ({ track, playsByArtist }) => {
     <Link
       to={isUsableArtistSlug(slug) ? `/artist/${slug}` : '#'}
       aria-disabled={!isUsableArtistSlug(slug)}
-      className="group relative block rounded-2xl overflow-hidden ring-1 ring-white/[0.08] focus-ring h-[170px]"
+      className="group relative block h-[150px] overflow-hidden rounded-panel border border-white/[0.08] focus-ring"
     >
       <SmartImage
         src={track.thumbnail}
@@ -72,38 +65,38 @@ const ArtistHero = ({ track, playsByArtist }) => {
       />
       <div
         aria-hidden="true"
-        className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/20"
+        className="absolute inset-0 bg-gradient-to-t from-black/82 via-black/38 to-black/18"
       />
       <div
         aria-hidden="true"
-        className="absolute inset-0"
+        className="absolute inset-0 opacity-90"
         style={{
           backgroundImage:
-            'radial-gradient(120% 70% at 20% 100%, hsl(var(--track-accent) / 0.32), transparent 70%)',
+            'radial-gradient(100% 70% at 20% 100%, hsl(var(--track-accent) / 0.26), transparent 74%)',
         }}
       />
 
-      <div className="relative h-full p-4 flex flex-col justify-between">
-        <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-white/75 inline-flex items-center gap-1.5">
+      <div className="relative flex h-full flex-col justify-between p-3.5">
+        <span className="inline-flex items-center gap-1.5 font-mono text-eyebrow uppercase tracking-[0.2em] text-white/75">
           <User className="w-3 h-3" strokeWidth={2.2} />
-          About the artist
+          Artist
         </span>
 
         <div>
-          <p className="font-display font-semibold text-white text-[26px] leading-[1.05] tracking-tight truncate drop-shadow-[0_2px_8px_rgba(0,0,0,0.55)]">
+          <p className="truncate font-display text-[22px] font-semibold leading-[1.08] tracking-tight text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.55)]">
             {track.artist || 'Unknown artist'}
           </p>
-          <div className="mt-1.5 flex items-center justify-between gap-3">
-            <p className="text-[12px] text-white/75 tabular-nums">
+          <div className="mt-1.5 flex items-center justify-between gap-2.5">
+            <p className="tabular-nums text-[11.5px] text-white/74">
               <span className="font-medium text-white">{formatCount(listeners)}</span>
               <span className="text-white/55"> monthly listeners</span>
             </p>
             <span
               aria-hidden="true"
-              className="inline-flex items-center gap-1.5 text-[11.5px] font-mono uppercase tracking-[0.18em] text-white/80 group-hover:text-white transition-colors"
+              className="inline-flex items-center gap-1.5 font-mono text-micro uppercase tracking-[0.16em] text-white/80 transition-colors group-hover:text-white"
             >
-              Go to artist
-              <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+              View
+              <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
             </span>
           </div>
         </div>
@@ -113,7 +106,7 @@ const ArtistHero = ({ track, playsByArtist }) => {
 };
 
 const SectionLabel = ({ children }) => (
-  <p className="px-1 font-mono text-[10px] uppercase tracking-[0.24em] text-ink-3">
+  <p className="px-1 font-mono text-[10px] uppercase tracking-[0.18em] text-ink-4">
     {children}
   </p>
 );
@@ -122,7 +115,7 @@ const TrackRow = ({ track, onPlay, dense = false }) => (
   <button
     type="button"
     onClick={() => onPlay(track)}
-    className="group w-full flex items-center gap-3 px-2 py-1.5 rounded-lg hover:bg-white/[0.04] text-left focus-ring transition-colors"
+    className="group flex w-full items-center gap-2.5 rounded-panel px-2 py-1.5 text-left transition-colors hover:bg-white/[0.04] focus-ring"
   >
     <div
       className={cn(
@@ -146,10 +139,10 @@ const TrackRow = ({ track, onPlay, dense = false }) => (
       </span>
     </div>
     <div className="flex-1 min-w-0">
-      <p className="text-[13.5px] font-medium truncate text-ink group-hover:text-white">
+      <p className="truncate text-label font-medium text-ink group-hover:text-white">
         {track.title}
       </p>
-      <p className="text-[12px] text-ink-3 truncate mt-0.5">{track.artist || 'Unknown artist'}</p>
+      <p className="mt-0.5 truncate text-tiny text-ink-3">{track.artist || 'Unknown artist'}</p>
     </div>
   </button>
 );
@@ -168,7 +161,7 @@ const PlayerRelatedRail = () => {
   const hasAnything = moreByArtist.length > 0 || youMightLike.length > 0;
 
   return (
-    <div data-lenis-prevent className="h-full overflow-y-auto custom-scrollbar -mx-1 px-1 pb-1 space-y-5">
+    <div data-lenis-prevent className="h-full overflow-y-auto custom-scrollbar -mx-1 px-1 pb-1 space-y-3.5">
       <ArtistHero track={currentTrack} playsByArtist={playsByArtist} />
 
       {moreByArtist.length > 0 && (
@@ -198,7 +191,7 @@ const PlayerRelatedRail = () => {
       )}
 
       {!hasAnything && (
-        <p className="px-2 py-6 text-center text-[13px] text-ink-3">
+        <p className="px-2 py-6 text-center text-label text-ink-3">
           Play a few more songs and we'll surface picks here.
         </p>
       )}

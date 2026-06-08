@@ -3,9 +3,6 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import {
@@ -18,12 +15,11 @@ import {
   HeartOff,
   Share2,
   Copy,
-  Plus,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { usePlayer } from '@/contexts/PlayerContext';
 import { useFavorites } from '@/contexts/FavoritesContext';
-import { usePlaylists } from '@/contexts/PlaylistContext';
+import AddToPlaylistSubmenu from '@/components/playlist/AddToPlaylistSubmenu';
 import { artistSlugOf, isUsableArtistSlug } from '@/lib/slug';
 import notify from '@/lib/notify';
 
@@ -31,7 +27,6 @@ const TrackContextMenu = ({ track, children, onShareLink }) => {
   const navigate = useNavigate();
   const { playTrack, addToQueue, playTrackNext } = usePlayer();
   const { isFavorite, toggleFavorite } = useFavorites();
-  const { playlists, addTrackToPlaylist, createPlaylist } = usePlaylists();
   const liked = track ? isFavorite(track.id) : false;
 
   const handleShare = async () => {
@@ -80,31 +75,7 @@ const TrackContextMenu = ({ track, children, onShareLink }) => {
         <ContextMenuItem onClick={() => { addToQueue(track); notify.added(track.title); }}>
           <ListMusic className="w-4 h-4 mr-2" /> Add to queue
         </ContextMenuItem>
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            <Plus className="w-4 h-4 mr-2" /> Add to playlist
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent className="w-56 bg-surface-3/95 backdrop-blur-xl border-white/10">
-            <ContextMenuItem
-              onClick={() => {
-                const id = createPlaylist({ name: track.title, tracks: [track], pinned: true });
-                notify.added(`Playlist \u2014 ${track.title}`);
-                navigate(`/playlist/${id}`);
-              }}
-            >
-              <Plus className="w-4 h-4 mr-2" /> New playlist
-            </ContextMenuItem>
-            {playlists.length > 0 && <ContextMenuSeparator />}
-            {playlists.map((p) => (
-              <ContextMenuItem
-                key={p.id}
-                onClick={() => { addTrackToPlaylist(p.id, track); notify.added(`${track.title} \u2192 ${p.name}`); }}
-              >
-                <ListMusic className="w-4 h-4 mr-2 opacity-70" /> {p.name}
-              </ContextMenuItem>
-            ))}
-          </ContextMenuSubContent>
-        </ContextMenuSub>
+        <AddToPlaylistSubmenu track={track} menuType="context" />
         <ContextMenuSeparator />
         <ContextMenuItem
           disabled={!canVisitArtist}

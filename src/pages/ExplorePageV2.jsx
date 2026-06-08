@@ -24,6 +24,7 @@ import CommunityDiscoveryStrip from '@/components/explore/CommunityDiscoveryStri
 import ExploreShareModal from '@/components/explore/ExploreShareModal';
 import ExploreFlowEntryCard from '@/components/explore/ExploreFlowEntryCard';
 import HeartButton from '@/components/HeartButton';
+import AddToPlaylistButton from '@/components/playlist/AddToPlaylistButton';
 import useExploreData from '@/hooks/useExploreData';
 import useExploreTaste from '@/hooks/useExploreTaste';
 import useExploreProgress from '@/hooks/useExploreProgress';
@@ -721,7 +722,14 @@ const ExplorePageV2 = () => {
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
                     <div className="absolute top-2 right-2">
-                      <HeartButton track={track} size="sm" />
+                      <div className="flex items-center gap-1">
+                        <AddToPlaylistButton
+                          track={track}
+                          className="p-1.5 bg-bg/55 hover:bg-bg/70"
+                          buttonLabel={`Add ${track.title || 'track'} to playlist`}
+                        />
+                        <HeartButton track={track} size="sm" />
+                      </div>
                     </div>
                   </div>
                   <div className="p-3">
@@ -767,7 +775,7 @@ const ExplorePageV2 = () => {
                 key={track.id}
                 type="button"
                 onClick={() => playTrack(track)}
-                className="flex items-center gap-3 p-2.5 rounded-sharp border border-white/[0.08] bg-surface-2/45 focus-ring text-left"
+                className="group flex items-center gap-3 p-2.5 rounded-sharp border border-white/[0.08] bg-surface-2/45 focus-ring text-left"
               >
                 <SmartImage
                   src={track.thumbnail}
@@ -779,6 +787,17 @@ const ExplorePageV2 = () => {
                 <div className="min-w-0">
                   <p className="text-[14px] text-ink truncate">{track.title}</p>
                   <p className="text-[12px] text-ink-3 truncate">{track.artist}</p>
+                </div>
+                <div
+                  className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <AddToPlaylistButton
+                    track={track}
+                    className="p-1.5"
+                    buttonLabel={`Add ${track.title || 'track'} to playlist`}
+                  />
+                  <HeartButton track={track} size="sm" />
                 </div>
               </button>
             ))}

@@ -46,7 +46,6 @@ const ChartRowSong = ({
   isPlaying,
   onPlay,
   onShare,
-  onAddToPlaylist,
   onAddFavorite,
   onGoAlbum,
   onGoArtist,
@@ -63,9 +62,9 @@ const ChartRowSong = ({
       }
     }}
     className={cn(
-      'group grid grid-cols-[3.2rem_3.6rem_minmax(0,1fr)_6.8rem_4.5rem] md:grid-cols-[3.6rem_5.2rem_minmax(0,1fr)_5.5rem_8rem_5.2rem] lg:grid-cols-[3.6rem_5.2rem_minmax(0,1fr)_5.5rem_8rem_4.8rem_5.2rem] gap-3 px-4 py-3.5 items-center border-b border-white/[0.05] transition-[background-color,border-color] duration-short ease-emphasis cursor-pointer focus-ring rounded-sharp',
+      'group grid grid-cols-[2.6rem_2.8rem_minmax(0,1fr)_auto] sm:grid-cols-[2.8rem_3rem_minmax(0,1fr)_5.6rem_auto] md:grid-cols-[3.2rem_4.2rem_minmax(0,1fr)_4.8rem_7rem_auto] lg:grid-cols-[3.2rem_4.2rem_minmax(0,1fr)_4.8rem_7rem_4.6rem_auto] gap-3 px-3 sm:px-4 py-3.5 items-center border-b border-white/[0.05] transition-[background-color,border-color] duration-short ease-emphasis cursor-pointer focus-ring rounded-sharp',
       'hover:bg-white/[0.04]',
-      isCurrent && 'bg-emerald-500/[0.09] border-l-[3px] border-l-emerald-400',
+      isCurrent && 'bg-track/[0.10] border-l-[3px] border-l-track',
     )}
   >
     <div className="min-w-0">
@@ -100,14 +99,14 @@ const ChartRowSong = ({
             : `/search?q=${encodeURIComponent(`${entry.title} ${entry.artist}`)}`
         }
         onClick={(event) => event.stopPropagation()}
-        className="text-[15px] font-semibold text-ink truncate block hover:text-emerald-300 transition-colors"
+        className="text-[15px] font-semibold text-ink truncate block hover:text-track transition-colors"
       >
         {entry.title}
       </Link>
       <Link
         to={`/artist/${encodeURIComponent(entry.artistId)}`}
         onClick={(event) => event.stopPropagation()}
-        className="text-[13px] text-emerald-400 truncate block mt-0.5 hover:text-emerald-300 transition-colors"
+        className="text-[13px] text-track/90 truncate block mt-0.5 hover:text-track transition-colors"
       >
         {entry.artist}
       </Link>
@@ -121,7 +120,7 @@ const ChartRowSong = ({
 
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className="text-[13px] text-ink-2 justify-self-end tabular-nums cursor-default">
+        <span className="hidden sm:block text-[13px] text-ink-2 justify-self-end tabular-nums cursor-default">
           {formatStreamsCompact(entry)}
         </span>
       </TooltipTrigger>
@@ -138,7 +137,6 @@ const ChartRowSong = ({
       entry={entry}
       onPlay={onPlay}
       onShare={onShare}
-      onAddToPlaylist={onAddToPlaylist}
       onAddFavorite={onAddFavorite}
       onGoAlbum={onGoAlbum}
       onGoArtist={onGoArtist}

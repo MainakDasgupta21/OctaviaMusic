@@ -51,7 +51,7 @@ const GenresPage = () => {
   };
 
   return (
-    <div className="p-5 md:p-10 max-w-[1600px] mx-auto pb-12">
+    <div className="page-shell pt-5 md:pt-10">
       {/* Editorial masthead */}
       <div
         aria-hidden="true"

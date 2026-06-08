@@ -26,7 +26,6 @@ const ChartsList = ({
   isPlaying,
   onPlaySong,
   onShareSong,
-  onAddSongToPlaylist,
   onFavoriteSong,
   onSongGoAlbum,
   onSongGoArtist,
@@ -119,7 +118,6 @@ const ChartsList = ({
                   isPlaying={isPlaying}
                   onPlay={onPlaySong}
                   onShare={onShareSong}
-                  onAddToPlaylist={onAddSongToPlaylist}
                   onAddFavorite={onFavoriteSong}
                   onGoAlbum={onSongGoAlbum}
                   onGoArtist={onSongGoArtist}

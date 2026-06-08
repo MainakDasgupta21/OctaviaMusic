@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Slider } from '@/components/ui/slider';
 import {
@@ -8,25 +9,27 @@ import {
   Volume2,
   VolumeX,
   ListMusic,
-  Maximize2,
+  Plus,
+  Check,
   X,
 } from 'lucide-react';
 import { usePlayer } from '@/contexts/PlayerContext';
-import { useUI } from '@/contexts/UIContext';
 import { useTransportActions } from '@/hooks/use-transport-actions';
+import usePlaylistActions from '@/hooks/use-playlist-actions';
+import { durations, isReducedMotion, springs } from '@/design/motion';
 import { cn } from '@/lib/utils';
 
 // =============================================================================
 // MobileMiniPlayerSheet
 // -----------------------------------------------------------------------------
 // Long-press / swipe-up sheet for the mobile mini player. Brings desktop-only
-// transport controls (shuffle, repeat, volume) plus a queue shortcut to mobile
-// without leaving the current page. Tapping the artwork still opens the full
-// expanded player; this sheet is for quick adjustments.
+// transport controls (shuffle, repeat, volume) plus a quick route to the
+// `/player` page. This sheet is for lightweight adjustments.
 // =============================================================================
 
 const MobileMiniPlayerSheet = ({ open, onClose }) => {
   const {
+    currentTrack,
     volume,
     isMuted,
     setVolume,
@@ -35,8 +38,30 @@ const MobileMiniPlayerSheet = ({ open, onClose }) => {
     repeat,
     queue,
   } = usePlayer();
+  const {
+    playlists,
+    isTrackInPlaylist,
+    addTrackToPlaylistWithFeedback,
+    createPlaylistFromTrack,
+  } = usePlaylistActions();
   const { onToggleShuffle, onToggleRepeat, labels } = useTransportActions();
-  const { openExpandedPlayer } = useUI();
+  const navigate = useNavigate();
+  const reduceMotion = isReducedMotion();
+
+  const handleCreatePlaylist = () => {
+    const createdId = createPlaylistFromTrack({
+      track: currentTrack,
+      navigateTo: true,
+    });
+    if (createdId) onClose?.();
+  };
+
+  const handleAddToPlaylist = (playlist) => {
+    const result = addTrackToPlaylistWithFeedback({ playlist, track: currentTrack });
+    if (result.status !== 'invalid') {
+      onClose?.();
+    }
+  };
 
   // Close on Escape so keyboard users can dismiss without reaching for the
   // overlay. The sheet keeps focus trapped inside while open via `tabIndex`
@@ -59,7 +84,7 @@ const MobileMiniPlayerSheet = ({ open, onClose }) => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.18 }}
+            transition={{ duration: reduceMotion ? 0 : durations.short }}
             onClick={onClose}
             className="md:hidden fixed inset-0 z-[60] bg-bg/70 backdrop-blur-sm"
             aria-hidden="true"
@@ -73,10 +98,13 @@ const MobileMiniPlayerSheet = ({ open, onClose }) => {
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
-            transition={{ type: 'spring', stiffness: 360, damping: 32 }}
+            transition={reduceMotion ? { duration: 0 } : springs.overlay}
             className="md:hidden fixed inset-x-2 bottom-2 z-[61] rounded-soft glass-strong ring-1 ring-white/[0.08] overflow-hidden"
             style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
           >
+            <div className="flex justify-center pt-2">
+              <span aria-hidden="true" className="h-1 w-10 rounded-full bg-white/[0.16]" />
+            </div>
             <div className="flex items-center justify-between px-5 pt-4">
               <span className="eyebrow text-ink-3">Quick actions</span>
               <button
@@ -155,12 +183,75 @@ const MobileMiniPlayerSheet = ({ open, onClose }) => {
                 </div>
               </div>
 
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-[10.5px] font-mono uppercase tracking-[0.16em] text-ink-4">
+                    Add to playlist
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleCreatePlaylist}
+                    className="h-8 px-2.5 rounded-sharp bg-white/[0.04] ring-1 ring-white/[0.08] text-ink-2 hover:text-ink inline-flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-[0.12em] focus-ring transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    New
+                  </button>
+                </div>
+                <div className="max-h-[130px] overflow-y-auto custom-scrollbar rounded-sharp border border-white/[0.08] bg-white/[0.02] p-1.5 space-y-1">
+                  {playlists.length > 0 ? (
+                    playlists.map((playlist) => {
+                      const alreadyAdded = isTrackInPlaylist(playlist, currentTrack);
+                      return (
+                        <button
+                          key={playlist.id}
+                          type="button"
+                          disabled={alreadyAdded}
+                          onClick={() => handleAddToPlaylist(playlist)}
+                          className={cn(
+                            'w-full flex items-center justify-between gap-2 rounded-sharp px-2 py-2 text-left text-[12.5px] transition-colors focus-ring',
+                            alreadyAdded
+                              ? 'cursor-default text-ink-4/85 bg-white/[0.02]'
+                              : 'text-ink-2 hover:text-ink hover:bg-white/[0.06]',
+                          )}
+                        >
+                          <span className="truncate">{playlist.name}</span>
+                          {alreadyAdded ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-[0.12em] text-track">
+                              <Check className="w-3 h-3" />
+                              Added
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-mono uppercase tracking-[0.12em] text-ink-4">
+                              Add
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <p className="px-2 py-2 text-[12px] text-ink-4">
+                      No playlists yet. Create one first.
+                    </p>
+                  )}
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => {
                     onClose?.();
-                    openExpandedPlayer();
+                    navigate('/player');
+                  }}
+                  className="h-11 rounded-sharp bg-white/[0.04] ring-1 ring-white/[0.08] text-ink-2 hover:text-ink inline-flex items-center justify-center gap-2 text-[13px] font-medium focus-ring transition-colors"
+                >
+                  Open player
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose?.();
+                    navigate('/player?panel=queue');
                   }}
                   className="h-11 rounded-sharp bg-white/[0.04] ring-1 ring-white/[0.08] text-ink-2 hover:text-ink inline-flex items-center justify-center gap-2 text-[13px] font-medium focus-ring transition-colors"
                 >
@@ -169,17 +260,6 @@ const MobileMiniPlayerSheet = ({ open, onClose }) => {
                   <span className="text-ink-4 text-[11px] font-mono">
                     {queue?.length || 0}
                   </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onClose?.();
-                    openExpandedPlayer();
-                  }}
-                  className="h-11 rounded-sharp bg-white/[0.04] ring-1 ring-white/[0.08] text-ink-2 hover:text-ink inline-flex items-center justify-center gap-2 text-[13px] font-medium focus-ring transition-colors"
-                >
-                  <Maximize2 className="w-4 h-4" />
-                  Open player
                 </button>
               </div>
             </div>

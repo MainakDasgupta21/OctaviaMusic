@@ -12,12 +12,18 @@ import {
   Music2,
   User,
   Disc,
+  ListMusic,
+  Pin,
+  Plus,
+  Check,
 } from 'lucide-react';
 import { usePlayer } from '@/contexts/PlayerContext';
 import { useFavorites } from '@/contexts/FavoritesContext';
 import { useFollowedArtists } from '@/contexts/FollowedArtistsContext';
 import { useLikedAlbums } from '@/contexts/LikedAlbumsContext';
+import usePlaylistActions from '@/hooks/use-playlist-actions';
 import HeartButton from '@/components/HeartButton';
+import AddToPlaylistButton from '@/components/playlist/AddToPlaylistButton';
 import Button from '@/components/ui-v2/Button';
 import Stat from '@/components/ui-v2/Stat';
 import Tabs from '@/components/ui-v2/Tabs';
@@ -49,6 +55,7 @@ const writeRecentSearches = (arr) => {
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: LibraryIcon },
+  { id: 'playlists', label: 'Playlists', icon: ListMusic },
   { id: 'recent', label: 'Recently played', icon: History },
   { id: 'favorites', label: 'Favorites', icon: Heart },
   { id: 'artists', label: 'Following', icon: User },
@@ -86,6 +93,12 @@ const LibraryPage = () => {
   const { list: favorites } = useFavorites();
   const { list: followedArtists, unfollow } = useFollowedArtists();
   const { list: likedAlbums, removeLiked } = useLikedAlbums();
+  const {
+    playlists,
+    isTrackInPlaylist,
+    addTrackToPlaylistWithFeedback,
+    createEmptyPlaylist,
+  } = usePlaylistActions();
   const [tab, setTab] = useState('overview');
   const [recentSearches, setRecentSearches] = useState(() => readRecentSearches());
   const masthead = useMemo(() => formatMasthead(), []);
@@ -130,10 +143,13 @@ const LibraryPage = () => {
   };
 
   const isEmpty =
-    history.length === 0 && favorites.length === 0 && recentSearches.length === 0;
+    history.length === 0
+    && favorites.length === 0
+    && recentSearches.length === 0
+    && playlists.length === 0;
 
   return (
-    <div className="p-5 md:p-10 max-w-[1600px] mx-auto pb-12">
+    <div className="page-shell pt-5 md:pt-10">
       {/* Editorial masthead */}
       <div
         aria-hidden="true"
@@ -168,7 +184,15 @@ const LibraryPage = () => {
 
       {/* Tabs */}
       <div className="mb-8">
-        <Tabs items={TABS} value={tab} onValueChange={setTab} variant="pill" />
+        <div className="overflow-x-auto custom-scrollbar">
+          <Tabs
+            items={TABS}
+            value={tab}
+            onValueChange={setTab}
+            variant="pill"
+            className="min-w-max"
+          />
+        </div>
       </div>
 
       {isEmpty ? (
@@ -183,6 +207,16 @@ const LibraryPage = () => {
           handlePlayAll={handlePlayAll}
           currentTrack={currentTrack}
           isPlaying={isPlaying}
+        />
+      ) : tab === 'playlists' ? (
+        <PlaylistsTab
+          playlists={playlists}
+          currentTrack={currentTrack}
+          onOpenPlaylist={(playlist) => navigate(`/playlist/${playlist.id}`)}
+          onCreatePlaylist={() => createEmptyPlaylist({ name: 'New playlist', pinned: true })}
+          onAddCurrentToPlaylist={(playlist) =>
+            addTrackToPlaylistWithFeedback({ playlist, track: currentTrack })}
+          isCurrentTrackInPlaylist={(playlist) => isTrackInPlaylist(playlist, currentTrack)}
         />
       ) : tab === 'recent' ? (
         <TrackList
@@ -385,6 +419,17 @@ const CompactTrack = ({ track, index, onPlay, isCurrent, isPlaying }) => (
         by {track.artist || 'Unknown artist'}
       </p>
     </div>
+    <div
+      onClick={(e) => e.stopPropagation()}
+      className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex items-center gap-1"
+    >
+      <AddToPlaylistButton
+        track={track}
+        className="p-1.5"
+        buttonLabel={`Add ${track.title || 'track'} to playlist`}
+      />
+      <HeartButton track={track} size="sm" />
+    </div>
     <div className="w-9 h-9 rounded-full flex items-center justify-center transition-colors text-ink-3 group-hover:text-accent">
       {isCurrent && isPlaying ? <NowPlayingBars /> : <Play className="w-4 h-4 fill-current" />}
     </div>
@@ -432,8 +477,16 @@ const TrackList = ({
               variants={fadeUp}
               key={track.id}
               onClick={() => onPlay(track)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  onPlay(track);
+                }
+              }}
+              tabIndex={0}
+              role="button"
               className={cn(
-                'group grid grid-cols-[2.5rem_3rem_1fr_auto_auto] gap-4 px-4 py-3.5',
+                'group row-hover grid grid-cols-[2.5rem_3rem_1fr_auto_auto] gap-4 px-4 py-3.5',
                 'items-center cursor-pointer transition-colors border-b border-white/[0.05] last:border-0',
                 isCurrent ? 'bg-track/[0.08]' : 'hover:bg-white/[0.035]',
               )}
@@ -474,9 +527,14 @@ const TrackList = ({
                 </p>
               </div>
               <div
-                className="opacity-0 group-hover:opacity-100 transition-opacity"
+                className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex items-center gap-1"
                 onClick={(e) => e.stopPropagation()}
               >
+                <AddToPlaylistButton
+                  track={track}
+                  className="p-1.5"
+                  buttonLabel={`Add ${track.title || 'track'} to playlist`}
+                />
                 <HeartButton track={track} size="sm" />
               </div>
               {track.duration ? (
@@ -489,6 +547,145 @@ const TrackList = ({
               ) : (
                 <span className="hidden md:inline-block w-12" aria-hidden />
               )}
+            </motion.div>
+          );
+        })}
+      </motion.div>
+    </div>
+  );
+};
+
+const PlaylistsTab = ({
+  playlists,
+  currentTrack,
+  onOpenPlaylist,
+  onCreatePlaylist,
+  onAddCurrentToPlaylist,
+  isCurrentTrackInPlaylist,
+}) => {
+  if (!playlists.length) {
+    return (
+      <EmptyState
+        icon={ListMusic}
+        title="No playlists yet"
+        description="Create one and start collecting songs you want to replay anytime."
+        action={
+          <Button
+            leftIcon={<Plus className="w-4 h-4" />}
+            onClick={onCreatePlaylist}
+          >
+            New playlist
+          </Button>
+        }
+      />
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <p className="font-editorial text-[13px] text-ink-3">
+          {playlists.length} {playlists.length === 1 ? 'playlist' : 'playlists'}
+        </p>
+        <Button
+          size="sm"
+          leftIcon={<Plus className="w-3.5 h-3.5" />}
+          onClick={onCreatePlaylist}
+        >
+          New playlist
+        </Button>
+      </div>
+
+      <motion.div
+        variants={staggerChildren(0.03)}
+        initial="initial"
+        animate="animate"
+        className="rounded-soft border border-white/[0.06] bg-surface-2/40 backdrop-blur-md overflow-hidden"
+      >
+        {playlists.map((playlist) => {
+          const alreadyHasCurrent = isCurrentTrackInPlaylist(playlist);
+          const leadThumb = playlist.tracks?.[0]?.thumbnail;
+          return (
+            <motion.div
+              variants={fadeUp}
+              key={playlist.id}
+              className="group grid grid-cols-[3rem_1fr_auto] items-center gap-4 px-4 py-3 border-b border-white/[0.05] last:border-0 hover:bg-white/[0.035] transition-colors"
+            >
+              <button
+                type="button"
+                onClick={() => onOpenPlaylist(playlist)}
+                className="relative focus-ring rounded-sharp"
+                aria-label={`Open playlist ${playlist.name}`}
+              >
+                {leadThumb ? (
+                  <SmartImage
+                    src={leadThumb}
+                    alt=""
+                    kind="mix"
+                    rounded="rounded-sharp"
+                    className="w-12 h-12 ring-1 ring-white/10"
+                    imgClassName="object-cover"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-sharp ring-1 ring-white/10 bg-surface-1 flex items-center justify-center">
+                    <ListMusic className="w-4 h-4 text-ink-4" />
+                  </div>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onOpenPlaylist(playlist)}
+                className="min-w-0 text-left focus-ring rounded-sharp"
+              >
+                <p className="text-[14px] font-medium text-ink truncate">{playlist.name}</p>
+                <p className="font-editorial text-[12px] text-ink-3 truncate mt-0.5">
+                  {playlist.tracks.length} {playlist.tracks.length === 1 ? 'track' : 'tracks'}
+                  {playlist.pinned ? ' · pinned' : ''}
+                </p>
+              </button>
+
+              <div className="flex items-center gap-1.5">
+                {playlist.pinned ? (
+                  <span
+                    className="hidden md:inline-flex items-center gap-1 rounded-full border border-white/[0.12] px-2 py-1 text-[10px] font-mono uppercase tracking-[0.12em] text-ink-4"
+                    aria-label="Pinned playlist"
+                  >
+                    <Pin className="w-3 h-3" />
+                    Pinned
+                  </span>
+                ) : null}
+                {currentTrack ? (
+                  <button
+                    type="button"
+                    disabled={alreadyHasCurrent}
+                    onClick={() => onAddCurrentToPlaylist(playlist)}
+                    className={cn(
+                      'h-8 px-2.5 rounded-sharp border text-[11px] font-mono uppercase tracking-[0.12em] focus-ring transition-colors inline-flex items-center gap-1.5',
+                      alreadyHasCurrent
+                        ? 'border-track/35 text-track bg-track/10 cursor-default'
+                        : 'border-white/[0.12] text-ink-3 hover:text-ink hover:bg-white/[0.05]',
+                    )}
+                    aria-label={
+                      alreadyHasCurrent
+                        ? `${currentTrack.title} is already in ${playlist.name}`
+                        : `Add ${currentTrack.title} to ${playlist.name}`
+                    }
+                  >
+                    {alreadyHasCurrent ? (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        Added
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-3.5 h-3.5" />
+                        Add current
+                      </>
+                    )}
+                  </button>
+                ) : null}
+              </div>
             </motion.div>
           );
         })}

@@ -34,7 +34,7 @@ const shortcuts = [
   { keys: ['L'], label: 'Like / unlike current track' },
   { keys: ['/'], label: 'Focus global search' },
   { keys: [modKey, 'K'], label: 'Open command palette' },
-  { keys: ['Esc'], label: 'Close palette or expanded player' },
+  { keys: ['Esc'], label: 'Close palette or mobile drawer' },
 ];
 
 const formatMasthead = () => {

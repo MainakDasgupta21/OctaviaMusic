@@ -37,6 +37,13 @@ export const durations = {
   xlong: 0.6,
 };
 
+// Canonical spring presets for shared UI patterns.
+export const springs = {
+  snappy: { type: 'spring', stiffness: 380, damping: 30 },
+  overlay: { type: 'spring', stiffness: 360, damping: 32 },
+  sheet: { type: 'spring', stiffness: 280, damping: 32 },
+};
+
 export const fadeUp = safe({
   initial: { opacity: 0, y: 12 },
   animate: { opacity: 1, y: 0, transition: { duration: durations.med, ease: easings.emphasis } },
@@ -70,6 +77,12 @@ export const pagePush = safe({
   initial: { opacity: 0, y: 8 },
   animate: { opacity: 1, y: 0, transition: { duration: durations.med, ease: easings.emphasis } },
   exit:    { opacity: 0, y: -8, transition: { duration: durations.short, ease: easings.accel } },
+});
+
+export const panelSwap = safe({
+  initial: { opacity: 0, x: 12 },
+  animate: { opacity: 1, x: 0, transition: { duration: durations.med, ease: easings.emphasis } },
+  exit: { opacity: 0, x: -12, transition: { duration: durations.short, ease: easings.accel } },
 });
 
 export const staggerChildren = (stagger = 0.04, delayChildren = 0) => ({

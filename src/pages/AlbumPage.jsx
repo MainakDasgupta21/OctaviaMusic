@@ -15,6 +15,7 @@ import {
 import { usePlayer } from '@/contexts/PlayerContext';
 import { useLikedAlbums } from '@/contexts/LikedAlbumsContext';
 import HeartButton from '@/components/HeartButton';
+import AddToPlaylistButton from '@/components/playlist/AddToPlaylistButton';
 import Button from '@/components/ui-v2/Button';
 import EmptyState from '@/components/ui-v2/EmptyState';
 import Skeleton from '@/components/ui-v2/Skeleton';
@@ -434,9 +435,17 @@ const AlbumPage = () => {
                   variants={fadeUp}
                   key={track.id || `${track.title}-${i}`}
                   onClick={() => isPlayable && handlePlay(i)}
+                  onKeyDown={(event) => {
+                    if ((event.key === 'Enter' || event.key === ' ') && isPlayable) {
+                      event.preventDefault();
+                      handlePlay(i);
+                    }
+                  }}
+                  tabIndex={isPlayable ? 0 : -1}
+                  role="button"
                   aria-disabled={!isPlayable}
                   className={cn(
-                    'group grid grid-cols-[2.5rem_1fr_auto_auto] gap-4 px-4 py-3.5',
+                    'group row-hover grid grid-cols-[2.5rem_1fr_auto_auto] gap-4 px-4 py-3.5',
                     'items-center transition-colors border-b border-white/[0.05] last:border-0',
                     isPlayable ? 'cursor-pointer' : 'cursor-not-allowed opacity-55',
                     isCurrent ? 'bg-track/[0.08]' : isPlayable ? 'hover:bg-white/[0.035]' : '',
@@ -466,9 +475,20 @@ const AlbumPage = () => {
                   </div>
                   <div
                     onClick={(e) => e.stopPropagation()}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex items-center gap-1"
                   >
-                    {isPlayable ? <HeartButton track={track} size="sm" /> : <span className="w-7 h-7 inline-block" aria-hidden />}
+                    {isPlayable ? (
+                      <>
+                        <AddToPlaylistButton
+                          track={track}
+                          className="p-1.5"
+                          buttonLabel={`Add ${track.title || 'track'} to playlist`}
+                        />
+                        <HeartButton track={track} size="sm" />
+                      </>
+                    ) : (
+                      <span className="w-[64px] h-7 inline-block" aria-hidden />
+                    )}
                   </div>
                   <span className="font-mono text-[12px] text-ink-4 tabular-nums tracking-tight">
                     {track.duration || '—'}

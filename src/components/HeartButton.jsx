@@ -3,6 +3,7 @@ import { Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFavorites } from '@/contexts/FavoritesContext';
 import { useSounds } from '@/contexts/SoundContext';
+import { isReducedMotion } from '@/design/motion';
 import notify from '@/lib/notify';
 import { cn } from '@/lib/utils';
 
@@ -22,6 +23,7 @@ const HeartButton = ({ track, size = 'md', className }) => {
   const { isFavorite, toggleFavorite } = useFavorites();
   const { play: playSfx } = useSounds();
   const liked = track?.id ? isFavorite(track.id) : false;
+  const reduceMotion = isReducedMotion();
   const dims = SIZE_MAP[size] ?? SIZE_MAP.md;
   const [burst, setBurst] = useState(0);
   const tokenRef = useRef(0);
@@ -33,8 +35,10 @@ const HeartButton = ({ track, size = 'md', className }) => {
     e.preventDefault();
     const wasAdded = toggleFavorite(track);
     if (wasAdded) {
-      tokenRef.current += 1;
-      setBurst(tokenRef.current);
+      if (!reduceMotion) {
+        tokenRef.current += 1;
+        setBurst(tokenRef.current);
+      }
       playSfx('pop');
       if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
         try { navigator.vibrate(10); } catch { /* noop */ }
@@ -50,8 +54,8 @@ const HeartButton = ({ track, size = 'md', className }) => {
     <motion.button
       type="button"
       onClick={handleClick}
-      whileTap={{ scale: 0.85 }}
-      whileHover={{ scale: 1.06 }}
+      whileTap={reduceMotion ? undefined : { scale: 0.85 }}
+      whileHover={reduceMotion ? undefined : { scale: 1.06 }}
       aria-pressed={liked}
       aria-label={liked ? `Unlike ${track.title}` : `Like ${track.title}`}
       className={cn(

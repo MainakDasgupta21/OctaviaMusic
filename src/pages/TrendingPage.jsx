@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Play, Clock, TrendingUp, Sparkles } from 'lucide-react';
 import { usePlayer } from '@/contexts/PlayerContext';
 import HeartButton from '@/components/HeartButton';
+import AddToPlaylistButton from '@/components/playlist/AddToPlaylistButton';
 import Button from '@/components/ui-v2/Button';
 import EmptyState from '@/components/ui-v2/EmptyState';
 import Skeleton from '@/components/ui-v2/Skeleton';
@@ -65,7 +66,7 @@ const TrendingPage = () => {
   };
 
   return (
-    <div className="p-5 md:p-10 max-w-[1600px] mx-auto pb-12">
+    <div className="page-shell pt-5 md:pt-10">
       {/* Editorial masthead */}
       <div
         aria-hidden="true"
@@ -219,9 +220,14 @@ const TrendingPage = () => {
 
                     {/* Heart */}
                     <div
-                      className="opacity-0 group-hover:opacity-100 transition-opacity w-8 flex justify-center"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1"
                       onClick={(e) => e.stopPropagation()}
                     >
+                      <AddToPlaylistButton
+                        track={track}
+                        className="p-1.5"
+                        buttonLabel={`Add ${track.title || 'track'} to playlist`}
+                      />
                       <HeartButton track={track} size="sm" />
                     </div>
 

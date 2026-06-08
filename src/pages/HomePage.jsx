@@ -264,7 +264,7 @@ const HomePage = () => {
   }, [homeSurpriseLoading, genres, homeSurpriseLocalPool, playTrack]);
 
   return (
-    <div className="p-5 md:p-10 max-w-[1600px] mx-auto">
+    <div className="page-shell pt-5 md:pt-10">
       <div
         aria-hidden="true"
         className="hidden md:flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.22em] text-ink-4 mb-8 pb-3 border-b border-white/[0.08]"

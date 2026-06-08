@@ -6,6 +6,7 @@ import {
   Heart,
   Settings,
   TrendingUp,
+  BarChart3,
   Compass,
   ListMusic,
 } from 'lucide-react';
@@ -23,7 +24,8 @@ const groups = [
     items: [
       { icon: Home, label: 'Home', path: '/' },
       { icon: Search, label: 'Search', path: '/search' },
-      { icon: TrendingUp, label: 'Charts', path: '/charts' },
+      { icon: TrendingUp, label: 'Trending', path: '/trending' },
+      { icon: BarChart3, label: 'Charts', path: '/charts' },
       { icon: Compass, label: 'Explore', path: '/explore' },
       { icon: ListMusic, label: 'Genres', path: '/genres' },
     ],

@@ -14,24 +14,19 @@ import { cn } from '@/lib/utils';
 
 const skipBtn = (disabled) =>
   cn(
-    'p-2.5 rounded-full transition-colors focus-ring',
+    'inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/[0.07] bg-white/[0.02] transition-[background-color,color,border-color,transform] duration-short ease-emphasis focus-ring',
     disabled
-      ? 'text-ink-4 bg-white/[0.02] cursor-not-allowed'
-      : 'text-ink-2 hover:text-ink bg-white/[0.03] hover:bg-white/[0.08]',
+      ? 'cursor-not-allowed text-ink-4 opacity-70'
+      : 'text-ink-2 hover:border-white/[0.14] hover:bg-white/[0.08] hover:text-ink active:scale-95',
   );
 
 const toggleBtn = (active) =>
   cn(
-    'relative p-2 rounded-full transition-colors focus-ring',
-    active ? 'text-accent' : 'text-ink-3 hover:text-ink hover:bg-white/[0.05]',
+    'relative inline-flex h-9 w-9 items-center justify-center rounded-full transition-[background-color,color] duration-short ease-emphasis focus-ring',
+    active
+      ? 'bg-track/[0.12] text-accent ring-1 ring-track/35'
+      : 'text-ink-3 hover:bg-white/[0.05] hover:text-ink',
   );
-
-const ActiveDot = () => (
-  <span
-    aria-hidden="true"
-    className="absolute left-1/2 -bottom-0.5 -translate-x-1/2 w-1 h-1 rounded-full bg-accent"
-  />
-);
 
 const TransportControls = () => {
   const {
@@ -50,7 +45,7 @@ const TransportControls = () => {
   const reduceMotion = isReducedMotion();
 
   return (
-    <div className="flex items-center justify-center gap-6 lg:gap-8 w-full py-1.5">
+    <div className="flex w-full items-center justify-center gap-2 py-1 sm:gap-2.5">
       <motion.button
         type="button"
         whileTap={reduceMotion ? undefined : { scale: 0.92 }}
@@ -59,8 +54,7 @@ const TransportControls = () => {
         aria-label={labels.shuffle}
         aria-pressed={shuffle}
       >
-        <Shuffle className="w-[18px] h-[18px]" strokeWidth={2} />
-        {shuffle ? <ActiveDot /> : null}
+        <Shuffle className="h-[17px] w-[17px]" strokeWidth={2} />
       </motion.button>
 
       <motion.button
@@ -71,30 +65,30 @@ const TransportControls = () => {
         className={skipBtn(!canGoPrevious)}
         aria-label={labels.previous}
       >
-        <SkipBack className="w-6 h-6 fill-current" />
+        <SkipBack className="h-[21px] w-[21px] fill-current" />
       </motion.button>
 
       <motion.button
         type="button"
+        whileHover={reduceMotion ? undefined : { scale: 1.02 }}
+        whileTap={reduceMotion ? undefined : { scale: 0.94 }}
         onClick={onTogglePlay}
         className={cn(
-          'btn-juicy relative w-[68px] h-[68px] rounded-full text-track-fg flex items-center justify-center ring-1 ring-white/25 focus-ring',
-          isPlaying && 'pulse-glow',
+          'relative flex h-[60px] w-[60px] items-center justify-center rounded-full text-track-fg ring-1 ring-white/20 focus-ring transition-transform duration-short ease-emphasis',
         )}
         style={{
           backgroundImage:
-            'radial-gradient(circle at 30% 22%, hsl(var(--ink-primary) / 0.26), transparent 55%), linear-gradient(135deg, hsl(var(--track-accent)), hsl(var(--track-accent-strong)))',
+            'radial-gradient(circle at 30% 22%, hsl(var(--ink-primary) / 0.22), transparent 56%), linear-gradient(135deg, hsl(var(--track-accent)), hsl(var(--track-accent-strong)))',
           boxShadow:
-            '0 10px 30px -6px hsl(var(--track-accent) / 0.55), 0 0 0 1px hsl(var(--track-accent) / 0.4), inset 0 1px 0 rgba(255,255,255,0.25)',
+            '0 12px 30px -10px hsl(var(--track-accent) / 0.6), 0 0 0 1px hsl(var(--track-accent) / 0.32), inset 0 1px 0 rgba(255,255,255,0.22)',
         }}
         aria-label={labels.play}
         aria-pressed={isPlaying}
       >
-        {isPlaying ? <span aria-hidden="true" className="np-main-play-ring" /> : null}
         {isPlaying ? (
-          <Pause className="relative z-10 w-7 h-7 fill-current" />
+          <Pause className="h-6 w-6 fill-current" />
         ) : (
-          <Play className="relative z-10 w-7 h-7 fill-current ml-0.5" />
+          <Play className="ml-0.5 h-6 w-6 fill-current" />
         )}
       </motion.button>
 
@@ -106,7 +100,7 @@ const TransportControls = () => {
         className={skipBtn(!canGoNext)}
         aria-label={labels.next}
       >
-        <SkipForward className="w-6 h-6 fill-current" />
+        <SkipForward className="h-[21px] w-[21px] fill-current" />
       </motion.button>
 
       <motion.button
@@ -119,12 +113,11 @@ const TransportControls = () => {
       >
         {repeat === 'one' ? (
           <span className="relative inline-flex">
-            <Repeat1 className="w-[18px] h-[18px]" strokeWidth={2} />
+            <Repeat1 className="h-[17px] w-[17px]" strokeWidth={2} />
           </span>
         ) : (
-          <Repeat className="w-[18px] h-[18px]" strokeWidth={2} />
+          <Repeat className="h-[17px] w-[17px]" strokeWidth={2} />
         )}
-        {repeat !== 'off' ? <ActiveDot /> : null}
       </motion.button>
     </div>
   );

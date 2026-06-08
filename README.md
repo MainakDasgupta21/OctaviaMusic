@@ -9,7 +9,7 @@ A modern, glass-themed music streaming web app built with React, Vite, Tailwind 
 - Global top bar with history navigation, search, and a `⌘K` command palette
 - Persistent favorites (saved to `localStorage`)
 - Full-fidelity now-playing view with stable waveform visualization
-- Footer mini-player that expands into a full now-playing overlay
+- Footer mini-player with quick access to the full now-playing page
 - Keyboard shortcuts: `Space` play/pause, `←/→` seek, `Shift+←/→` prev/next, `M` mute, `L` like, `/` focus search, `⌘K` palette, `Esc` close
 - Mobile-aware shell: drawer sidebar, bottom tab bar, compact footer player
 
@@ -92,7 +92,7 @@ hands the client a `videoId`.
 │   ├── data/           In-memory music catalog + query helpers
 │   └── server.js       REST endpoints (search, album, artist, charts, …)
 ├── src/
-│   ├── components/     Feature components (CommandPalette, ExpandedPlayer, …)
+│   ├── components/     Feature components (CommandPalette, player surfaces, …)
 │   │   ├── brand/      Logo / brand marks
 │   │   ├── layout/     App shell (Sidebar, TopBar, FooterPlayer, MainLayout, …)
 │   │   ├── player/     Now-playing UI (LyricsPanel, QueuePanel, Visualizer)

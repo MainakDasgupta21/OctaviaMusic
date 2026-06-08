@@ -1,18 +1,20 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ListMusic, Mic2, Sparkles } from 'lucide-react';
-import { usePlayer } from '@/contexts/PlayerContext';
-import { fadeUp, isReducedMotion } from '@/design/motion';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { usePlayer, usePlayerProgress } from '@/contexts/PlayerContext';
+import { durations, easings, fadeUp, isReducedMotion } from '@/design/motion';
 import Tabs from '@/components/ui-v2/Tabs';
 import EmptyState from '@/components/ui-v2/EmptyState';
+import Button from '@/components/ui-v2/Button';
+import { Slider } from '@/components/ui/slider';
 import LyricsPanel from '@/components/player/LyricsPanel';
 import QueuePanel from '@/components/player/QueuePanel';
 import TrackHeadline from '@/components/player/TrackHeadline';
-import SeekBar from '@/components/player/SeekBar';
 import TransportControls from '@/components/player/TransportControls';
 import VolumeControl from '@/components/player/VolumeControl';
 import PlayerRelatedRail from '@/components/player/RelatedRail';
-import IssueMeta from '@/components/player/IssueMeta';
+import { formatTime } from '@/lib/player-format';
 import { pickPlaceholder, sanitizeImageUrl } from '@/lib/media-sanitize';
 import { cn } from '@/lib/utils';
 
@@ -22,13 +24,7 @@ const PANELS = [
   { id: 'related', label: 'Related', icon: Sparkles },
 ];
 
-// Background album-art layer — the song image IS the player backdrop.
-// - Recognisable: only a soft blur, not the heavy bloom from before.
-// - Always in motion: a slow Ken-Burns drift (np-cover-kenburns) breathes life
-//   into the screen without distracting from the controls.
-// - Carries layoutId="footer-art" so the footer thumbnail flies into here
-//   when the user opens the player — a premium "expand to fullscreen" moment.
-const handleBackdropError = (event) => {
+const handleImageError = (event) => {
   const fallback = pickPlaceholder('track');
   if (event?.currentTarget && !event.currentTarget.dataset.fellBack) {
     event.currentTarget.src = fallback;
@@ -36,71 +32,88 @@ const handleBackdropError = (event) => {
   }
 };
 
+const upgradeArtworkQuality = (url) => {
+  if (typeof url !== 'string') return url;
+  return url
+    .replace(/=w\d+-h\d+/, '=w544-h544')
+    .replace(/=s\d+/, '=s544')
+    .replace(/\/maxresdefault\.jpg/, '/hqdefault.jpg')
+    .replace(/\/mqdefault\.jpg/, '/hqdefault.jpg')
+    .replace(/\/sddefault\.jpg/, '/hqdefault.jpg');
+};
+
+const resolveArtwork = (track) =>
+  sanitizeImageUrl(upgradeArtworkQuality(track?.thumbnail), { fallback: pickPlaceholder('track') })
+  || pickPlaceholder('track');
+
 const AmbientBackdrop = ({ track, reduceMotion }) => {
-  const safeSrc =
-    sanitizeImageUrl(track.thumbnail, { fallback: pickPlaceholder('track') })
-    || pickPlaceholder('track');
+  const safeSrc = resolveArtwork(track);
   return (
-  <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-    {/* Solid dark base in case the image hasn't loaded yet. */}
-    <div className="absolute inset-0 bg-[hsl(var(--surface-0))]" />
+    <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+      <div className="absolute inset-0 bg-surface-0" />
 
-    <AnimatePresence mode="popLayout" initial={false}>
-      <motion.img
-        key={track.id || safeSrc || track.title}
-        layoutId="footer-art"
-        src={safeSrc}
-        alt=""
+      <AnimatePresence mode="popLayout" initial={false}>
+        <motion.img
+          key={track.id || safeSrc || track.title}
+          src={safeSrc}
+          alt=""
+          aria-hidden="true"
+          decoding="async"
+          referrerPolicy="no-referrer"
+          onError={handleImageError}
+          initial={{ opacity: 0 }}
+          animate={{
+            opacity: 1,
+            transition: { duration: reduceMotion ? 0 : durations.long, ease: easings.emphasis },
+          }}
+          exit={{
+            opacity: 0,
+            transition: { duration: reduceMotion ? 0 : durations.short, ease: easings.accel },
+          }}
+          className="absolute inset-0 h-full w-full object-cover np-cover-kenburns"
+          style={{ filter: 'blur(26px) saturate(1.05)' }}
+        />
+      </AnimatePresence>
+
+      <div
         aria-hidden="true"
-        decoding="async"
-        referrerPolicy="no-referrer"
-        onError={handleBackdropError}
-        initial={{ opacity: 0 }}
-        animate={{
-          opacity: 1,
-          transition: { duration: reduceMotion ? 0 : 0.55, ease: [0.22, 1, 0.36, 1] },
+        className="absolute inset-0"
+        style={{
+          backgroundImage:
+            'radial-gradient(100% 70% at 50% 8%, hsl(var(--track-accent) / 0.16) 0%, transparent 70%)',
         }}
-        exit={{
-          opacity: 0,
-          transition: { duration: reduceMotion ? 0 : 0.3, ease: [0.4, 0, 1, 1] },
-        }}
-        className="absolute inset-0 w-full h-full object-cover np-cover-kenburns"
-        style={{ filter: 'blur(20px) saturate(1.08)', viewTransitionName: 'vt-now-cover' }}
       />
-    </AnimatePresence>
-
-    {/* Album-tinted halo — a wider, softer wash than the prior crisp ramp
-        so the song's colour reads as ambient atmosphere rather than a
-        gradient band. 20% peak opacity blends into the cinematic stack
-        without competing with the title. */}
-    <div
-      aria-hidden="true"
-      className="absolute inset-0"
-      style={{
-        backgroundImage:
-          'radial-gradient(120% 80% at 50% 8%, hsl(var(--track-accent) / 0.20) 0%, transparent 60%)',
-      }}
-    />
-
-    {/* Cinematic atmosphere stack:
-        dim → vignette → album-color bloom → diagonal light leak → film grain → AA scrim. */}
-    <div aria-hidden="true" className="absolute inset-0 bg-black/40" />
-    <div aria-hidden="true" className="absolute inset-0 now-playing-vignette" />
-    <div aria-hidden="true" className="absolute inset-0 np-bloom" />
-    <div aria-hidden="true" className="absolute inset-0 np-light-leak" />
-    <div aria-hidden="true" className="absolute inset-0 np-grain" />
-    <div aria-hidden="true" className="absolute inset-0 np-scrim" />
-  </div>
+      <div aria-hidden="true" className="absolute inset-0 now-playing-vignette" />
+      <div aria-hidden="true" className="absolute inset-0 np-scrim" />
+    </div>
   );
 };
 
-// THE canonical now-playing surface. `variant` only swaps chrome / padding;
-// the hero (title → scrub → transports → volume) is identical.
-const NowPlaying = ({ variant = 'page', onMinimize, onOpenFull }) => {
-  const { currentTrack, queue } = usePlayer();
+const NowPlaying = () => {
+  const navigate = useNavigate();
+  const { currentTrack, queue, isPlaying, seekTo } = usePlayer();
+  const { progress, duration } = usePlayerProgress();
   const reduceMotion = isReducedMotion();
+  const [searchParams] = useSearchParams();
   const [panel, setPanel] = useState('queue');
+  const [seekPreview, setSeekPreview] = useState(null);
   const swipeRef = useRef(null);
+  const queryPanel = searchParams.get('panel');
+  const stableDuration = Number.isFinite(duration) && duration > 0 ? duration : 0;
+  const displayedProgress = Number.isFinite(seekPreview)
+    ? Math.max(0, seekPreview)
+    : Math.max(0, progress || 0);
+  const canSeek = stableDuration > 0;
+
+  useEffect(() => {
+    if (PANELS.some((item) => item.id === queryPanel)) {
+      setPanel(queryPanel);
+    }
+  }, [queryPanel]);
+
+  useEffect(() => {
+    setSeekPreview(null);
+  }, [currentTrack?.id]);
 
   const leftStagger = useMemo(
     () => ({
@@ -123,21 +136,27 @@ const NowPlaying = ({ variant = 'page', onMinimize, onOpenFull }) => {
     [queue?.length],
   );
 
-  if (variant === 'page' && !currentTrack) {
+  if (!currentTrack) {
     return (
       <div className="h-full flex items-center justify-center p-10">
         <EmptyState
           icon={ListMusic}
           title="No track playing"
           description="Pick a song from Home, Search, or any playlist to start listening."
+          action={(
+            <>
+              <Button onClick={() => navigate('/')}>Go home</Button>
+              <Button variant="editorial" onClick={() => navigate('/search')}>
+                Search tracks
+              </Button>
+            </>
+          )}
         />
       </div>
     );
   }
-  if (!currentTrack) return null;
 
-  const isOverlay = variant === 'overlay';
-  const onNavigateAway = isOverlay ? onMinimize : undefined;
+  const artworkSrc = resolveArtwork(currentTrack);
 
   const handleSwipeStart = (event) => {
     const t = event.touches?.[0];
@@ -159,94 +178,124 @@ const NowPlaying = ({ variant = 'page', onMinimize, onOpenFull }) => {
 
   const grid = (
     <motion.div
-      className={cn(
-        'flex flex-col md:grid md:grid-cols-[minmax(0,1fr)_minmax(340px,420px)] md:grid-rows-[minmax(0,1fr)] flex-1 min-h-0',
-        isOverlay ? 'gap-5 md:gap-7' : 'gap-5 lg:gap-7',
-      )}
+      className="mx-auto grid w-full max-w-[1380px] grid-cols-1 gap-3 sm:gap-4 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,1fr)_minmax(320px,392px)] xl:gap-6"
     >
-      {/* Left: focused control surface. The album art lives behind the entire
-          page (AmbientBackdrop), so this card is a clean glass overlay with the
-          title, scrubber, transports and volume. */}
-      <div className="relative w-full max-w-[560px] mx-auto md:h-full">
-        {/* Outer breathing accent halo — soft album-colour glow that surrounds
-            the card and slowly breathes. Pure decoration, behind the card. */}
+      <motion.section
+        variants={leftStagger}
+        initial="initial"
+        animate="animate"
+        className="relative min-h-0 overflow-hidden rounded-card border border-white/[0.08] bg-[linear-gradient(180deg,hsl(var(--surface-1)/0.74),hsl(var(--surface-0)/0.64))] backdrop-blur-2xl shadow-elev-4"
+      >
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute -inset-6 -z-10 np-card-glow"
+          className="pointer-events-none absolute inset-0"
+          style={{
+            backgroundImage:
+              'radial-gradient(80% 68% at 52% 102%, hsl(var(--track-accent) / 0.14), transparent 74%)',
+          }}
         />
 
-        <motion.div
-          variants={leftStagger}
-          initial="initial"
-          animate="animate"
-          className="relative w-full h-full flex flex-col min-h-0 rounded-card border border-white/[0.09] bg-[linear-gradient(180deg,rgba(18,14,12,0.46),rgba(10,8,8,0.34))] backdrop-blur-2xl shadow-[0_40px_90px_-46px_rgba(0,0,0,0.95),inset_0_1px_0_rgba(255,255,255,0.06)] overflow-hidden"
-        >
-          {/* Top inner sheen — lifts the glass and gives an edge highlight. */}
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 rounded-card bg-[radial-gradient(120%_60%_at_50%_-10%,rgba(255,255,255,0.08),transparent_60%)]"
-          />
-          {/* Bottom inner album-accent wash — bleeds the song's colour into
-              the bottom of the card for a glowing-floor look. */}
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 rounded-card"
-            style={{
-              backgroundImage:
-                'radial-gradient(110% 55% at 50% 115%, hsl(var(--track-accent) / 0.18), transparent 62%)',
-            }}
-          />
-
-          <div className="relative flex-1 min-h-0 flex flex-col justify-center gap-[clamp(16px,2.6vh,26px)] px-6 md:px-9 py-8 md:py-10">
-            <motion.div variants={fadeUp} className="w-full">
-              <TrackHeadline onNavigate={onNavigateAway} />
+        <div className="relative flex h-full min-h-0 flex-col p-4 sm:p-5 lg:p-6">
+          <div className="grid gap-5 lg:grid-cols-[minmax(260px,360px)_minmax(0,1fr)] lg:items-center xl:h-full xl:min-h-0">
+            <motion.div variants={fadeUp} className="mx-auto w-full max-w-[360px]">
+              <div className="mx-auto aspect-square w-full -translate-y-2 sm:-translate-y-3 p-[11.5%]">
+                <div className="np-vinyl-art relative h-full w-full rounded-full overflow-hidden">
+                  <div
+                    aria-hidden="true"
+                    className={cn(
+                      'vinyl-disc absolute inset-0 rounded-full',
+                      isPlaying && !reduceMotion && 'vinyl-spinning',
+                    )}
+                  />
+                  <div aria-hidden="true" className="vinyl-gloss absolute inset-0 rounded-full" />
+                  <div
+                    aria-hidden="true"
+                    className="absolute inset-[9%] rounded-full border border-white/5"
+                  />
+                  <div className="absolute inset-[29%] rounded-full overflow-hidden ring-1 ring-white/[0.18] shadow-[0_10px_24px_-12px_rgba(0,0,0,0.6)]">
+                    <img
+                      key={currentTrack.id || artworkSrc || currentTrack.title}
+                      src={artworkSrc}
+                      alt={currentTrack.title || 'Current track artwork'}
+                      onError={handleImageError}
+                      decoding="async"
+                      loading="eager"
+                      fetchpriority="high"
+                      referrerPolicy="no-referrer"
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                </div>
+              </div>
             </motion.div>
 
-            <motion.div variants={fadeUp} className="w-full">
-              <SeekBar />
-            </motion.div>
-
-            <motion.div variants={fadeUp} className="w-full">
-              <TransportControls />
+            <motion.div variants={fadeUp} className="min-w-0 space-y-4 lg:max-w-[640px]">
+              <TrackHeadline />
+              <div className="rounded-panel border border-white/[0.08] bg-surface-0/46 p-4 shadow-elev-2 sm:p-5">
+                <TransportControls />
+              </div>
+              <div className="w-full space-y-2.5 rounded-panel border border-white/[0.06] bg-surface-0/34 px-3.5 py-3 sm:px-4 sm:py-3.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-4 tabular">
+                    {formatTime(displayedProgress)}
+                  </span>
+                  <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-4 tabular">
+                    {formatTime(stableDuration)}
+                  </span>
+                </div>
+                <Slider
+                  value={[Math.min(displayedProgress, stableDuration || 0)]}
+                  max={stableDuration > 0 ? stableDuration : 100}
+                  step={1}
+                  onValueChange={(value) => setSeekPreview(value[0])}
+                  onValueCommit={(value) => {
+                    setSeekPreview(null);
+                    seekTo(Math.max(0, Math.min(stableDuration, value[0])));
+                  }}
+                  disabled={!canSeek}
+                  className="w-full [&_.slider-track]:h-[2.75px] [&_.slider-track]:transition-[height] [&_.slider-track]:duration-short [&_.slider-track]:ease-emphasis hover:[&_.slider-track]:h-[4px] focus-within:[&_.slider-track]:h-[4px]"
+                  aria-label="Playback progress"
+                />
+              </div>
+              <VolumeControl
+                compact
+                className="max-w-[400px] border-white/[0.06] bg-surface-0/36"
+              />
             </motion.div>
           </div>
+        </div>
+      </motion.section>
 
-          <motion.div
-            variants={fadeUp}
-            className="relative px-6 md:px-9 pb-6 md:pb-7"
-          >
-            <VolumeControl className="hidden sm:flex" />
-          </motion.div>
-        </motion.div>
-      </div>
-
-      {/* Right: queue / lyrics / related rail */}
       <motion.section
         initial={{ opacity: 0, y: reduceMotion ? 0 : 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{
-          duration: reduceMotion ? 0 : 0.22,
-          ease: [0.22, 1, 0.36, 1],
-          delay: reduceMotion ? 0 : 0.24,
+          duration: reduceMotion ? 0 : durations.med,
+          ease: easings.emphasis,
+          delay: reduceMotion ? 0 : durations.short,
         }}
-        className="flex flex-1 min-h-0 md:h-full flex-col rounded-card border border-white/[0.08] bg-[linear-gradient(180deg,rgba(18,14,12,0.42),rgba(10,8,8,0.32))] backdrop-blur-2xl shadow-[0_30px_80px_-40px_rgba(0,0,0,0.9)] overflow-hidden"
+        className="flex min-h-[320px] flex-col overflow-hidden rounded-card border border-white/[0.08] bg-[linear-gradient(180deg,hsl(var(--surface-1)/0.72),hsl(var(--surface-0)/0.64))] backdrop-blur-2xl shadow-elev-3 xl:min-h-0 xl:flex-1"
       >
-        <div className="shrink-0 px-4 pt-4">
+        <div className="shrink-0 px-3 pt-3 sm:px-4 sm:pt-4">
           <Tabs
             items={panelItems}
             value={panel}
             onValueChange={setPanel}
-            variant="underline"
+            ariaLabel="Now playing information panels"
+            variant="pill"
             className="w-full"
           />
+          <p className="px-1 pt-2 text-[10px] font-mono uppercase tracking-[0.12em] text-ink-4 sm:hidden">
+            Swipe left or right to switch panels
+          </p>
         </div>
 
         <div
-          className="flex-1 min-h-0 px-3 pb-3 pt-3"
+          className="min-h-0 flex-1 p-3 pt-2 sm:p-4 sm:pt-3"
           onTouchStart={handleSwipeStart}
           onTouchEnd={handleSwipeEnd}
         >
-          <div className="h-full rounded-panel border border-white/[0.06] bg-black/30 p-3">
+          <div className="h-full min-h-[250px] overflow-hidden rounded-panel border border-white/[0.06] bg-surface-0/56 p-2.5 sm:min-h-[280px] sm:p-3 xl:min-h-0">
             <AnimatePresence mode="wait" initial={false}>
               {panel === 'queue' && (
                 <motion.div
@@ -254,7 +303,7 @@ const NowPlaying = ({ variant = 'page', onMinimize, onOpenFull }) => {
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: reduceMotion ? 0 : 0.2 }}
+                  transition={{ duration: reduceMotion ? 0 : durations.med, ease: easings.emphasis }}
                   className="h-full"
                 >
                   <QueuePanel />
@@ -266,7 +315,7 @@ const NowPlaying = ({ variant = 'page', onMinimize, onOpenFull }) => {
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: reduceMotion ? 0 : 0.2 }}
+                  transition={{ duration: reduceMotion ? 0 : durations.med, ease: easings.emphasis }}
                   className="h-full"
                 >
                   <LyricsPanel />
@@ -278,10 +327,10 @@ const NowPlaying = ({ variant = 'page', onMinimize, onOpenFull }) => {
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: reduceMotion ? 0 : 0.2 }}
+                  transition={{ duration: reduceMotion ? 0 : durations.med, ease: easings.emphasis }}
                   className="h-full"
                 >
-                  <PlayerRelatedRail variant={variant} />
+                  <PlayerRelatedRail />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -295,17 +344,8 @@ const NowPlaying = ({ variant = 'page', onMinimize, onOpenFull }) => {
     <div className="relative isolate flex h-full min-h-0 flex-col overflow-hidden">
       <AmbientBackdrop track={currentTrack} reduceMotion={reduceMotion} />
 
-      {isOverlay ? (
-        <IssueMeta variant="overlay" onMinimize={onMinimize} onOpenFull={onOpenFull} />
-      ) : null}
-
       <div
-        className={cn(
-          'relative z-10 flex flex-1 min-h-0 flex-col overflow-hidden',
-          isOverlay
-            ? 'p-4 md:px-8 md:py-6'
-            : 'px-4 lg:px-8 pt-4 lg:pt-6 pb-[100px] md:pb-[108px]',
-        )}
+        className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto px-3.5 pt-3 pb-[96px] sm:px-5 sm:pt-4 sm:pb-[112px] xl:overflow-hidden xl:px-8 xl:pt-6 xl:pb-[104px]"
       >
         {grid}
       </div>

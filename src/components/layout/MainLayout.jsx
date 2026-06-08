@@ -19,12 +19,10 @@ import { pagePush } from '@/design/motion';
 import { cn } from '@/lib/utils';
 
 // Overlays that aren't visible on first paint. We gate their IMPORT on the
-// owning UI state so the cmdk + ExpandedPlayer subtree (lyrics/queue panels,
-// dialog primitives) stays out of the initial bundle until the user opens
-// them. After the first open we keep the component mounted (sticky flag
-// below) so the Radix/shadcn open->close exit animations can still play.
+// owning UI state so optional dialog/drawer UI stays out of the initial
+// bundle until the user opens it. After the first open we keep the component
+// mounted (sticky flag below) so close animations can still play.
 const CommandPalette = lazy(() => import('@/components/CommandPalette'));
-const ExpandedPlayer = lazy(() => import('@/components/ExpandedPlayer'));
 const MobileDrawer = lazy(() => import('./MobileDrawer'));
 
 // Latches a boolean to `true` once it has been true, then stays true. We use
@@ -39,11 +37,10 @@ const useStickyTrue = (value) => {
 const MainLayout = () => {
   const { currentTrack } = usePlayer();
   const { settings } = useSettings();
-  const { paletteOpen, expandedPlayerOpen, mobileDrawerOpen } = useUI();
+  const { paletteOpen, mobileDrawerOpen } = useUI();
   const location = useLocation();
 
   const paletteEverOpened = useStickyTrue(paletteOpen);
-  const expandedEverOpened = useStickyTrue(expandedPlayerOpen);
   const drawerEverOpened = useStickyTrue(mobileDrawerOpen);
 
   useKeyboardShortcuts();
@@ -111,7 +108,7 @@ const MainLayout = () => {
                 )
               : cn(
                   'overflow-y-auto',
-                  currentTrack ? 'pb-40 md:pb-32' : 'pb-24 md:pb-10',
+                  currentTrack ? 'pb-36 md:pb-32' : 'pb-20 md:pb-10',
                 ),
           )}
         >
@@ -139,11 +136,6 @@ const MainLayout = () => {
       {paletteEverOpened ? (
         <Suspense fallback={null}>
           <CommandPalette />
-        </Suspense>
-      ) : null}
-      {expandedEverOpened ? (
-        <Suspense fallback={null}>
-          <ExpandedPlayer />
         </Suspense>
       ) : null}
       <PlayerAnnouncer />

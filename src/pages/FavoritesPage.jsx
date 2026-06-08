@@ -70,7 +70,7 @@ const FavoritesPage = () => {
   };
 
   return (
-    <div className="p-5 md:p-10 max-w-[1600px] mx-auto pb-12">
+    <div className="page-shell pt-5 md:pt-10">
       <motion.div
         {...fadeUp}
         className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 mb-10"
@@ -125,6 +125,8 @@ const FavoritesPage = () => {
             initial="initial"
             animate="animate"
             className="rounded-soft border border-white/[0.06] bg-surface-2/40 backdrop-blur-md overflow-hidden"
+            role="listbox"
+            aria-label="Favorite tracks"
           >
             {/* Table header */}
             <div className="grid grid-cols-[2.5rem_3rem_1fr_auto_auto_auto] gap-4 px-4 py-3 border-b border-white/[0.08] text-[10px] font-mono uppercase tracking-[0.18em] text-ink-4">
@@ -147,8 +149,18 @@ const FavoritesPage = () => {
                     variants={fadeUp}
                     onClick={() => playTrack(track)}
                     onMouseEnter={() => setSelectedIndex(index)}
+                    onFocus={() => setSelectedIndex(index)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        playTrack(track);
+                      }
+                    }}
+                    role="option"
+                    tabIndex={0}
+                    aria-selected={isSelected}
                     className={cn(
-                      'group grid grid-cols-[2.5rem_3rem_1fr_auto_auto_auto] gap-4 px-4 py-3.5',
+                      'group row-hover grid grid-cols-[2.5rem_3rem_1fr_auto_auto_auto] gap-4 px-4 py-3.5',
                       'items-center cursor-pointer transition-colors border-b border-white/[0.05] last:border-0',
                       isCurrentTrack && 'bg-track/[0.10]',
                       isSelected && !isCurrentTrack && 'bg-white/[0.05]',
@@ -179,7 +191,7 @@ const FavoritesPage = () => {
                         className="w-12 h-12 ring-1 ring-white/10"
                         imgClassName="object-cover"
                       />
-                      <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-sharp">
+                      <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex items-center justify-center rounded-sharp">
                         <Play className="w-4 h-4 text-white fill-current" />
                       </div>
                     </div>
@@ -215,7 +227,7 @@ const FavoritesPage = () => {
                         removeFavorite(track.id);
                         notify.unliked(track.title);
                       }}
-                      className="opacity-0 group-hover:opacity-100 p-2 rounded-sharp text-ink-3 hover:text-danger hover:bg-danger/10 transition-all focus-ring"
+                      className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 p-2 rounded-sharp text-ink-3 hover:text-danger hover:bg-danger/10 transition-all focus-ring"
                       aria-label="Remove from favorites"
                     >
                       <X className="w-4 h-4" />

@@ -18,6 +18,7 @@ import {
 import { usePlayer } from '@/contexts/PlayerContext';
 import { useFollowedArtists } from '@/contexts/FollowedArtistsContext';
 import HeartButton from '@/components/HeartButton';
+import AddToPlaylistButton from '@/components/playlist/AddToPlaylistButton';
 import Button from '@/components/ui-v2/Button';
 import SectionHeader from '@/components/ui-v2/SectionHeader';
 import EmptyState from '@/components/ui-v2/EmptyState';
@@ -596,8 +597,13 @@ const ArtistPage = () => {
                     </div>
                     <div
                       onClick={(e) => e.stopPropagation()}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1"
                     >
+                      <AddToPlaylistButton
+                        track={track}
+                        className="p-1.5"
+                        buttonLabel={`Add ${track.title || 'track'} to playlist`}
+                      />
                       <HeartButton track={track} size="sm" />
                     </div>
                     <span className="font-mono text-[12px] text-ink-4 tabular-nums tracking-tight">

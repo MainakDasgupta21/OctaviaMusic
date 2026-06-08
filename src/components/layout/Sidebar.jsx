@@ -6,6 +6,7 @@ import {
   Heart,
   Settings,
   TrendingUp,
+  BarChart3,
   Compass,
   ListMusic,
   Plus,
@@ -33,6 +34,7 @@ import { useSettings } from '@/contexts/SettingsContext';
 import { usePlaylists } from '@/contexts/PlaylistContext';
 import { usePlayer } from '@/contexts/PlayerContext';
 import { usePrefetchProps } from '@/hooks/use-route-prefetch';
+import { durations, springs } from '@/design/motion';
 import { LogoMark, Wordmark } from '@/components/brand/Logo';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -44,7 +46,8 @@ const groups = [
     items: [
       { icon: Home, label: 'Home', path: '/' },
       { icon: Search, label: 'Search', path: '/search' },
-      { icon: TrendingUp, label: 'Charts', path: '/charts' },
+      { icon: TrendingUp, label: 'Trending', path: '/trending' },
+      { icon: BarChart3, label: 'Charts', path: '/charts' },
       { icon: Compass, label: 'Explore', path: '/explore' },
       { icon: ListMusic, label: 'Genres', path: '/genres' },
     ],
@@ -62,6 +65,22 @@ const groups = [
 
 const COLLAPSED_W = 80;
 const EXPANDED_W = 260;
+
+const isRouteActive = (pathname, itemPath) => {
+  if (itemPath === '/') return pathname === '/';
+  if (pathname === itemPath) return true;
+
+  // Keep parent sections highlighted on nested/detail routes.
+  if (itemPath === '/library') {
+    return pathname.startsWith('/library') || pathname.startsWith('/playlist/');
+  }
+  if (itemPath === '/charts') return pathname.startsWith('/charts');
+  if (itemPath === '/explore') return pathname.startsWith('/explore');
+  if (itemPath === '/player') return pathname.startsWith('/player');
+  if (itemPath === '/search') return pathname.startsWith('/search');
+
+  return false;
+};
 
 const NavItem = ({
   to,
@@ -102,7 +121,7 @@ const NavItem = ({
             layoutId={`${indicatorId}-pill`}
             aria-hidden="true"
             className="absolute inset-0 rounded-xl"
-            transition={{ type: 'spring', stiffness: 360, damping: 32 }}
+            transition={springs.overlay}
             style={{
               background:
                 'linear-gradient(135deg, hsl(var(--track-accent) / 0.18), hsl(var(--accent-iris-c) / 0.14))',
@@ -117,7 +136,7 @@ const NavItem = ({
               'absolute inset-y-0 my-auto h-6 w-[3px] bg-track rounded-full',
               expanded ? 'left-0' : 'left-0.5',
             )}
-            transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+            transition={springs.snappy}
             style={{ boxShadow: '0 0 12px hsl(var(--track-accent) / 0.6)' }}
           />
         </>
@@ -139,7 +158,7 @@ const NavItem = ({
             initial={{ opacity: 0, x: -8 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -8 }}
-            transition={{ duration: 0.18 }}
+            transition={{ duration: durations.short }}
             className={cn(
               'relative z-10 text-[13.5px] whitespace-nowrap',
               isActive ? 'font-medium tracking-tight' : 'font-normal',
@@ -208,7 +227,7 @@ const SortablePinnedPlaylist = ({ playlist, expanded, isActive }) => {
               initial={{ opacity: 0, x: -6 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -6 }}
-              transition={{ duration: 0.15 }}
+              transition={{ duration: durations.short }}
               className="truncate"
             >
               {playlist.name}
@@ -249,7 +268,7 @@ const Sidebar = ({ onNavigate }) => {
     <motion.aside
       initial={false}
       animate={{ width: expanded ? EXPANDED_W : COLLAPSED_W }}
-      transition={{ type: 'spring', stiffness: 280, damping: 32 }}
+      transition={springs.sheet}
       className="hidden md:flex fixed left-0 top-0 h-full flex-col py-4 z-50 overflow-hidden border-r border-white/[0.08] backdrop-blur-xl"
       style={{
         background:
@@ -292,7 +311,7 @@ const Sidebar = ({ onNavigate }) => {
                 initial={{ opacity: 0, x: -8 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -8 }}
-                transition={{ duration: 0.18 }}
+                transition={{ duration: durations.short }}
                 className="flex items-center gap-2"
               >
                 <Wordmark size="md" />
@@ -336,7 +355,7 @@ const Sidebar = ({ onNavigate }) => {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  transition={{ duration: 0.15 }}
+                  transition={{ duration: durations.short }}
                   className="font-mono text-[9.5px] uppercase tracking-[0.22em] text-ink-4/80 whitespace-nowrap"
                   aria-hidden="true"
                 >
@@ -346,7 +365,7 @@ const Sidebar = ({ onNavigate }) => {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  transition={{ duration: 0.15 }}
+                  transition={{ duration: durations.short }}
                   className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-4 whitespace-nowrap"
                 >
                   {group.label}
@@ -362,7 +381,7 @@ const Sidebar = ({ onNavigate }) => {
                 icon={item.icon}
                 label={item.label}
                 expanded={expanded}
-                isActive={location.pathname === item.path}
+                isActive={isRouteActive(location.pathname, item.path)}
                 onClick={onNavigate}
                 indicatorId="sidebar-nav-active"
                 isPlayingNow={item.path === '/player' && isPlaying}
@@ -450,7 +469,7 @@ const Sidebar = ({ onNavigate }) => {
           icon={Settings}
           label="Settings"
           expanded={expanded}
-          isActive={location.pathname === '/settings'}
+          isActive={isRouteActive(location.pathname, '/settings')}
           onClick={onNavigate}
           indicatorId="sidebar-nav-active"
         />
@@ -474,7 +493,7 @@ const Sidebar = ({ onNavigate }) => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
+              transition={{ duration: durations.med }}
               className="px-4 pt-4 pb-1 flex items-baseline justify-between text-[9px] font-mono uppercase tracking-[0.16em] text-ink-4"
             >
               <span>Octavia</span>

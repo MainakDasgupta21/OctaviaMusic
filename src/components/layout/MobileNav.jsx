@@ -1,4 +1,4 @@
-import { Home, Search, Heart, Play, Library } from 'lucide-react';
+import { Home, Search, TrendingUp, Play, Library } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { NavLink } from '@/components/NavLink';
 import { usePrefetchProps } from '@/hooks/use-route-prefetch';
@@ -8,11 +8,11 @@ import { cn } from '@/lib/utils';
 // hid a primary destination behind a hamburger. Promote it to a first-class
 // tab so playlist + favourites are reachable in one tap.
 const items = [
-  { icon: Home, label: 'Feed', path: '/' },
+  { icon: Home, label: 'Home', path: '/' },
   { icon: Search, label: 'Search', path: '/search' },
+  { icon: TrendingUp, label: 'Trending', path: '/trending' },
   { icon: Play, label: 'Player', path: '/player' },
   { icon: Library, label: 'Library', path: '/library' },
-  { icon: Heart, label: 'Likes', path: '/favorites' },
 ];
 
 const MobileNavItem = ({ item }) => {
@@ -68,7 +68,7 @@ const MobileNav = () => {
       animate={{ y: 0, opacity: 1 }}
       transition={{ delay: 0.1 }}
       className={cn(
-        'md:hidden fixed inset-x-2 bottom-2 z-40 h-16 rounded-soft',
+        'md:hidden fixed inset-x-2 bottom-2 z-40 h-14 rounded-soft',
         'bg-surface-1/85 backdrop-blur-xl border border-white/[0.08] shadow-elev-4',
         'px-2',
       )}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigationType } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { durations, easings, isReducedMotion } from '@/design/motion';
 
 // Top-of-viewport progress bar that flashes whenever a route change starts.
 // React Router doesn't expose suspense timing directly, so we drive the bar
@@ -10,6 +11,7 @@ const RouteProgress = () => {
   const location = useLocation();
   const navType = useNavigationType();
   const [visible, setVisible] = useState(false);
+  const reduceMotion = isReducedMotion();
 
   useEffect(() => {
     setVisible(true);
@@ -24,8 +26,12 @@ const RouteProgress = () => {
           key={location.key}
           initial={{ scaleX: 0, opacity: 1 }}
           animate={{ scaleX: [0, 0.65, 1] }}
-          exit={{ opacity: 0, transition: { duration: 0.18 } }}
-          transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1], times: [0, 0.55, 1] }}
+          exit={{ opacity: 0, transition: { duration: reduceMotion ? 0 : durations.short } }}
+          transition={{
+            duration: reduceMotion ? 0 : durations.long,
+            ease: easings.emphasis,
+            times: [0, 0.55, 1],
+          }}
           className="fixed top-0 left-0 right-0 h-[1.5px] origin-left z-[100] pointer-events-none"
           style={{
             backgroundImage:

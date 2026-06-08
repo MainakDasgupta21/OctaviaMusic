@@ -62,8 +62,17 @@ const SortableTrack = ({ track, index, onPlay, onRemove, isCurrent }) => {
         transition,
         opacity: isDragging ? 0.6 : 1,
       }}
+      onClick={onPlay}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onPlay?.();
+        }
+      }}
+      tabIndex={0}
+      role="button"
       className={cn(
-        'group grid grid-cols-[1.5rem_2.5rem_3rem_1fr_auto_auto] gap-3 px-3 py-3 items-center transition-colors border-b border-white/[0.04] last:border-0',
+        'group row-hover grid grid-cols-[1.5rem_2.5rem_3rem_1fr_auto_auto] gap-3 px-3 py-3 items-center transition-colors border-b border-white/[0.04] last:border-0',
         isCurrent ? 'bg-track/[0.08]' : 'hover:bg-white/[0.035]',
       )}
       {...attributes}
@@ -73,6 +82,7 @@ const SortableTrack = ({ track, index, onPlay, onRemove, isCurrent }) => {
         type="button"
         className="flex items-center justify-center text-ink-4 hover:text-ink-2 cursor-grab active:cursor-grabbing focus-ring rounded-sharp transition-colors"
         aria-label="Drag to reorder"
+        onClick={(event) => event.stopPropagation()}
         {...listeners}
       >
         <GripVertical className="w-3.5 h-3.5" strokeWidth={1.5} />
@@ -93,7 +103,7 @@ const SortableTrack = ({ track, index, onPlay, onRemove, isCurrent }) => {
         className="w-10 h-10 ring-1 ring-white/10"
         imgClassName="object-cover"
       />
-      <div className="min-w-0 cursor-pointer" onClick={onPlay}>
+      <div className="min-w-0">
         <p
           className={cn(
             'text-[14px] font-medium truncate',
@@ -115,7 +125,7 @@ const SortableTrack = ({ track, index, onPlay, onRemove, isCurrent }) => {
           e.stopPropagation();
           onRemove();
         }}
-        className="p-1.5 rounded-sharp text-ink-3 hover:text-danger hover:bg-danger/10 opacity-0 group-hover:opacity-100 focus-ring transition-opacity"
+        className="p-1.5 rounded-sharp text-ink-3 hover:text-danger hover:bg-danger/10 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-ring transition-opacity"
         aria-label="Remove from playlist"
       >
         <Trash2 className="w-4 h-4" />
@@ -401,7 +411,7 @@ const PlaylistPage = () => {
           <EmptyState
             icon={ListMusic}
             title="Empty playlist"
-            description="Right-click any song and choose 'Add to playlist' to start."
+            description="Use the + playlist buttons across Search, charts, and player screens to start adding songs."
           />
         ) : (
           <DndContext

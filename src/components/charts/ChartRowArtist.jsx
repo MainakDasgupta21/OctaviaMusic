@@ -51,7 +51,7 @@ const ChartRowArtist = ({
     <motion.div
       layout
       className={cn(
-        'group grid grid-cols-[3.2rem_3.6rem_minmax(0,1fr)_5.8rem_7rem] md:grid-cols-[3.6rem_5.2rem_minmax(0,1fr)_minmax(0,0.85fr)_6.5rem_8rem] gap-3 px-4 py-3.5 items-center transition-colors duration-short ease-emphasis',
+        'group grid grid-cols-[2.8rem_3rem_minmax(0,1fr)_4.8rem_6.2rem] md:grid-cols-[3.6rem_5.2rem_minmax(0,1fr)_minmax(0,0.85fr)_6.5rem_8rem] gap-3 px-3 sm:px-4 py-3.5 items-center transition-colors duration-short ease-emphasis',
         'hover:bg-white/[0.04]',
       )}
     >
@@ -75,7 +75,7 @@ const ChartRowArtist = ({
       <div className="min-w-0">
         <Link
           to={`/artist/${encodeURIComponent(entry.artistId)}`}
-          className="text-[15px] font-semibold text-ink hover:text-emerald-300 transition-colors truncate block"
+          className="text-[15px] font-semibold text-ink hover:text-track transition-colors truncate block"
         >
           {entry.name}
         </Link>
@@ -84,7 +84,7 @@ const ChartRowArtist = ({
         </p>
       </div>
 
-      <p className="hidden md:block text-[12px] italic text-emerald-300/85 truncate">
+      <p className="hidden md:block text-[12px] italic text-track/85 truncate">
         {entry.topSong && !/^n\/?a$/i.test(entry.topSong)
           ? `Top: ${entry.topSong}`
           : EMPTY_VALUE}
