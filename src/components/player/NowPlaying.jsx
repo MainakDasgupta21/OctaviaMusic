@@ -19,7 +19,7 @@ import { pickPlaceholder, sanitizeImageUrl } from '@/lib/media-sanitize';
 import { cn } from '@/lib/utils';
 
 const PANELS = [
-  { id: 'queue', label: 'Up next', icon: ListMusic },
+  { id: 'queue', label: 'Queue', icon: ListMusic },
   { id: 'lyrics', label: 'Lyrics', icon: Mic2 },
   { id: 'related', label: 'Related', icon: Sparkles },
 ];
@@ -178,7 +178,7 @@ const NowPlaying = () => {
 
   const grid = (
     <motion.div
-      className="mx-auto grid w-full max-w-[1380px] grid-cols-1 gap-3 sm:gap-4 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,1fr)_minmax(320px,392px)] xl:gap-6"
+      className="mx-auto grid w-full max-w-[1380px] grid-cols-1 gap-3 sm:gap-4 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,1fr)_minmax(300px,360px)] xl:gap-5 2xl:grid-cols-[minmax(0,1fr)_minmax(320px,392px)] 2xl:gap-6"
     >
       <motion.section
         variants={leftStagger}
@@ -195,9 +195,9 @@ const NowPlaying = () => {
           }}
         />
 
-        <div className="relative flex h-full min-h-0 flex-col p-4 sm:p-5 lg:p-6">
-          <div className="grid gap-5 lg:grid-cols-[minmax(260px,360px)_minmax(0,1fr)] lg:items-center xl:h-full xl:min-h-0">
-            <motion.div variants={fadeUp} className="mx-auto w-full max-w-[360px]">
+        <div className="relative flex h-full min-h-0 flex-col p-3 sm:p-5 lg:p-6">
+          <div className="grid gap-4 sm:gap-5 lg:grid-cols-[minmax(220px,320px)_minmax(0,1fr)] lg:items-center xl:h-full xl:min-h-0">
+            <motion.div variants={fadeUp} className="mx-auto w-full max-w-[min(360px,58vh)] sm:max-w-[min(360px,52vh)] lg:max-w-[360px]">
               <div className="mx-auto aspect-square w-full -translate-y-2 sm:-translate-y-3 p-[11.5%]">
                 <div className="np-vinyl-art relative h-full w-full rounded-full overflow-hidden">
                   <div
@@ -229,7 +229,7 @@ const NowPlaying = () => {
               </div>
             </motion.div>
 
-            <motion.div variants={fadeUp} className="min-w-0 space-y-4 lg:max-w-[640px]">
+            <motion.div variants={fadeUp} className="min-w-0 space-y-3.5 sm:space-y-4 xl:max-w-[640px]">
               <TrackHeadline />
               <div className="rounded-panel border border-white/[0.08] bg-surface-0/46 p-4 shadow-elev-2 sm:p-5">
                 <TransportControls />
@@ -274,7 +274,7 @@ const NowPlaying = () => {
           ease: easings.emphasis,
           delay: reduceMotion ? 0 : durations.short,
         }}
-        className="flex min-h-[320px] flex-col overflow-hidden rounded-card border border-white/[0.08] bg-[linear-gradient(180deg,hsl(var(--surface-1)/0.72),hsl(var(--surface-0)/0.64))] backdrop-blur-2xl shadow-elev-3 xl:min-h-0 xl:flex-1"
+        className="flex min-h-[240px] sm:min-h-[280px] flex-col overflow-hidden rounded-card border border-white/[0.08] bg-[linear-gradient(180deg,hsl(var(--surface-1)/0.72),hsl(var(--surface-0)/0.64))] backdrop-blur-2xl shadow-elev-3 xl:min-h-0 xl:flex-1"
       >
         <div className="shrink-0 px-3 pt-3 sm:px-4 sm:pt-4">
           <Tabs
@@ -291,11 +291,11 @@ const NowPlaying = () => {
         </div>
 
         <div
-          className="min-h-0 flex-1 p-3 pt-2 sm:p-4 sm:pt-3"
+          className="min-h-0 flex-1 p-2.5 sm:p-3 sm:pt-3 lg:p-3.5 lg:pt-3 xl:p-4 xl:pt-3"
           onTouchStart={handleSwipeStart}
           onTouchEnd={handleSwipeEnd}
         >
-          <div className="h-full min-h-[250px] overflow-hidden rounded-panel border border-white/[0.06] bg-surface-0/56 p-2.5 sm:min-h-[280px] sm:p-3 xl:min-h-0">
+          <div className="h-full min-h-[210px] overflow-hidden rounded-panel border border-white/[0.06] bg-surface-0/56 p-2.5 sm:min-h-[240px] sm:p-3 xl:min-h-0">
             <AnimatePresence mode="wait" initial={false}>
               {panel === 'queue' && (
                 <motion.div
@@ -345,7 +345,7 @@ const NowPlaying = () => {
       <AmbientBackdrop track={currentTrack} reduceMotion={reduceMotion} />
 
       <div
-        className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto px-3.5 pt-3 pb-[96px] sm:px-5 sm:pt-4 sm:pb-[112px] xl:overflow-hidden xl:px-8 xl:pt-6 xl:pb-[104px]"
+        className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto px-2.5 xs:px-3.5 pt-3 pb-[var(--player-page-bottom-pad)] sm:px-5 sm:pt-4 lg:px-6 xl:px-8 xl:pt-6 2xl:overflow-hidden"
       >
         {grid}
       </div>

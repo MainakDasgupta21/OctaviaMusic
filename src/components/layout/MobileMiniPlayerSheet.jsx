@@ -86,7 +86,7 @@ const MobileMiniPlayerSheet = ({ open, onClose }) => {
             exit={{ opacity: 0 }}
             transition={{ duration: reduceMotion ? 0 : durations.short }}
             onClick={onClose}
-            className="md:hidden fixed inset-0 z-[60] bg-bg/70 backdrop-blur-sm"
+            className="md:hidden fixed inset-0 z-[60] bg-bg/75 backdrop-blur-sm"
             aria-hidden="true"
           />
           <motion.div
@@ -99,13 +99,13 @@ const MobileMiniPlayerSheet = ({ open, onClose }) => {
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={reduceMotion ? { duration: 0 } : springs.overlay}
-            className="md:hidden fixed inset-x-2 bottom-2 z-[61] rounded-soft glass-strong ring-1 ring-white/[0.08] overflow-hidden"
+            className="md:hidden fixed inset-x-2 bottom-[calc(var(--mobile-nav-offset)+env(safe-area-inset-bottom,0px))] z-[61] flex max-h-[min(82dvh,560px)] flex-col rounded-soft glass-strong ring-1 ring-white/[0.08] overflow-hidden"
             style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
           >
             <div className="flex justify-center pt-2">
               <span aria-hidden="true" className="h-1 w-10 rounded-full bg-white/[0.16]" />
             </div>
-            <div className="flex items-center justify-between px-5 pt-4">
+            <div className="flex items-center justify-between px-4 pt-4 sm:px-5">
               <span className="eyebrow text-ink-3">Quick actions</span>
               <button
                 type="button"
@@ -117,13 +117,13 @@ const MobileMiniPlayerSheet = ({ open, onClose }) => {
               </button>
             </div>
 
-            <div className="px-5 py-4 space-y-5">
-              <div className="grid grid-cols-2 gap-2">
+            <div className="custom-scrollbar flex-1 overflow-y-auto px-4 py-4 space-y-5 sm:px-5">
+              <div className="grid grid-cols-1 xs:grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={onToggleShuffle}
                   className={cn(
-                    'h-12 rounded-sharp ring-1 ring-white/[0.08] inline-flex items-center justify-center gap-2 text-[13px] font-medium focus-ring transition-colors',
+                    'touch-target h-12 rounded-sharp ring-1 ring-white/[0.08] inline-flex items-center justify-center gap-2 text-[13px] font-medium focus-ring transition-colors',
                     shuffle
                       ? 'bg-track/15 text-accent ring-track/40'
                       : 'bg-white/[0.04] text-ink-2 hover:text-ink',
@@ -138,7 +138,7 @@ const MobileMiniPlayerSheet = ({ open, onClose }) => {
                   type="button"
                   onClick={onToggleRepeat}
                   className={cn(
-                    'h-12 rounded-sharp ring-1 ring-white/[0.08] inline-flex items-center justify-center gap-2 text-[13px] font-medium focus-ring transition-colors',
+                    'touch-target h-12 rounded-sharp ring-1 ring-white/[0.08] inline-flex items-center justify-center gap-2 text-[13px] font-medium focus-ring transition-colors',
                     repeat !== 'off'
                       ? 'bg-track/15 text-accent ring-track/40'
                       : 'bg-white/[0.04] text-ink-2 hover:text-ink',
@@ -160,7 +160,7 @@ const MobileMiniPlayerSheet = ({ open, onClose }) => {
                   <button
                     type="button"
                     onClick={toggleMute}
-                    className="p-2 rounded-full text-ink-2 hover:text-ink hover:bg-white/[0.06] focus-ring"
+                    className="touch-target p-2 rounded-full text-ink-2 hover:text-ink hover:bg-white/[0.06] focus-ring"
                     aria-label={isMuted || volume === 0 ? 'Unmute' : 'Mute'}
                   >
                     {isMuted || volume === 0 ? (
@@ -236,7 +236,7 @@ const MobileMiniPlayerSheet = ({ open, onClose }) => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 xs:grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => {

@@ -2,6 +2,7 @@
 // LRCLib wrapper used by `/api/lyrics`.
 // - Keeps browser CORS / UA quirks out of the client.
 // - Tries strict lookup first, then relaxed search fallbacks.
+// - Can derive title/artist from YouTube metadata when only a video id is known.
 // - Caches hits + misses with in-flight de-dupe.
 // =============================================================================
 
@@ -11,10 +12,12 @@ const num = (v, fallback) => {
 };
 
 const LRCLIB_BASE_URL = (process.env.LYRICS_BASE_URL || 'https://lrclib.net').replace(/\/+$/, '');
+const YT_OEMBED_BASE_URL = (process.env.LYRICS_YT_OEMBED_BASE_URL || 'https://www.youtube.com/oembed').replace(/\/+$/, '');
 const LYRICS_TIMEOUT_MS = num(process.env.LYRICS_TIMEOUT_MS, 8000);
-const CACHE_HIT_MS = num(process.env.LYRICS_CACHE_MIN, 180) * 60_000;
-const CACHE_MISS_MS = num(process.env.LYRICS_CACHE_MISS_MIN, 5) * 60_000;
+const CACHE_HIT_MS = num(process.env.LYRICS_CACHE_MIN, 180) * 60000;
+const CACHE_MISS_MS = num(process.env.LYRICS_CACHE_MISS_MIN, 5) * 60000;
 const CLIENT_ID = process.env.LYRICS_CLIENT_ID || 'Octavia (https://octavia.local)';
+const YT_VIDEO_ID_RE = /^[A-Za-z0-9_-]{11}$/;
 
 const cache = new Map(); // key -> { value, expires } | { inflight, expires: 0 }
 const CACHE_MAX = num(process.env.LYRICS_CACHE_MAX_ENTRIES, 500);
@@ -68,6 +71,31 @@ const normalizeToken = (text) =>
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
 
+const compact = (text) =>
+  String(text || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const normalizeVideoId = (value) => {
+  const raw = compact(value);
+  if (!raw) return '';
+  if (YT_VIDEO_ID_RE.test(raw)) return raw;
+  try {
+    const parsed = new URL(raw);
+    if (parsed.hostname.endsWith('youtu.be')) {
+      const id = parsed.pathname.split('/').filter(Boolean)[0] || '';
+      return YT_VIDEO_ID_RE.test(id) ? id : '';
+    }
+    const watchId = parsed.searchParams.get('v') || '';
+    if (YT_VIDEO_ID_RE.test(watchId)) return watchId;
+    const tail = parsed.pathname.split('/').filter(Boolean).pop() || '';
+    if (YT_VIDEO_ID_RE.test(tail)) return tail;
+    return '';
+  } catch {
+    return '';
+  }
+};
+
 const uniqueStrings = (rows) => {
   const seen = new Set();
   const out = [];
@@ -80,6 +108,15 @@ const uniqueStrings = (rows) => {
   }
   return out;
 };
+
+const uniqueExpandedStrings = (rows, expand) =>
+  uniqueStrings(
+    rows.flatMap((row) => {
+      const source = compact(row);
+      if (!source) return [];
+      return expand(source);
+    }),
+  );
 
 const buildTitleCandidates = (title) => {
   const raw = String(title || '').trim();
@@ -102,6 +139,56 @@ const buildArtistCandidates = (artist) => {
   if (!raw) return [];
   const primary = raw.split(/,|&| x | feat\.?| ft\.?/i)[0].trim();
   return uniqueStrings([raw, primary]);
+};
+
+const cleanYouTubeAuthor = (author) =>
+  compact(author)
+    .replace(/\s+-\s+topic$/i, '')
+    .replace(/\s+vevo$/i, '')
+    .trim();
+
+const cleanYouTubeTitle = (title) =>
+  compact(title)
+    .replace(/\s+\|\s+.+$/, '')
+    .replace(
+      /\s*[[(](official(\s+music)?\s+video|official\s+audio|official\s+lyrics?|lyric\s+video|lyrics?|audio|video|visualizer|mv|hd|4k)[^)\]]*[)\]]\s*/gi,
+      ' ',
+    )
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+const splitArtistTitle = (text) => {
+  const parts = compact(text)
+    .split(/\s+[-–—]\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return parts.length === 2 ? parts : null;
+};
+
+const buildYouTubeMetadataCandidates = ({ title, authorName }) => {
+  const rawTitle = compact(title);
+  const rawAuthor = compact(authorName);
+  if (!rawTitle && !rawAuthor) {
+    return { titleCandidates: [], artistCandidates: [] };
+  }
+
+  const cleanedTitle = cleanYouTubeTitle(rawTitle);
+  const cleanedAuthor = cleanYouTubeAuthor(rawAuthor);
+
+  const titleSeeds = uniqueStrings([cleanedTitle, rawTitle]);
+  const artistSeeds = uniqueStrings([cleanedAuthor, rawAuthor]);
+
+  const dashed = splitArtistTitle(cleanedTitle || rawTitle);
+  if (dashed) {
+    const [left, right] = dashed;
+    titleSeeds.push(right, left);
+    artistSeeds.push(left, right);
+  }
+
+  return {
+    titleCandidates: uniqueExpandedStrings(titleSeeds, buildTitleCandidates),
+    artistCandidates: uniqueExpandedStrings(artistSeeds, buildArtistCandidates),
+  };
 };
 
 const hasLyrics = (row) => {
@@ -150,6 +237,38 @@ const requestJson = async (path, query) => {
     clearTimeout(timer);
   }
 };
+
+const requestYouTubeMetadata = async (videoId) => {
+  const url = `${YT_OEMBED_BASE_URL}?${new URLSearchParams({
+    url: `https://www.youtube.com/watch?v=${videoId}`,
+    format: 'json',
+  }).toString()}`;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), LYRICS_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': CLIENT_ID,
+      },
+      signal: controller.signal,
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) {
+      throw new Error(`YouTube oEmbed ${res.status} ${res.statusText}`);
+    }
+    const payload = await res.json();
+    const title = compact(payload?.title);
+    const authorName = compact(payload?.author_name);
+    if (!title && !authorName) return null;
+    return { title, authorName };
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+const getYouTubeMetadata = (videoId) => memo(`ytmeta:${videoId}`, () => requestYouTubeMetadata(videoId));
 
 const tryGet = async (params) => {
   const row = await requestJson('/api/get', params);
@@ -201,10 +320,9 @@ const roundedDuration = (value) => {
 };
 
 // Fire every attempt in parallel; resolve with the first non-null hit, or
-// null if every attempt settled empty. Errors are remembered so we can re-
-// throw if NOTHING came back AND there was a provider failure.
+// null if every attempt settles empty/error. Provider glitches should degrade
+// to "no lyrics" so the API returns 404 instead of noisy repeated 502s.
 const raceFirstHit = async (attempts) => {
-  let providerError = null;
   let resolved = false;
   return new Promise((resolve) => {
     let pending = attempts.length;
@@ -220,84 +338,114 @@ const raceFirstHit = async (attempts) => {
             return;
           }
         })
-        .catch((err) => {
-          providerError = providerError || err;
-        })
+        .catch(() => null)
         .finally(() => {
           pending -= 1;
           if (pending === 0 && !resolved) {
-            if (providerError) {
-              // Reject by throwing — converted to a rejection by the outer
-              // memo caller, mapping to the 502 in the route.
-              resolved = true;
-              resolve(Promise.reject(providerError));
-            } else {
-              resolved = true;
-              resolve(null);
-            }
+            resolved = true;
+            resolve(null);
           }
         });
     }
   });
 };
 
-const getLyrics = async ({ title, artist, durationSec }) => {
-  const titleCandidates = buildTitleCandidates(title);
-  const artistCandidates = buildArtistCandidates(artist);
+const lookupByCandidates = async ({ titleCandidates, artistCandidates, duration }) => {
   if (!titleCandidates.length || !artistCandidates.length) return null;
+  const primaryTitle = titleCandidates[0];
+  const primaryArtist = artistCandidates[0];
 
-  const key = `${normalizeToken(titleCandidates[0])}|${normalizeToken(artistCandidates[0])}`;
-  const duration = roundedDuration(durationSec);
+  // Phase 1: race every strict /api/get variant in parallel. First non-
+  // null wins; if every variant 404s we fall through to /api/search.
+  const getAttempts = [];
+  if (duration) {
+    getAttempts.push(() =>
+      tryGet({ track_name: primaryTitle, artist_name: primaryArtist, duration }),
+    );
+  }
+  getAttempts.push(() => tryGet({ track_name: primaryTitle, artist_name: primaryArtist }));
+  for (const candidate of titleCandidates.slice(1, 3)) {
+    getAttempts.push(() => tryGet({ track_name: candidate, artist_name: primaryArtist }));
+  }
 
-  return memo(key, async () => {
-    const primaryTitle = titleCandidates[0];
-    const primaryArtist = artistCandidates[0];
+  const strictHit = await raceFirstHit(getAttempts);
+  if (strictHit) return strictHit;
 
-    // Phase 1: race every strict /api/get variant in parallel. First non-
-    // null wins; if every variant 404s we fall through to /api/search.
-    const getAttempts = [];
-    if (duration) {
-      getAttempts.push(() =>
-        tryGet({ track_name: primaryTitle, artist_name: primaryArtist, duration }),
-      );
-    }
-    getAttempts.push(() => tryGet({ track_name: primaryTitle, artist_name: primaryArtist }));
-    for (const candidate of titleCandidates.slice(1, 3)) {
-      getAttempts.push(() => tryGet({ track_name: candidate, artist_name: primaryArtist }));
-    }
-
-    const strictHit = await raceFirstHit(getAttempts);
-    if (strictHit) return strictHit;
-
-    // Phase 2: race the relaxed /api/search variants in parallel. Same idea.
-    const searchAttempts = [];
-    for (const candidate of titleCandidates.slice(0, 3)) {
-      searchAttempts.push(() =>
-        trySearch(
-          { track_name: candidate, artist_name: primaryArtist },
-          candidate,
-          primaryArtist,
-        ),
-      );
-    }
+  // Phase 2: race the relaxed /api/search variants in parallel. Same idea.
+  const searchAttempts = [];
+  for (const candidate of titleCandidates.slice(0, 3)) {
     searchAttempts.push(() =>
       trySearch(
-        { q: `${primaryTitle} ${primaryArtist}`.trim() },
-        primaryTitle,
+        { track_name: candidate, artist_name: primaryArtist },
+        candidate,
         primaryArtist,
       ),
     );
-    if (artistCandidates[1] && artistCandidates[1] !== primaryArtist) {
-      searchAttempts.push(() =>
-        trySearch(
-          { track_name: primaryTitle, artist_name: artistCandidates[1] },
-          primaryTitle,
-          artistCandidates[1],
-        ),
-      );
+  }
+  searchAttempts.push(() =>
+    trySearch(
+      { q: `${primaryTitle} ${primaryArtist}`.trim() },
+      primaryTitle,
+      primaryArtist,
+    ),
+  );
+  if (artistCandidates[1] && artistCandidates[1] !== primaryArtist) {
+    searchAttempts.push(() =>
+      trySearch(
+        { track_name: primaryTitle, artist_name: artistCandidates[1] },
+        primaryTitle,
+        artistCandidates[1],
+      ),
+    );
+  }
+
+  return raceFirstHit(searchAttempts);
+};
+
+const getLyrics = async ({ title, artist, durationSec, videoId }) => {
+  const titleCandidates = buildTitleCandidates(title);
+  const artistCandidates = buildArtistCandidates(artist);
+  const normalizedVideoId = normalizeVideoId(videoId);
+  if (!titleCandidates.length && !artistCandidates.length && !normalizedVideoId) return null;
+
+  const keyParts = [];
+  if (titleCandidates.length) keyParts.push(`t:${normalizeToken(titleCandidates[0])}`);
+  if (artistCandidates.length) keyParts.push(`a:${normalizeToken(artistCandidates[0])}`);
+  if (normalizedVideoId) keyParts.push(`v:${normalizedVideoId}`);
+  if (!keyParts.length) return null;
+
+  const key = keyParts.join('|');
+  const duration = roundedDuration(durationSec);
+
+  return memo(key, async () => {
+    if (titleCandidates.length && artistCandidates.length) {
+      const directHit = await lookupByCandidates({
+        titleCandidates,
+        artistCandidates,
+        duration,
+      });
+      if (directHit) return directHit;
     }
 
-    return raceFirstHit(searchAttempts);
+    if (!normalizedVideoId) return null;
+    let metadata = null;
+    try {
+      metadata = await getYouTubeMetadata(normalizedVideoId);
+    } catch {
+      // Metadata is only a fallback path; if oEmbed is flaky we should still
+      // treat this as "lyrics not found" instead of hard-failing the request.
+      return null;
+    }
+    if (!metadata) return null;
+
+    const derived = buildYouTubeMetadataCandidates(metadata);
+    if (!derived.titleCandidates.length || !derived.artistCandidates.length) return null;
+
+    return lookupByCandidates({
+      titleCandidates: derived.titleCandidates,
+      artistCandidates: derived.artistCandidates,
+      duration,
+    });
   });
 };
 

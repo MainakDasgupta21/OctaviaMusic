@@ -112,7 +112,7 @@ const GenresPage = () => {
           variants={staggerChildren(0.03)}
           initial="initial"
           animate="animate"
-          className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
+          className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4"
         >
           {isLoading
             ? Array.from({ length: 8 }).map((_, i) => (
@@ -153,7 +153,7 @@ const GenresPage = () => {
                       {/* Outsized Fraunces italic drop-cap */}
                       <span
                         aria-hidden="true"
-                        className="absolute -right-3 -bottom-6 font-editorial italic text-[180px] leading-none text-white/[0.10] group-hover:text-white/[0.18] transition-colors select-none"
+                        className="absolute -right-2 -bottom-4 font-editorial italic text-[110px] sm:text-[140px] lg:text-[180px] leading-none text-white/[0.10] group-hover:text-white/[0.18] transition-colors select-none"
                         style={{ fontFeatureSettings: '"opsz" 144' }}
                       >
                         {firstLetter}
@@ -166,7 +166,7 @@ const GenresPage = () => {
                           type="button"
                           onClick={(e) => handlePlaySample(e, g)}
                           aria-label={`Sample ${g.label}`}
-                          className="absolute top-3 right-3 z-10 w-9 h-9 rounded-full bg-track text-track-fg flex items-center justify-center opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shadow-accent ring-1 ring-white/20 hover:scale-105 active:scale-95"
+                          className="touch-target touch-action-visible absolute top-3 right-3 z-10 w-10 h-10 rounded-full bg-track text-track-fg flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity shadow-accent ring-1 ring-white/20 hover:scale-105 active:scale-95"
                         >
                           <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
                         </button>

@@ -22,7 +22,7 @@ const ChartRowActions = ({
   return (
     <div
       className={cn(
-        'flex items-center justify-end gap-2 opacity-0 transition-opacity duration-short ease-emphasis',
+        'touch-action-visible flex items-center justify-end gap-1.5 sm:gap-2 opacity-0 transition-opacity duration-short ease-emphasis',
         'group-hover:opacity-100 group-focus-within:opacity-100 md:opacity-0',
         'max-md:opacity-100',
         className,
@@ -31,7 +31,7 @@ const ChartRowActions = ({
       <Button
         type="button"
         size="icon-sm"
-        className="rounded-full h-8 w-8"
+        className="touch-target rounded-full h-9 w-9 md:h-8 md:w-8"
         onClick={(event) => {
           event.stopPropagation();
           onPlay?.(entry);
@@ -45,7 +45,7 @@ const ChartRowActions = ({
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="h-8 w-8 rounded-full border border-white/15 bg-white/[0.04] text-ink-3 hover:text-ink hover:bg-white/[0.08] transition-colors focus-ring inline-flex items-center justify-center"
+            className="touch-target h-9 w-9 md:h-8 md:w-8 rounded-full border border-white/15 bg-white/[0.04] text-ink-3 hover:text-ink hover:bg-white/[0.08] transition-colors focus-ring inline-flex items-center justify-center"
             onClick={(event) => event.stopPropagation()}
             aria-label={`More actions for ${entry.title}`}
           >

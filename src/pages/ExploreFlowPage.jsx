@@ -11,11 +11,7 @@ import useExploreProgress from '@/hooks/useExploreProgress';
 import useInfiniteDiscovery from '@/hooks/useInfiniteDiscovery';
 import { EXPLORE_INFINITE_ENABLED } from '@/lib/feature-flags';
 
-const ExploreFlowPage = () => {
-  if (!EXPLORE_INFINITE_ENABLED) {
-    return <Navigate to="/explore" replace />;
-  }
-
+const ExploreFlowEnabledPage = () => {
   const [searchParams] = useSearchParams();
   const { history, playTrack } = usePlayer();
   const { list: favorites, toggleFavorite, isFavorite } = useFavorites();
@@ -71,7 +67,7 @@ const ExploreFlowPage = () => {
 
   return (
     <>
-      <div className="px-5 md:px-10 pt-5 md:pt-8 max-w-[1300px] mx-auto">
+      <div className="page-shell-content-narrow pt-5 md:pt-8">
         <Button asChild type="button" variant="glass" size="sm">
           <Link to="/explore">Back to Explore</Link>
         </Button>
@@ -89,6 +85,13 @@ const ExploreFlowPage = () => {
       />
     </>
   );
+};
+
+const ExploreFlowPage = () => {
+  if (!EXPLORE_INFINITE_ENABLED) {
+    return <Navigate to="/explore" replace />;
+  }
+  return <ExploreFlowEnabledPage />;
 };
 
 export default ExploreFlowPage;

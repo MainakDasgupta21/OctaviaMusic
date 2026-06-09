@@ -12,7 +12,7 @@ const VolumeControl = ({ className, compact = false }) => {
     <div
       className={cn(
         compact
-          ? 'mx-auto flex h-9 w-full max-w-[400px] items-center gap-1.5 rounded-full border border-white/[0.07] bg-surface-0/36 px-2'
+          ? 'mx-auto flex h-11 w-full max-w-[400px] items-center gap-1.5 rounded-full border border-white/[0.07] bg-surface-0/36 px-2.5'
           : 'flex w-full items-center gap-2.5 rounded-panel border border-white/[0.08] bg-surface-0/40 px-3 py-2',
         className,
       )}
@@ -21,8 +21,8 @@ const VolumeControl = ({ className, compact = false }) => {
         type="button"
         onClick={toggleMute}
         className={cn(
-          'shrink-0 rounded-full text-ink-3 transition-colors hover:bg-white/[0.06] hover:text-ink focus-ring',
-          compact ? 'h-8 w-8 p-1' : 'p-1.5',
+          'touch-target shrink-0 rounded-full text-ink-3 transition-colors hover:bg-white/[0.06] hover:text-ink focus-ring',
+          compact ? 'h-9 w-9 p-1' : 'p-1.5',
         )}
         aria-label={muted ? 'Unmute' : 'Mute'}
         aria-pressed={muted}

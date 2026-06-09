@@ -35,7 +35,7 @@ export const QuickPresets = ({ filters, onFiltersChange, className }) => {
                 onFiltersChange?.(preset.apply(filters || { ...EMPTY_FILTERS }))
               }
               className={cn(
-                'group flex items-center gap-3 px-3 py-2.5 rounded-sharp text-left',
+                'group flex items-center gap-2.5 rounded-sharp px-2.5 py-2 text-left sm:gap-3 sm:px-3 sm:py-2.5',
                 'border border-white/[0.10] bg-gradient-to-b from-white/[0.04] to-white/[0.01]',
                 'hover:from-white/[0.07] hover:to-white/[0.02] hover:border-white/25',
                 'transition-colors focus-ring',
@@ -43,7 +43,7 @@ export const QuickPresets = ({ filters, onFiltersChange, className }) => {
             >
               <span
                 className={cn(
-                  'w-9 h-9 rounded-sharp flex items-center justify-center shrink-0',
+                  'h-8 w-8 shrink-0 rounded-sharp sm:h-9 sm:w-9 flex items-center justify-center',
                   'border border-white/[0.08] bg-white/[0.02] text-ink-2',
                   'group-hover:text-ink group-hover:border-white/20 transition-colors',
                 )}
@@ -51,10 +51,10 @@ export const QuickPresets = ({ filters, onFiltersChange, className }) => {
                 <Icon className="w-4 h-4" />
               </span>
               <div className="flex-1 min-w-0">
-                <p className="text-[13px] text-ink truncate leading-tight">
+                <p className="text-[12.5px] text-ink truncate leading-tight sm:text-[13px]">
                   {preset.label}
                 </p>
-                <p className="font-editorial italic text-[11.5px] text-ink-4 truncate mt-0.5">
+                <p className="mt-0.5 truncate font-editorial italic text-[11px] text-ink-4 sm:text-[11.5px]">
                   {preset.hint}
                 </p>
               </div>

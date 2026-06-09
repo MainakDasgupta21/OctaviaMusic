@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import {
   Home,
   Search,
@@ -63,8 +64,8 @@ const groups = [
   },
 ];
 
-const COLLAPSED_W = 80;
-const EXPANDED_W = 260;
+const COLLAPSED_W = 76;
+const EXPANDED_W = 248;
 
 const isRouteActive = (pathname, itemPath) => {
   if (itemPath === '/') return pathname === '/';
@@ -245,7 +246,19 @@ const Sidebar = ({ onNavigate }) => {
   const { pinned, createPlaylist, reorderPlaylists } = usePlaylists();
   const { isPlaying } = usePlayer();
   const location = useLocation();
-  const expanded = settings.sidebarExpanded;
+  const [isDesktopWide, setIsDesktopWide] = useState(
+    () => (typeof window === 'undefined' ? true : window.matchMedia('(min-width: 1280px)').matches),
+  );
+  const expanded = settings.sidebarExpanded && isDesktopWide;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const media = window.matchMedia('(min-width: 1280px)');
+    const onChange = () => setIsDesktopWide(media.matches);
+    onChange();
+    media.addEventListener('change', onChange);
+    return () => media.removeEventListener('change', onChange);
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -269,7 +282,7 @@ const Sidebar = ({ onNavigate }) => {
       initial={false}
       animate={{ width: expanded ? EXPANDED_W : COLLAPSED_W }}
       transition={springs.sheet}
-      className="hidden md:flex fixed left-0 top-0 h-full flex-col py-4 z-50 overflow-hidden border-r border-white/[0.08] backdrop-blur-xl"
+      className="hidden md:flex fixed left-0 top-0 h-dvh min-h-screen flex-col py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] z-50 overflow-hidden border-r border-white/[0.08] backdrop-blur-xl"
       style={{
         background:
           'linear-gradient(180deg, hsl(var(--surface-1) / 0.97), hsl(var(--surface-0) / 0.98))',
@@ -289,7 +302,7 @@ const Sidebar = ({ onNavigate }) => {
       {/* Brand */}
       <div
         className={cn(
-          'mb-6 flex items-center relative z-10',
+          'mb-5 flex items-center relative z-10',
           expanded ? 'px-5 justify-between' : 'justify-center px-0',
         )}
       >
@@ -327,7 +340,7 @@ const Sidebar = ({ onNavigate }) => {
       <nav
         data-lenis-prevent
         className={cn(
-          'relative z-10 flex-1 flex flex-col overflow-y-auto custom-scrollbar pb-6',
+          'relative z-10 min-h-0 flex-1 flex flex-col overflow-y-auto custom-scrollbar pb-8',
           expanded ? 'gap-5 px-3' : 'gap-4 px-2',
         )}
         // Fade-out mask along the bottom so a long playlist list feels
@@ -408,7 +421,7 @@ const Sidebar = ({ onNavigate }) => {
               <button
                 type="button"
                 onClick={handleCreate}
-                className="p-1 rounded-sharp text-ink-3 hover:text-ink hover:bg-white/[0.05] focus-ring"
+                className="touch-target p-1 rounded-sharp text-ink-3 hover:text-ink hover:bg-white/[0.05] focus-ring"
                 aria-label="Create playlist"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -422,7 +435,7 @@ const Sidebar = ({ onNavigate }) => {
                 onClick={handleCreate}
                 title="Create playlist"
                 aria-label="Create playlist"
-                className="mx-auto h-10 w-10 flex items-center justify-center rounded-md text-ink-3 hover:text-ink hover:bg-white/[0.04] focus-ring"
+                className="touch-target mx-auto h-11 w-11 flex items-center justify-center rounded-md text-ink-3 hover:text-ink hover:bg-white/[0.04] focus-ring"
               >
                 <Plus className="w-4 h-4" />
               </button>
@@ -475,12 +488,22 @@ const Sidebar = ({ onNavigate }) => {
         />
         <button
           type="button"
-          onClick={() => updateSetting('sidebarExpanded', !expanded)}
-          title={expanded ? 'Collapse sidebar' : 'Expand sidebar'}
-          aria-label={expanded ? 'Collapse sidebar' : 'Expand sidebar'}
+          onClick={() => updateSetting('sidebarExpanded', !settings.sidebarExpanded)}
+          title={
+            isDesktopWide
+              ? (expanded ? 'Collapse sidebar' : 'Expand sidebar')
+              : 'Expand sidebar on wider screens'
+          }
+          aria-label={
+            isDesktopWide
+              ? (expanded ? 'Collapse sidebar' : 'Expand sidebar')
+              : 'Expand sidebar on wider screens'
+          }
+          disabled={!isDesktopWide}
           className={cn(
-            'mt-1 inline-flex items-center justify-center rounded-md text-ink-3 hover:text-ink hover:bg-white/[0.04] focus-ring',
-            expanded ? 'mx-1 h-9' : 'mx-auto h-10 w-10',
+            'touch-target mt-1 inline-flex items-center justify-center rounded-md text-ink-3 hover:text-ink hover:bg-white/[0.04] focus-ring',
+            expanded ? 'mx-1 h-10' : 'mx-auto h-11 w-11',
+            !isDesktopWide && 'opacity-45 cursor-not-allowed hover:bg-transparent hover:text-ink-3',
           )}
         >
           {expanded ? <ChevronsLeft className="w-4 h-4" /> : <ChevronsRight className="w-4 h-4" />}

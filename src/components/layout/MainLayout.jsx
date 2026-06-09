@@ -48,13 +48,23 @@ const MainLayout = () => {
 
   const isPlayerRoute = location.pathname.startsWith('/player');
 
-  // Expose the sidebar width as a CSS var so other components can react to it.
+  // Expose the *effective* sidebar width as a CSS var so layout chrome stays
+  // synchronized. Tablet widths force compact mode even if the user left the
+  // sidebar expanded on desktop, preventing md->lg crowding.
   useEffect(() => {
-    if (typeof document === 'undefined') return;
-    document.documentElement.style.setProperty(
-      '--sidebar-w',
-      settings.sidebarExpanded ? '260px' : '80px',
-    );
+    if (typeof window === 'undefined' || typeof document === 'undefined') return undefined;
+    const desktopWide = window.matchMedia('(min-width: 1280px)');
+    const applySidebarWidth = () => {
+      const expandedOnViewport = settings.sidebarExpanded && desktopWide.matches;
+      document.documentElement.style.setProperty('--sidebar-w', expandedOnViewport ? '260px' : '80px');
+    };
+
+    applySidebarWidth();
+    desktopWide.addEventListener('change', applySidebarWidth);
+
+    return () => {
+      desktopWide.removeEventListener('change', applySidebarWidth);
+    };
   }, [settings.sidebarExpanded]);
 
   // Lenis owns wheel smoothing for the page-level scroller (`#main-content`).
@@ -70,7 +80,12 @@ const MainLayout = () => {
   }, [location.pathname]);
 
   return (
-    <div className={cn('relative', isPlayerRoute ? 'h-screen overflow-hidden' : 'min-h-screen')}>
+    <div
+      className={cn(
+        'relative overflow-x-clip',
+        isPlayerRoute ? 'h-screen overflow-hidden' : 'min-h-screen',
+      )}
+    >
       <RouteProgress />
       <a
         href="#main-content"
@@ -88,7 +103,7 @@ const MainLayout = () => {
 
       <div
         className={cn(
-          'flex flex-col transition-[padding] duration-med ease-emphasis md:pl-[var(--sidebar-w,80px)]',
+          'flex min-h-0 min-w-0 flex-col transition-[padding] duration-med ease-emphasis md:pl-[var(--sidebar-w,80px)]',
           isPlayerRoute ? 'h-full overflow-hidden' : 'min-h-screen',
         )}
       >
@@ -97,7 +112,7 @@ const MainLayout = () => {
         <main
           id="main-content"
           className={cn(
-            'relative flex-1 min-h-0 custom-scrollbar',
+            'relative flex-1 min-h-0 min-w-0 custom-scrollbar overscroll-x-contain',
             // The Now Playing screen is a single, locked viewport on desktop:
             // no page scroll, and no footer-player gutter (the page reserves
             // that space itself). Smaller breakpoints keep normal scrolling.
@@ -108,7 +123,7 @@ const MainLayout = () => {
                 )
               : cn(
                   'overflow-y-auto',
-                  currentTrack ? 'pb-36 md:pb-32' : 'pb-20 md:pb-10',
+                  currentTrack ? 'app-main-padding--player' : 'app-main-padding',
                 ),
           )}
         >

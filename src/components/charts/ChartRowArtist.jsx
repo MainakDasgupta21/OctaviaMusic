@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import SmartImage from '@/components/SmartImage';
 import ChartRankDelta from '@/components/charts/ChartRankDelta';
+import { CHART_ARTIST_GRID_TEMPLATE } from '@/components/charts/grid-templates';
 import {
   EMPTY_VALUE,
   flagFromCountry,
@@ -51,16 +52,17 @@ const ChartRowArtist = ({
     <motion.div
       layout
       className={cn(
-        'group grid grid-cols-[2.8rem_3rem_minmax(0,1fr)_4.8rem_6.2rem] md:grid-cols-[3.6rem_5.2rem_minmax(0,1fr)_minmax(0,0.85fr)_6.5rem_8rem] gap-3 px-3 sm:px-4 py-3.5 items-center transition-colors duration-short ease-emphasis',
+        'group grid gap-2.5 sm:gap-3 px-3 sm:px-4 py-3.5 items-center transition-colors duration-short ease-emphasis',
+        CHART_ARTIST_GRID_TEMPLATE,
         'hover:bg-white/[0.04]',
       )}
     >
       <div>
-        <div className="text-[28px] leading-none font-display tabular-nums text-ink">{entry.rank}</div>
+        <div className="text-[24px] sm:text-[28px] leading-none font-display tabular-nums text-ink">{entry.rank}</div>
         <ChartRankDelta rank={entry.rank} prevRank={entry.prevRank} className="mt-1" />
       </div>
 
-      <Link to={`/artist/${encodeURIComponent(entry.artistId)}`} className="block w-12 h-12 rounded-full overflow-hidden">
+      <Link to={`/artist/${encodeURIComponent(entry.artistId)}`} className="block w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden">
         <SmartImage
           src={entry.avatarUrl}
           alt={`${entry.name} avatar`}
@@ -84,7 +86,7 @@ const ChartRowArtist = ({
         </p>
       </div>
 
-      <p className="hidden md:block text-[12px] italic text-track/85 truncate">
+      <p className="hidden lg:block text-[12px] italic text-track/85 truncate">
         {entry.topSong && !/^n\/?a$/i.test(entry.topSong)
           ? `Top: ${entry.topSong}`
           : EMPTY_VALUE}
@@ -106,7 +108,7 @@ const ChartRowArtist = ({
         {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
       </button>
 
-      <div className="justify-self-end flex items-center gap-2">
+      <div className="hidden sm:flex justify-self-end items-center gap-2">
         <span className="text-[12px] text-ink-2 tabular-nums">
           {renderListeners(entry)}
         </span>
@@ -131,18 +133,18 @@ const ChartRowArtist = ({
           transition={{ duration: 0.2 }}
           className="overflow-hidden bg-white/[0.02]"
         >
-          <div className="px-6 py-3 space-y-2">
+          <div className="px-4 sm:px-6 py-3 space-y-2">
             {entry.chartedTracks?.length ? (
               entry.chartedTracks.map((track) => (
-                <div key={track.id} className="grid grid-cols-[2.5rem_minmax(0,1fr)_7rem_2.5rem] items-center gap-3 text-[12px]">
+                <div key={track.id} className="grid grid-cols-[2rem_minmax(0,1fr)_2.5rem] sm:grid-cols-[2.5rem_minmax(0,1fr)_7rem_2.5rem] items-center gap-2.5 sm:gap-3 text-[12px]">
                   <span className="font-mono text-ink-4 tabular-nums">#{track.rank}</span>
                   <span className="text-ink-2 truncate">{track.title}</span>
-                  <span className="justify-self-end text-ink-3 tabular-nums">
+                  <span className="hidden sm:inline justify-self-end text-ink-3 tabular-nums">
                     {formatCompactNumber(track.streams)}
                   </span>
                   <button
                     type="button"
-                    className="h-7 w-7 rounded-full border border-white/15 bg-white/[0.04] text-ink-3 hover:text-ink hover:bg-white/[0.08] transition-colors focus-ring inline-flex items-center justify-center"
+                    className="touch-target h-8 w-8 sm:h-7 sm:w-7 rounded-full border border-white/15 bg-white/[0.04] text-ink-3 hover:text-ink hover:bg-white/[0.08] transition-colors focus-ring inline-flex items-center justify-center"
                     onClick={() => onPlayTrack(track, entry)}
                     aria-label={`Play ${track.title} by ${entry.name}`}
                   >

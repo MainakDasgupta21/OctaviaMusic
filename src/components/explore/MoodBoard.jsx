@@ -52,7 +52,7 @@ const MoodBoard = ({
           <div className="absolute inset-0 bg-gradient-to-t from-black/45 to-transparent" />
           <span
             aria-hidden="true"
-            className="absolute -top-2 -right-1 font-editorial italic text-[110px] leading-none text-white/[0.06] group-hover:text-white/10 transition-colors select-none"
+            className="absolute -top-1 -right-1 font-editorial italic text-[84px] sm:text-[96px] lg:text-[110px] leading-none text-white/[0.06] group-hover:text-white/10 transition-colors select-none"
             style={{ fontFeatureSettings: '"opsz" 144' }}
           >
             {mood.dropCap}

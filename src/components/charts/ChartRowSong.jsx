@@ -5,6 +5,7 @@ import SmartImage from '@/components/SmartImage';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import ChartRankDelta from '@/components/charts/ChartRankDelta';
 import ChartRowActions from '@/components/charts/ChartRowActions';
+import { CHART_SONG_GRID_TEMPLATE } from '@/components/charts/grid-templates';
 import {
   EMPTY_VALUE,
   formatCompactNumber,
@@ -62,7 +63,8 @@ const ChartRowSong = ({
       }
     }}
     className={cn(
-      'group grid grid-cols-[2.6rem_2.8rem_minmax(0,1fr)_auto] sm:grid-cols-[2.8rem_3rem_minmax(0,1fr)_5.6rem_auto] md:grid-cols-[3.2rem_4.2rem_minmax(0,1fr)_4.8rem_7rem_auto] lg:grid-cols-[3.2rem_4.2rem_minmax(0,1fr)_4.8rem_7rem_4.6rem_auto] gap-3 px-3 sm:px-4 py-3.5 items-center border-b border-white/[0.05] transition-[background-color,border-color] duration-short ease-emphasis cursor-pointer focus-ring rounded-sharp',
+      'group grid gap-2.5 sm:gap-3 px-3 sm:px-4 py-3.5 items-center border-b border-white/[0.05] transition-[background-color,border-color] duration-short ease-emphasis cursor-pointer focus-ring rounded-sharp',
+      CHART_SONG_GRID_TEMPLATE,
       'hover:bg-white/[0.04]',
       isCurrent && 'bg-track/[0.10] border-l-[3px] border-l-track',
     )}
@@ -70,7 +72,7 @@ const ChartRowSong = ({
     <div className="min-w-0">
       <div
         className={cn(
-          'text-[28px] leading-none font-display tabular-nums',
+          'text-[24px] sm:text-[28px] leading-none font-display tabular-nums',
           entry.rank === 1 ? 'text-amber-300' : 'text-ink',
         )}
       >
@@ -79,7 +81,7 @@ const ChartRowSong = ({
       <ChartRankDelta rank={entry.rank} prevRank={entry.prevRank} peakRank={entry.peakRank} className="mt-1" />
     </div>
 
-    <div className="w-12 h-12 rounded-md overflow-hidden transition-transform duration-short ease-emphasis group-hover:scale-110">
+    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-md overflow-hidden transition-transform duration-short ease-emphasis group-hover:scale-110">
       <SmartImage
         src={entry.coverUrl}
         alt={`${entry.title} cover art`}
@@ -112,7 +114,7 @@ const ChartRowSong = ({
       </Link>
     </div>
 
-    <span className="hidden md:block text-[12px] text-ink-4 justify-self-end tabular-nums">
+    <span className="hidden lg:block text-[12px] text-ink-4 justify-self-end tabular-nums">
       {Number.isFinite(entry.weeksOnChart) && entry.weeksOnChart > 0
         ? `${entry.weeksOnChart} w`
         : EMPTY_VALUE}

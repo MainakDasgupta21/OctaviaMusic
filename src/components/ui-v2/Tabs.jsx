@@ -76,8 +76,8 @@ const Tabs = ({
       onKeyDown={handleKeyDown}
       className={cn(
         variant === 'pill'
-          ? 'inline-flex p-1 rounded-sharp bg-surface-2/40 border border-white/[0.08] gap-1'
-          : 'inline-flex border-b border-white/[0.08] gap-1',
+          ? 'inline-flex max-w-full overflow-x-auto no-scrollbar p-1 rounded-sharp bg-surface-2/40 border border-white/[0.08] gap-1'
+          : 'inline-flex max-w-full overflow-x-auto no-scrollbar border-b border-white/[0.08] gap-1',
         className,
       )}
     >
@@ -98,8 +98,8 @@ const Tabs = ({
             tabIndex={isActive ? 0 : -1}
             onClick={() => setActive(it.id)}
             className={cn(
-              'relative inline-flex items-center gap-2 text-[13px] font-medium focus-ring transition-colors',
-              variant === 'pill' ? 'px-3.5 py-1.5 rounded-sharp' : 'px-4 py-3',
+              'touch-target relative inline-flex items-center gap-2 text-[13px] font-medium focus-ring transition-colors',
+              variant === 'pill' ? 'px-3.5 py-2 rounded-sharp' : 'px-3.5 sm:px-4 py-2.5 sm:py-3',
               isActive
                 ? variant === 'pill'
                   ? 'text-accent'

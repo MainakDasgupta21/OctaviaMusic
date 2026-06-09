@@ -27,7 +27,7 @@ const MobileNavItem = ({ item }) => {
         {...prefetch}
         className={({ isActive }) =>
           cn(
-            'flex-1 flex flex-col items-center justify-center gap-1 rounded-sharp transition-colors focus-ring relative',
+            'touch-target flex-1 flex flex-col items-center justify-center gap-1 rounded-sharp transition-colors focus-ring relative',
             isActive ? 'text-accent' : 'text-ink-3 hover:text-ink',
           )
         }
@@ -48,7 +48,7 @@ const MobileNavItem = ({ item }) => {
             />
             <span
               className={cn(
-                'text-[10px] font-medium tracking-wide',
+                'hidden xs:inline text-[10px] font-medium tracking-wide',
                 isActive && 'font-semibold',
               )}
             >
@@ -68,13 +68,13 @@ const MobileNav = () => {
       animate={{ y: 0, opacity: 1 }}
       transition={{ delay: 0.1 }}
       className={cn(
-        'md:hidden fixed inset-x-2 bottom-2 z-40 h-14 rounded-soft',
+        'md:hidden fixed inset-x-2 bottom-[var(--mobile-nav-offset)] z-40 h-[var(--mobile-nav-height)] rounded-soft',
         'bg-surface-1/85 backdrop-blur-xl border border-white/[0.08] shadow-elev-4',
         'px-2',
       )}
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
-      <ul className="grid grid-cols-5 h-full">
+      <ul className="grid grid-cols-5 h-full items-stretch">
         {items.map((item) => (
           <MobileNavItem key={item.path} item={item} />
         ))}

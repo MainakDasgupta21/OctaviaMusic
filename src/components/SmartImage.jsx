@@ -118,12 +118,14 @@ const SmartImage = ({
   const srcSet = isHero ? null : buildSrcSet(currentSrc);
   // Only attach `sizes` when we actually have a srcSet — otherwise it's
   // ignored by the browser anyway and creates noise in the DOM.
-  const resolvedSizes = srcSet ? sizes || '272px' : undefined;
+  const resolvedSizes = srcSet
+    ? sizes || '(max-width: 639px) 42vw, (max-width: 1023px) 240px, 272px'
+    : undefined;
 
   return (
     <span
       className={cn(
-        'relative block overflow-hidden bg-surface-2 group/sm-image',
+        'relative block overflow-hidden bg-surface-2 group group/sm-image',
         rounded,
         // Interactive wrappers gain a 1px inset highlight ring on hover.
         // The ring is rendered as an absolute overlay (below) so it can
@@ -168,7 +170,7 @@ const SmartImage = ({
             // 1px inset ivory ring + a tinted halo just visible on hover.
             // Both colour stops fade in together so the image gains a
             // premium "tap me" affordance without a layout shift.
-            'opacity-0 group-hover/sm-image:opacity-100',
+            'opacity-0 group-hover/sm-image:opacity-100 group-focus-within/sm-image:opacity-100 active:opacity-100',
             rounded,
           )}
           style={{

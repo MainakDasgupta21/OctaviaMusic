@@ -101,12 +101,13 @@ export const queryKeys = {
     },
   ],
   exploreJourney: (journeyId) => ['explore', 'journey', normalizeToken(journeyId)],
-  lyrics: (title, artist, durationSec) => [
+  lyrics: (title, artist, durationSec, videoId = '') => [
     'lyrics',
     {
       title: String(title ?? '').trim(),
       artist: String(artist ?? '').trim(),
       durationSec: Number.isFinite(durationSec) ? Math.round(durationSec) : null,
+      videoId: String(videoId ?? '').trim(),
     },
   ],
 };

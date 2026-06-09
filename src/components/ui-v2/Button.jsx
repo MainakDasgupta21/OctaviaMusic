@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 
 const button = cva(
   [
-    'inline-flex items-center justify-center gap-2 select-none whitespace-nowrap',
+    'inline-flex min-w-0 items-center justify-center gap-2 select-none whitespace-nowrap',
     // Pick up the new premium focus-ring language for every variant.
     'font-medium rounded-full focus-premium',
     'transition-[transform,background,box-shadow,opacity,border-color]',
@@ -73,11 +73,11 @@ const button = cva(
         ],
       },
       size: {
-        sm: 'h-8 px-3.5 text-[12px]',
-        md: 'h-10 px-4 text-[13px]',
+        sm: 'h-9 px-3.5 text-[12px]',
+        md: 'h-11 px-4 text-[13px]',
         lg: 'h-12 px-6 text-[14px]',
-        icon: 'h-10 w-10 p-0',
-        'icon-sm': 'h-8 w-8 p-0',
+        icon: 'h-11 w-11 p-0',
+        'icon-sm': 'h-10 w-10 p-0',
         'icon-lg': 'h-12 w-12 p-0',
       },
     },

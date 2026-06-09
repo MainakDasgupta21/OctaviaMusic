@@ -71,7 +71,7 @@ const NowPlayingBars = () => (
 const ArtistPageSkeleton = () => (
   <div className="pb-12">
     {/* Hero */}
-    <div className="px-5 md:px-10 max-w-[1600px] mx-auto pt-10 md:pt-14 pb-8">
+    <div className="page-shell-content pt-10 md:pt-14 pb-8">
       <Skeleton className="h-3 w-72 mb-8 hidden md:block" />
       <div className="flex flex-col md:flex-row items-center md:items-end gap-6 md:gap-10">
         <Skeleton className="w-44 h-44 md:w-56 md:h-56 rounded-soft" />
@@ -83,16 +83,16 @@ const ArtistPageSkeleton = () => (
       </div>
     </div>
     {/* Actions + stat strip */}
-    <div className="px-5 md:px-10 max-w-[1600px] mx-auto mb-6 flex items-center gap-3">
+    <div className="page-shell-content mb-6 flex items-center gap-3">
       <Skeleton className="h-12 w-28 rounded-sharp" />
       <Skeleton className="h-12 w-28 rounded-sharp" />
       <Skeleton className="h-12 w-28 rounded-sharp" />
     </div>
-    <div className="px-5 md:px-10 max-w-[1600px] mx-auto mb-12">
+    <div className="page-shell-content mb-12">
       <Skeleton className="h-4 w-full md:w-1/2" />
     </div>
     {/* Popular */}
-    <section className="px-5 md:px-10 max-w-[1600px] mx-auto mb-12">
+    <section className="page-shell-content mb-12">
       <Skeleton className="h-6 w-24 mb-5" />
       {Array.from({ length: 5 }).map((_, i) => (
         <div key={i} className="flex items-center gap-4 p-3">
@@ -107,7 +107,7 @@ const ArtistPageSkeleton = () => (
       ))}
     </section>
     {/* Discography */}
-    <section className="px-5 md:px-10 max-w-[1600px] mx-auto">
+    <section className="page-shell-content">
       <Skeleton className="h-6 w-28 mb-5" />
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5">
         {Array.from({ length: 5 }).map((_, i) => (
@@ -120,7 +120,7 @@ const ArtistPageSkeleton = () => (
 
 const ArtistPage = () => {
   const { slug } = useParams();
-  const { playTrack, addToQueue, playTracksInOrder, currentTrack, isPlaying } = usePlayer();
+  const { playTrack, playTracksInOrder, currentTrack, isPlaying } = usePlayer();
   const { onAlbum: prefetchAlbumRoute } = useHoverPrefetch();
   const { isFollowing, toggleFollow } = useFollowedArtists();
 
@@ -184,7 +184,7 @@ const ArtistPage = () => {
 
   if (isError && pageError) {
     return (
-      <div className="p-6 md:p-10 max-w-[1600px] mx-auto">
+      <div className="page-shell-content pt-6 md:pt-10">
         <EmptyState
           icon={pageError.kind === 'not-found' ? User : pageError.icon}
           title={pageError.title}
@@ -220,8 +220,11 @@ const ArtistPage = () => {
   const handleShuffle = () => {
     if (!topTracks.length) return;
     const shuffled = shuffleArray(topTracks);
-    playTrack(shuffled[0]);
-    shuffled.slice(1).forEach((t) => addToQueue(t));
+    playTracksInOrder(shuffled, {
+      replaceQueue: true,
+      startIndex: 0,
+      forceSequential: false,
+    });
     notify.info('Shuffling top tracks');
   };
 
@@ -261,8 +264,11 @@ const ArtistPage = () => {
       return;
     }
     const pool = shuffleArray(topTracks);
-    playTrack(pool[0]);
-    pool.slice(1).forEach((t) => addToQueue(t));
+    playTracksInOrder(pool, {
+      replaceQueue: true,
+      startIndex: 0,
+      forceSequential: false,
+    });
     notify.info(`Radio · ${artist.name}`);
   };
 
@@ -278,7 +284,7 @@ const ArtistPage = () => {
   return (
     <div className="pb-12" style={wrapperStyle}>
       {/* Hero */}
-      <div className="relative pt-10 md:pt-14 pb-10 px-5 md:px-10 max-w-[1600px] mx-auto overflow-hidden">
+      <div className="page-shell-content relative pt-10 md:pt-14 pb-10 overflow-hidden">
         {/* Backdrop: blurred portrait + accent radial + complementary cool */}
         <div aria-hidden="true" className="absolute inset-0 -z-10">
           <SmartImage
@@ -384,7 +390,7 @@ const ArtistPage = () => {
         aria-hidden={!stickyVisible}
       >
         <div className="bg-background/85 backdrop-blur-xl border-b border-white/[0.07]">
-          <div className="px-5 md:px-10 max-w-[1600px] mx-auto py-2.5 flex items-center gap-4">
+          <div className="page-shell-content py-2.5 flex items-center gap-4">
             <SmartImage
               src={portraitSrc}
               alt=""
@@ -423,7 +429,7 @@ const ArtistPage = () => {
       </motion.div>
 
       {/* Actions */}
-      <div className="px-5 md:px-10 max-w-[1600px] mx-auto mb-5 mt-2 flex items-center gap-3 flex-wrap">
+      <div className="page-shell-content mb-5 mt-2 flex items-center gap-3 flex-wrap">
         <Button
           size="lg"
           onClick={handlePlayAll}
@@ -491,7 +497,7 @@ const ArtistPage = () => {
       {/* Stat strip — scannable masthead-style row of real numbers. */}
       <div
         aria-hidden="true"
-        className="px-5 md:px-10 max-w-[1600px] mx-auto mb-12 flex flex-wrap items-center gap-x-5 gap-y-2 text-[10px] font-mono uppercase tracking-[0.22em] text-ink-4 border-b border-white/[0.06] pb-4"
+        className="page-shell-content mb-12 flex flex-wrap items-center gap-x-5 gap-y-2 text-[10px] font-mono uppercase tracking-[0.22em] text-ink-4 border-b border-white/[0.06] pb-4"
       >
         <span className="flex items-center gap-2">
           <span>§01 — Popular</span>
@@ -520,7 +526,7 @@ const ArtistPage = () => {
       </div>
 
       {/* Popular */}
-      <section className="px-5 md:px-10 max-w-[1600px] mx-auto mb-14">
+      <section className="page-shell-content mb-14">
         <SectionHeader
           ordinal={1}
           eyebrow="Most-played"
@@ -552,7 +558,7 @@ const ArtistPage = () => {
                     key={track.id}
                     onClick={() => playTrack(track)}
                     className={cn(
-                      'group grid grid-cols-[2.5rem_3rem_1fr_auto_auto] gap-4 px-4 py-3.5',
+                      'group grid grid-cols-[2.1rem_2.5rem_minmax(0,1fr)_auto] sm:grid-cols-[2.4rem_3rem_minmax(0,1fr)_auto_auto] gap-2.5 sm:gap-4 px-3 sm:px-4 py-3.5',
                       'items-center cursor-pointer transition-colors border-b border-white/[0.05] last:border-0',
                       isCurrent
                         ? 'bg-[hsl(var(--artist-accent)/0.12)]'
@@ -578,7 +584,7 @@ const ArtistPage = () => {
                       alt=""
                       kind="track"
                       rounded="rounded-sharp"
-                      className="w-12 h-12 ring-1 ring-white/10"
+                      className="w-10 h-10 sm:w-12 sm:h-12 ring-1 ring-white/10"
                       imgClassName="object-cover"
                     />
                     <div className="flex-1 min-w-0">
@@ -597,7 +603,7 @@ const ArtistPage = () => {
                     </div>
                     <div
                       onClick={(e) => e.stopPropagation()}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1"
+                      className="touch-action-visible opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1"
                     >
                       <AddToPlaylistButton
                         track={track}
@@ -606,7 +612,7 @@ const ArtistPage = () => {
                       />
                       <HeartButton track={track} size="sm" />
                     </div>
-                    <span className="font-mono text-[12px] text-ink-4 tabular-nums tracking-tight">
+                    <span className="hidden sm:inline font-mono text-[12px] text-ink-4 tabular-nums tracking-tight">
                       {track.duration}
                     </span>
                   </motion.div>
@@ -640,7 +646,7 @@ const ArtistPage = () => {
 
       {/* Discography — grouped by year */}
       {albums.length > 0 && (
-        <section className="px-5 md:px-10 max-w-[1600px] mx-auto">
+        <section className="page-shell-content">
           <SectionHeader
             ordinal={2}
             eyebrow="Discography"
@@ -661,7 +667,7 @@ const ArtistPage = () => {
                     {group.albums.length} {group.albums.length === 1 ? 'release' : 'releases'}
                   </span>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-5">
                   {group.albums.map((a, i) => (
                     <Link
                       key={a.id}

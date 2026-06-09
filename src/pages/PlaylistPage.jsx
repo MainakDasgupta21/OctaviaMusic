@@ -72,7 +72,7 @@ const SortableTrack = ({ track, index, onPlay, onRemove, isCurrent }) => {
       tabIndex={0}
       role="button"
       className={cn(
-        'group row-hover grid grid-cols-[1.5rem_2.5rem_3rem_1fr_auto_auto] gap-3 px-3 py-3 items-center transition-colors border-b border-white/[0.04] last:border-0',
+        'group row-hover grid grid-cols-[1.25rem_2rem_minmax(0,1fr)_auto] sm:grid-cols-[1.5rem_2.5rem_3rem_minmax(0,1fr)_auto_auto] gap-2.5 sm:gap-3 px-2.5 sm:px-3 py-3 items-center transition-colors border-b border-white/[0.04] last:border-0',
         isCurrent ? 'bg-track/[0.08]' : 'hover:bg-white/[0.035]',
       )}
       {...attributes}
@@ -80,7 +80,7 @@ const SortableTrack = ({ track, index, onPlay, onRemove, isCurrent }) => {
       {/* Hairline drag handle */}
       <button
         type="button"
-        className="flex items-center justify-center text-ink-4 hover:text-ink-2 cursor-grab active:cursor-grabbing focus-ring rounded-sharp transition-colors"
+        className="touch-target flex items-center justify-center text-ink-4 hover:text-ink-2 cursor-grab active:cursor-grabbing focus-ring rounded-sharp transition-colors"
         aria-label="Drag to reorder"
         onClick={(event) => event.stopPropagation()}
         {...listeners}
@@ -100,7 +100,7 @@ const SortableTrack = ({ track, index, onPlay, onRemove, isCurrent }) => {
         alt=""
         kind="track"
         rounded="rounded-sharp"
-        className="w-10 h-10 ring-1 ring-white/10"
+        className="hidden sm:block w-10 h-10 ring-1 ring-white/10"
         imgClassName="object-cover"
       />
       <div className="min-w-0">
@@ -116,7 +116,7 @@ const SortableTrack = ({ track, index, onPlay, onRemove, isCurrent }) => {
           by {track.artist || 'Unknown artist'}
         </p>
       </div>
-      <div onClick={(e) => e.stopPropagation()}>
+      <div onClick={(e) => e.stopPropagation()} className="hidden sm:block">
         <HeartButton track={track} size="sm" />
       </div>
       <button
@@ -125,7 +125,7 @@ const SortableTrack = ({ track, index, onPlay, onRemove, isCurrent }) => {
           e.stopPropagation();
           onRemove();
         }}
-        className="p-1.5 rounded-sharp text-ink-3 hover:text-danger hover:bg-danger/10 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-ring transition-opacity"
+        className="touch-action-visible p-1.5 rounded-sharp text-ink-3 hover:text-danger hover:bg-danger/10 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 focus-ring transition-opacity"
         aria-label="Remove from playlist"
       >
         <Trash2 className="w-4 h-4" />
@@ -189,7 +189,7 @@ const PlaylistPage = () => {
     togglePin,
     reorderTracks,
   } = usePlaylists();
-  const { playTrack, addToQueue, currentTrack } = usePlayer();
+  const { playTracksInOrder, currentTrack } = usePlayer();
   const playlist = useMemo(() => playlists.find((p) => p.id === id), [playlists, id]);
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState(playlist?.name ?? '');
@@ -202,7 +202,7 @@ const PlaylistPage = () => {
 
   if (!playlist) {
     return (
-      <div className="p-6 md:p-10 max-w-[1600px] mx-auto">
+      <div className="page-shell-content pt-6 md:pt-10">
         <EmptyState
           icon={Music2}
           title="Playlist not found"
@@ -215,16 +215,30 @@ const PlaylistPage = () => {
 
   const handlePlayAll = () => {
     if (!playlist.tracks.length) return;
-    playTrack(playlist.tracks[0]);
-    playlist.tracks.slice(1).forEach((t) => addToQueue(t));
+    playTracksInOrder(playlist.tracks, {
+      replaceQueue: true,
+      startIndex: 0,
+      forceSequential: true,
+    });
   };
 
   const handleShuffle = () => {
     if (!playlist.tracks.length) return;
     const shuffled = shuffleArray(playlist.tracks);
-    playTrack(shuffled[0]);
-    shuffled.slice(1).forEach((t) => addToQueue(t));
+    playTracksInOrder(shuffled, {
+      replaceQueue: true,
+      startIndex: 0,
+      forceSequential: false,
+    });
     notify.info(`Shuffling \u00b7 ${playlist.name}`);
+  };
+
+  const handlePlayFromIndex = (index) => {
+    playTracksInOrder(playlist.tracks, {
+      replaceQueue: true,
+      startIndex: index,
+      forceSequential: true,
+    });
   };
 
   const handleSave = () => {
@@ -245,12 +259,12 @@ const PlaylistPage = () => {
     reorderTracks(playlist.id, oldIdx, newIdx);
   };
 
-  const totalRunTime = useMemo(() => sumDuration(playlist.tracks), [playlist.tracks]);
+  const totalRunTime = sumDuration(playlist.tracks);
 
   return (
     <div className="pb-12">
       {/* Hero */}
-      <div className="relative pt-10 md:pt-14 pb-10 px-5 md:px-10 max-w-[1600px] mx-auto">
+      <div className="page-shell-content relative pt-10 md:pt-14 pb-10">
         <div
           aria-hidden="true"
           className="absolute inset-0 -z-10 opacity-50"
@@ -333,7 +347,7 @@ const PlaylistPage = () => {
       </div>
 
       {/* Actions */}
-      <div className="px-5 md:px-10 max-w-[1600px] mx-auto mb-8 flex items-center gap-3 flex-wrap">
+      <div className="page-shell-content mb-8 flex items-center gap-3 flex-wrap">
         {editing ? (
           <>
             <Button onClick={handleSave}>Save</Button>
@@ -406,7 +420,7 @@ const PlaylistPage = () => {
       </div>
 
       {/* Tracks */}
-      <section className="px-5 md:px-10 max-w-[1600px] mx-auto">
+      <section className="page-shell-content">
         {playlist.tracks.length === 0 ? (
           <EmptyState
             icon={ListMusic}
@@ -427,13 +441,13 @@ const PlaylistPage = () => {
                 {/* Tracklist header */}
                 <div
                   aria-hidden="true"
-                  className="grid grid-cols-[1.5rem_2.5rem_3rem_1fr_auto_auto] gap-3 px-3 py-3 border-b border-white/[0.08] text-[10px] font-mono uppercase tracking-[0.18em] text-ink-4"
+                  className="grid grid-cols-[1.25rem_2rem_minmax(0,1fr)_auto] sm:grid-cols-[1.5rem_2.5rem_3rem_minmax(0,1fr)_auto_auto] gap-2.5 sm:gap-3 px-2.5 sm:px-3 py-3 border-b border-white/[0.08] text-[10px] font-mono uppercase tracking-[0.18em] text-ink-4"
                 >
                   <span aria-hidden="true" />
                   <span className="text-center">№</span>
-                  <span aria-hidden="true" />
+                  <span className="hidden sm:inline" aria-hidden="true" />
                   <span>Title</span>
-                  <span aria-hidden="true" />
+                  <span className="hidden sm:inline" aria-hidden="true" />
                   <span aria-hidden="true" />
                 </div>
                 {playlist.tracks.map((track, index) => (
@@ -442,7 +456,7 @@ const PlaylistPage = () => {
                     track={track}
                     index={index}
                     isCurrent={currentTrack?.id === track.id}
-                    onPlay={() => playTrack(track)}
+                    onPlay={() => handlePlayFromIndex(index)}
                     onRemove={() => removeTrackFromPlaylist(playlist.id, track.id)}
                   />
                 ))}

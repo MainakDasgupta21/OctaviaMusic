@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Command } from 'cmdk';
 import {
@@ -31,7 +31,7 @@ import {
   AtSign,
   ChevronRight,
 } from 'lucide-react';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { useUI } from '@/contexts/UIContext';
 import { usePlayer } from '@/contexts/PlayerContext';
 import { useFavorites } from '@/contexts/FavoritesContext';
@@ -164,6 +164,7 @@ const CommandPalette = () => {
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
   const [recents, setRecents] = useState(() => loadRecents());
+  const inputRef = useRef(null);
 
   useEffect(() => {
     if (!paletteOpen) {
@@ -443,9 +444,15 @@ const CommandPalette = () => {
     <Dialog open={paletteOpen} onOpenChange={(open) => !open && closePalette()}>
       <DialogContent
         className="max-w-xl p-0 overflow-hidden !rounded-sharp border-white/[0.08] bg-surface-3/95 backdrop-blur-2xl"
-        aria-describedby={undefined}
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          inputRef.current?.focus();
+        }}
       >
         <DialogTitle className="sr-only">Command palette</DialogTitle>
+        <DialogDescription className="sr-only">
+          Search navigation, playback actions, artists, albums, and playlists.
+        </DialogDescription>
         <Command
           label="Command palette"
           className="flex flex-col max-h-[70vh]"
@@ -462,6 +469,7 @@ const CommandPalette = () => {
               <SearchIcon className="w-4 h-4 text-ink-3" strokeWidth={1.75} />
             )}
             <Command.Input
+              ref={inputRef}
               autoFocus
               value={query}
               onValueChange={setQuery}

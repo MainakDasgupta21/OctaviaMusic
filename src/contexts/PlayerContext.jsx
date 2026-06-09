@@ -8,19 +8,29 @@ import React, {
   useState,
 } from 'react';
 import { useSettings } from '@/contexts/SettingsContext';
+import { getExploreRadio, getExploreSimilar } from '@/lib/api';
 import { sanitizeTrack, sanitizeTrackList } from '@/lib/media-sanitize';
+import { buildSmartQueueFromSeed } from '@/lib/smart-queue';
 
 // Two contexts on purpose:
-//  • PlayerContext        — stable state + controls. Changes only on real
-//    actions (track change, play/pause, queue edits, volume…).
-//  • PlayerProgressContext — the high-frequency playhead (fires several times a
-//    second). Isolating it means the sidebar, nav, page grids and track cards
-//    no longer re-render on every tick — only the few components that actually
-//    paint the playhead subscribe to it.
+//  • PlayerContext         — durable playback/queue state + controls.
+//  • PlayerProgressContext — high-frequency playhead values.
 const PlayerContext = createContext(undefined);
 const PlayerProgressContext = createContext(undefined);
 
 const STORAGE_KEY = 'octavia.player.v1';
+const HISTORY_MAX = 24;
+const SMART_QUEUE_LIMIT = 24;
+const SMART_REMOTE_LIMIT = 30;
+
+const normalizeQueueMode = (value) =>
+  ['manual', 'collection', 'smart'].includes(value) ? value : 'manual';
+
+const clampIndex = (value, max) => {
+  if (!Number.isInteger(value)) return 0;
+  if (max < 0) return -1;
+  return Math.max(0, Math.min(value, max));
+};
 
 const readState = () => {
   if (typeof window === 'undefined') return null;
@@ -37,41 +47,127 @@ const readState = () => {
 
 const sanitizePersistedState = (state) => {
   if (!state || typeof state !== 'object') return null;
+  const currentTrack = sanitizeTrack(state.currentTrack, { requirePlayable: true });
+  let queue = sanitizeTrackList(state.queue, { requirePlayable: true });
+  let queueIndex = Number.isInteger(state.queueIndex) ? state.queueIndex : -1;
+
+  if (currentTrack) {
+    const existingIndex = queue.findIndex((row) => row.id === currentTrack.id);
+    if (existingIndex >= 0) {
+      queueIndex = existingIndex;
+    } else if (queue.length > 0) {
+      // Backward compatibility for the old "up-next only" queue shape.
+      queue = [currentTrack, ...queue];
+      queueIndex = 0;
+    } else {
+      queue = [currentTrack];
+      queueIndex = 0;
+    }
+  } else if (queue.length > 0) {
+    queueIndex = clampIndex(queueIndex, queue.length - 1);
+  } else {
+    queueIndex = -1;
+  }
+
   return {
-    ...state,
-    currentTrack: sanitizeTrack(state.currentTrack, { requirePlayable: true }),
-    queue: sanitizeTrackList(state.queue, { requirePlayable: true }),
-    history: sanitizeTrackList(state.history, { requirePlayable: true }).slice(0, 24),
+    currentTrack,
+    volume: typeof state.volume === 'number' ? state.volume : 0.7,
+    queue,
+    queueIndex,
+    queueMode: normalizeQueueMode(state.queueMode),
+    history: sanitizeTrackList(state.history, { requirePlayable: true }).slice(0, HISTORY_MAX),
+    shuffle: Boolean(state.shuffle),
+    repeat: ['off', 'all', 'one'].includes(state.repeat) ? state.repeat : 'off',
   };
 };
 
 const persisted = sanitizePersistedState(readState());
+
+const ensureCurrentInQueue = (queueState, currentTrack) => {
+  const tracks = Array.isArray(queueState?.tracks) ? [...queueState.tracks] : [];
+  const currentIndex = Number.isInteger(queueState?.currentIndex) ? queueState.currentIndex : -1;
+  if (!currentTrack?.id) {
+    return {
+      tracks,
+      currentIndex: tracks.length ? clampIndex(currentIndex, tracks.length - 1) : -1,
+    };
+  }
+
+  if (tracks.length === 0) {
+    return { tracks: [currentTrack], currentIndex: 0 };
+  }
+
+  if (currentIndex >= 0 && tracks[currentIndex]?.id === currentTrack.id) {
+    return { tracks, currentIndex };
+  }
+
+  const found = tracks.findIndex((track) => track.id === currentTrack.id);
+  if (found >= 0) return { tracks, currentIndex: found };
+
+  tracks.unshift(currentTrack);
+  return { tracks, currentIndex: 0 };
+};
+
+const resolveNextIndex = ({ queueLength, currentIndex, shuffle, repeat }) => {
+  if (queueLength <= 0 || currentIndex < 0) return null;
+  if (shuffle && queueLength > 1) {
+    const pool = [];
+    for (let index = 0; index < queueLength; index += 1) {
+      if (index === currentIndex) continue;
+      if (repeat !== 'all' && index < currentIndex) continue;
+      pool.push(index);
+    }
+    if (pool.length === 0 && repeat === 'all') {
+      for (let index = 0; index < queueLength; index += 1) {
+        if (index !== currentIndex) pool.push(index);
+      }
+    }
+    if (pool.length === 0) return null;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+  if (currentIndex < queueLength - 1) return currentIndex + 1;
+  if (repeat === 'all') return 0;
+  return null;
+};
 
 export const PlayerProvider = ({ children }) => {
   const { settings } = useSettings();
 
   const [currentTrack, setCurrentTrack] = useState(persisted?.currentTrack ?? null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [volume, setVolumeState] = useState(
-    typeof persisted?.volume === 'number' ? persisted.volume : 0.7,
-  );
+  const [volume, setVolumeState] = useState(persisted?.volume ?? 0.7);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [queue, setQueue] = useState(
-    Array.isArray(persisted?.queue) ? persisted.queue : [],
-  );
+  const [queueState, setQueueState] = useState({
+    tracks: Array.isArray(persisted?.queue) ? persisted.queue : [],
+    currentIndex: Number.isInteger(persisted?.queueIndex) ? persisted.queueIndex : -1,
+    queueMode: normalizeQueueMode(persisted?.queueMode),
+  });
   const [history, setHistory] = useState(
     Array.isArray(persisted?.history) ? persisted.history : [],
   );
   const [shuffle, setShuffle] = useState(Boolean(persisted?.shuffle));
-  const [repeat, setRepeat] = useState(
-    ['off', 'all', 'one'].includes(persisted?.repeat) ? persisted.repeat : 'off',
-  );
+  const [repeat, setRepeat] = useState(persisted?.repeat || 'off');
   const [isMuted, setIsMuted] = useState(false);
+
+  const queue = queueState.tracks;
+  const queueIndex = queueState.currentIndex;
+  const queueMode = queueState.queueMode;
 
   const lastVolumeRef = useRef(volume || 0.7);
   const playerRef = useRef(null);
   const progressRef = useRef(0);
+  const currentTrackRef = useRef(currentTrack);
+  const queueStateRef = useRef(queueState);
+  const smartQueueRequestRef = useRef(0);
+
+  useEffect(() => {
+    currentTrackRef.current = currentTrack;
+  }, [currentTrack]);
+
+  useEffect(() => {
+    queueStateRef.current = queueState;
+  }, [queueState]);
 
   // Persist a slim snapshot whenever durable bits change.
   useEffect(() => {
@@ -81,48 +177,173 @@ export const PlayerProvider = ({ children }) => {
         currentTrack,
         volume,
         queue,
+        queueIndex,
+        queueMode,
         history,
         shuffle,
         repeat,
       };
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
     } catch {
-      /* quota / private — ignore */
+      /* storage unavailable */
     }
-  }, [currentTrack, volume, queue, history, shuffle, repeat]);
+  }, [currentTrack, volume, queue, queueIndex, queueMode, history, shuffle, repeat]);
+
+  const invalidateSmartQueueRequests = useCallback(() => {
+    smartQueueRequestRef.current += 1;
+  }, []);
 
   const pushToHistory = useCallback((trackInput) => {
     const track = sanitizeTrack(trackInput, { requirePlayable: true });
     if (!track?.id) return;
-    setHistory((h) => {
-      const filtered = h.filter((t) => t.id !== track.id);
-      return [track, ...filtered].slice(0, 24);
+    setHistory((rows) => {
+      const filtered = rows.filter((row) => row.id !== track.id);
+      return [track, ...filtered].slice(0, HISTORY_MAX);
     });
   }, []);
 
-  const playTrack = useCallback(
-    (trackInput) => {
-      const track = sanitizeTrack(trackInput, { requirePlayable: true });
-      if (!track?.id) return false;
-      setCurrentTrack((prev) => {
-        if (prev && prev.id !== track.id) pushToHistory(prev);
-        return track;
+  const startTrackPlayback = useCallback((trackInput) => {
+    const track = sanitizeTrack(trackInput, { requirePlayable: true });
+    if (!track?.id) return null;
+    setCurrentTrack((previous) => {
+      if (previous && previous.id !== track.id) pushToHistory(previous);
+      return track;
+    });
+    setIsPlaying(true);
+    progressRef.current = 0;
+    setProgress(0);
+    setDuration(0);
+    return track;
+  }, [pushToHistory]);
+
+  const generateSmartQueue = useCallback(async (seedTrackInput, { localCandidates = [] } = {}) => {
+    const seedTrack = sanitizeTrack(seedTrackInput, { requirePlayable: true });
+    if (!seedTrack?.id) return;
+
+    const requestId = smartQueueRequestRef.current + 1;
+    smartQueueRequestRef.current = requestId;
+
+    const seedKey = seedTrack.videoId || seedTrack.id || `${seedTrack.title || ''} ${seedTrack.artist || ''}`.trim();
+    const [similarResponse, radioResponse] = await Promise.allSettled([
+      getExploreSimilar({
+        trackId: seedTrack.id || seedTrack.videoId || seedKey,
+        limit: SMART_REMOTE_LIMIT,
+      }),
+      getExploreRadio({
+        mood: '',
+        genre: Array.isArray(seedTrack.genre) ? seedTrack.genre[0] || '' : seedTrack.genre || '',
+        seed: seedKey,
+        diversity: 'high',
+        limit: SMART_REMOTE_LIMIT,
+      }),
+    ]);
+
+    if (requestId !== smartQueueRequestRef.current) return;
+
+    const similarItems = similarResponse.status === 'fulfilled'
+      ? (Array.isArray(similarResponse.value?.items) ? similarResponse.value.items : similarResponse.value || [])
+      : [];
+    const radioItems = radioResponse.status === 'fulfilled'
+      ? (Array.isArray(radioResponse.value?.items) ? radioResponse.value.items : radioResponse.value || [])
+      : [];
+
+    const recommendations = buildSmartQueueFromSeed({
+      seedTrack,
+      remoteCandidates: [...similarItems, ...radioItems],
+      localCandidates,
+      history,
+      limit: SMART_QUEUE_LIMIT,
+    });
+    if (!recommendations.length) return;
+
+    setQueueState((previous) => {
+      if (previous.queueMode !== 'smart') return previous;
+      const active = previous.tracks[previous.currentIndex];
+      if (!active || active.id !== seedTrack.id) return previous;
+      const seen = new Set(previous.tracks.map((track) => track.id));
+      const additions = recommendations.filter((track) => !seen.has(track.id));
+      if (!additions.length) return previous;
+      return { ...previous, tracks: [...previous.tracks, ...additions] };
+    });
+  }, [history]);
+
+  const playTrack = useCallback((trackInput, options = {}) => {
+    const track = sanitizeTrack(trackInput, { requirePlayable: true });
+    if (!track?.id) return false;
+
+    const queueBehavior = options.queueBehavior || 'smart';
+    if (queueBehavior === 'queue') {
+      invalidateSmartQueueRequests();
+      setQueueState((previous) => {
+        let nextTracks = previous.tracks;
+        let nextIndex = -1;
+
+        if (
+          Number.isInteger(options.queueIndex)
+          && previous.tracks[options.queueIndex]?.id === track.id
+        ) {
+          nextIndex = options.queueIndex;
+        } else {
+          nextIndex = previous.tracks.findIndex((row) => row.id === track.id);
+        }
+
+        if (nextIndex < 0) {
+          nextTracks = [...previous.tracks, track];
+          nextIndex = nextTracks.length - 1;
+        }
+
+        return {
+          ...previous,
+          tracks: nextTracks,
+          currentIndex: nextIndex,
+        };
       });
-      setIsPlaying(true);
-      setProgress(0);
-      setDuration(0);
-      return true;
-    },
-    [pushToHistory],
-  );
+      return Boolean(startTrackPlayback(track));
+    }
+
+    if (queueBehavior === 'preserve') {
+      invalidateSmartQueueRequests();
+      setQueueState((previous) => {
+        const existingIndex = previous.tracks.findIndex((row) => row.id === track.id);
+        if (existingIndex >= 0) {
+          return { ...previous, currentIndex: existingIndex };
+        }
+        const { tracks, currentIndex } = ensureCurrentInQueue(previous, currentTrackRef.current);
+        const insertAt = Math.max(0, currentIndex + 1);
+        const nextTracks = [...tracks];
+        nextTracks.splice(insertAt, 0, track);
+        return {
+          ...previous,
+          tracks: nextTracks,
+          currentIndex: insertAt,
+          queueMode: 'manual',
+        };
+      });
+      return Boolean(startTrackPlayback(track));
+    }
+
+    // Default single-track behaviour: start playback immediately and then build
+    // a smart "up next" queue around the seed in the background.
+    const localCandidates = [...queueStateRef.current.tracks, ...history];
+    setQueueState({
+      tracks: [track],
+      currentIndex: 0,
+      queueMode: 'smart',
+    });
+    const didStart = Boolean(startTrackPlayback(track));
+    if (didStart) {
+      void generateSmartQueue(track, { localCandidates });
+    }
+    return didStart;
+  }, [generateSmartQueue, history, invalidateSmartQueueRequests, startTrackPlayback]);
 
   const togglePlay = useCallback(() => {
-    if (!currentTrack) return;
-    setIsPlaying((prev) => !prev);
-  }, [currentTrack]);
+    if (!currentTrackRef.current) return;
+    setIsPlaying((previous) => !previous);
+  }, []);
 
-  const setVolume = useCallback((vol) => {
-    const clamped = Math.max(0, Math.min(1, vol));
+  const setVolume = useCallback((nextVolume) => {
+    const clamped = Math.max(0, Math.min(1, nextVolume));
     setVolumeState(clamped);
     if (clamped > 0) {
       lastVolumeRef.current = clamped;
@@ -131,8 +352,8 @@ export const PlayerProvider = ({ children }) => {
   }, []);
 
   const toggleMute = useCallback(() => {
-    setIsMuted((prev) => {
-      if (prev) {
+    setIsMuted((previous) => {
+      if (previous) {
         const restore = lastVolumeRef.current || 0.7;
         setVolumeState(restore);
         return false;
@@ -149,7 +370,7 @@ export const PlayerProvider = ({ children }) => {
       try {
         media.currentTime = seconds;
       } catch {
-        /* not ready */
+        /* media not ready */
       }
     }
     progressRef.current = seconds;
@@ -159,99 +380,183 @@ export const PlayerProvider = ({ children }) => {
   const addToQueue = useCallback((trackInput) => {
     const track = sanitizeTrack(trackInput, { requirePlayable: true });
     if (!track?.id) return;
-    setQueue((prev) => [...prev, track]);
-  }, []);
+    invalidateSmartQueueRequests();
+    setQueueState((previous) => {
+      const { tracks, currentIndex } = ensureCurrentInQueue(previous, currentTrackRef.current);
+      return {
+        ...previous,
+        tracks: [...tracks, track],
+        currentIndex,
+        queueMode: previous.queueMode === 'collection' ? 'collection' : 'manual',
+      };
+    });
+  }, [invalidateSmartQueueRequests]);
 
   const playTracksInOrder = useCallback(
     (tracks, { replaceQueue = true, startIndex = 0, forceSequential = false } = {}) => {
       const ordered = sanitizeTrackList(tracks, { requirePlayable: true });
-      if (ordered.length === 0) return false;
+      if (!ordered.length) return false;
+      invalidateSmartQueueRequests();
 
-      const boundedStart = Math.min(
-        Math.max(0, Number.isInteger(startIndex) ? startIndex : 0),
-        ordered.length - 1,
-      );
+      const boundedStart = clampIndex(startIndex, ordered.length - 1);
       const first = ordered[boundedStart];
-      const upcoming = ordered.slice(boundedStart + 1);
-
-      setQueue((prev) => (replaceQueue ? upcoming : [...prev, ...upcoming]));
+      if (replaceQueue) {
+        setQueueState({
+          tracks: ordered,
+          currentIndex: boundedStart,
+          queueMode: 'collection',
+        });
+      } else {
+        setQueueState((previous) => {
+          const offset = previous.tracks.length;
+          return {
+            ...previous,
+            tracks: [...previous.tracks, ...ordered],
+            currentIndex: offset + boundedStart,
+            queueMode: 'manual',
+          };
+        });
+      }
       if (forceSequential) setShuffle(false);
-      playTrack(first);
-      return true;
+      return Boolean(startTrackPlayback(first));
     },
-    [playTrack],
+    [invalidateSmartQueueRequests, startTrackPlayback],
   );
 
-  // Insert a track at the head of the queue ("play next" context-menu action).
+  // Inserts a track right after the currently playing track.
   const playTrackNext = useCallback((trackInput) => {
     const track = sanitizeTrack(trackInput, { requirePlayable: true });
     if (!track?.id) return;
-    setQueue((prev) => [track, ...prev.filter((t) => t.id !== track.id)]);
+    invalidateSmartQueueRequests();
+    setQueueState((previous) => {
+      const { tracks, currentIndex } = ensureCurrentInQueue(previous, currentTrackRef.current);
+      const insertAt = Math.min(tracks.length, Math.max(0, currentIndex + 1));
+      const withoutDuplicate = tracks.filter(
+        (row, index) => index === currentIndex || row.id !== track.id,
+      );
+      const nextTracks = [...withoutDuplicate];
+      nextTracks.splice(insertAt, 0, track);
+      return {
+        ...previous,
+        tracks: nextTracks,
+        currentIndex,
+        queueMode: 'manual',
+      };
+    });
+  }, [invalidateSmartQueueRequests]);
+
+  const clearQueue = useCallback(() => {
+    invalidateSmartQueueRequests();
+    const active = currentTrackRef.current;
+    if (active) {
+      setQueueState({
+        tracks: [active],
+        currentIndex: 0,
+        queueMode: 'manual',
+      });
+      return;
+    }
+    setQueueState({
+      tracks: [],
+      currentIndex: -1,
+      queueMode: 'manual',
+    });
+  }, [invalidateSmartQueueRequests]);
+
+  const removeFromQueueAt = useCallback((index) => {
+    setQueueState((previous) => {
+      if (!Number.isInteger(index)) return previous;
+      if (index < 0 || index >= previous.tracks.length) return previous;
+      if (index === previous.currentIndex) return previous;
+      const nextTracks = previous.tracks.filter((_, rowIndex) => rowIndex !== index);
+      if (!nextTracks.length) {
+        return { ...previous, tracks: [], currentIndex: -1, queueMode: 'manual' };
+      }
+      const nextIndex =
+        index < previous.currentIndex
+          ? previous.currentIndex - 1
+          : previous.currentIndex;
+      return {
+        ...previous,
+        tracks: nextTracks,
+        currentIndex: clampIndex(nextIndex, nextTracks.length - 1),
+        queueMode: 'manual',
+      };
+    });
   }, []);
 
-  const clearQueue = useCallback(() => setQueue([]), []);
-
   const removeFromQueue = useCallback((id) => {
-    setQueue((prev) => prev.filter((t) => t.id !== id));
+    if (!id) return;
+    setQueueState((previous) => {
+      const removeIndex = previous.tracks.findIndex((row) => row.id === id);
+      if (removeIndex < 0) return previous;
+      if (removeIndex === previous.currentIndex) return previous;
+      const nextTracks = previous.tracks.filter((_, index) => index !== removeIndex);
+      if (!nextTracks.length) {
+        return { ...previous, tracks: [], currentIndex: -1, queueMode: 'manual' };
+      }
+      const nextIndex =
+        removeIndex < previous.currentIndex
+          ? previous.currentIndex - 1
+          : previous.currentIndex;
+      return {
+        ...previous,
+        tracks: nextTracks,
+        currentIndex: clampIndex(nextIndex, nextTracks.length - 1),
+        queueMode: 'manual',
+      };
+    });
   }, []);
 
   const reorderQueue = useCallback((fromIdx, toIdx) => {
-    setQueue((prev) => {
-      if (fromIdx < 0 || toIdx < 0 || fromIdx >= prev.length || toIdx >= prev.length) return prev;
-      const next = [...prev];
-      const [moved] = next.splice(fromIdx, 1);
-      next.splice(toIdx, 0, moved);
-      return next;
+    setQueueState((previous) => {
+      if (
+        fromIdx < 0
+        || toIdx < 0
+        || fromIdx >= previous.tracks.length
+        || toIdx >= previous.tracks.length
+        || fromIdx === toIdx
+      ) {
+        return previous;
+      }
+      const nextTracks = [...previous.tracks];
+      const [moved] = nextTracks.splice(fromIdx, 1);
+      nextTracks.splice(toIdx, 0, moved);
+
+      let nextIndex = previous.currentIndex;
+      if (fromIdx === previous.currentIndex) {
+        nextIndex = toIdx;
+      } else if (fromIdx < previous.currentIndex && toIdx >= previous.currentIndex) {
+        nextIndex = previous.currentIndex - 1;
+      } else if (fromIdx > previous.currentIndex && toIdx <= previous.currentIndex) {
+        nextIndex = previous.currentIndex + 1;
+      }
+
+      return {
+        ...previous,
+        tracks: nextTracks,
+        currentIndex: clampIndex(nextIndex, nextTracks.length - 1),
+        queueMode: 'manual',
+      };
     });
   }, []);
 
-  // Real "next": consumes from the queue. If queue empty and repeat=all,
-  // restart from the head of history. Honors shuffle.
   const playNext = useCallback(() => {
-    setQueue((prevQueue) => {
-      if (prevQueue.length > 0) {
-        const nextIndex = shuffle
-          ? Math.floor(Math.random() * prevQueue.length)
-          : 0;
-        const nextTrack = prevQueue[nextIndex];
-        const remaining = prevQueue.filter((_, i) => i !== nextIndex);
-        // Push the currently playing track into history before switching.
-        setCurrentTrack((prevCurrent) => {
-          if (prevCurrent && prevCurrent.id !== nextTrack.id) {
-            pushToHistory(prevCurrent);
-          }
-          return nextTrack;
-        });
-        setIsPlaying(true);
-        setProgress(0);
-        setDuration(0);
-        return remaining;
-      }
-      // Queue exhausted — repeat=all loops back through history.
-      if (repeat === 'all') {
-        setHistory((prevHistory) => {
-          if (prevHistory.length === 0) return prevHistory;
-          const nextTrack = prevHistory[prevHistory.length - 1];
-          const remainingHistory = prevHistory.slice(0, -1);
-          setCurrentTrack((prevCurrent) => {
-            if (prevCurrent) {
-              return nextTrack;
-            }
-            return nextTrack;
-          });
-          setIsPlaying(true);
-          setProgress(0);
-          setDuration(0);
-          return remainingHistory;
-        });
-      }
-      return prevQueue;
+    const snapshot = queueStateRef.current;
+    const nextIndex = resolveNextIndex({
+      queueLength: snapshot.tracks.length,
+      currentIndex: snapshot.currentIndex,
+      shuffle,
+      repeat,
     });
-  }, [shuffle, repeat, pushToHistory]);
+    if (nextIndex == null) return false;
+    const nextTrack = snapshot.tracks[nextIndex];
+    if (!nextTrack) return false;
 
-  // Real "previous": if past 3s, restart current track; otherwise pop history.
-  // Reads progress from a ref so the callback identity stays stable across
-  // the many progress updates per second.
+    setQueueState((previous) => ({ ...previous, currentIndex: nextIndex }));
+    return Boolean(startTrackPlayback(nextTrack));
+  }, [shuffle, repeat, startTrackPlayback]);
+
   const playPrevious = useCallback(() => {
     if (progressRef.current > 3) {
       const media = playerRef.current;
@@ -259,52 +564,53 @@ export const PlayerProvider = ({ children }) => {
         try {
           media.currentTime = 0;
         } catch {
-          /* noop */
+          /* media not ready */
         }
       }
       progressRef.current = 0;
       setProgress(0);
-      return;
+      return true;
     }
-    setHistory((prevHistory) => {
-      if (prevHistory.length === 0) {
-        const media = playerRef.current;
-        if (media) {
-          try {
-            media.currentTime = 0;
-          } catch {
-            /* noop */
-          }
-        }
-        progressRef.current = 0;
-        setProgress(0);
-        return prevHistory;
+
+    const snapshot = queueStateRef.current;
+    if (snapshot.tracks.length > 0) {
+      let previousIndex = null;
+      if (snapshot.currentIndex > 0) {
+        previousIndex = snapshot.currentIndex - 1;
+      } else if (repeat === 'all' && snapshot.tracks.length > 1) {
+        previousIndex = snapshot.tracks.length - 1;
       }
-      const [previous, ...rest] = prevHistory;
-      setCurrentTrack((prevCurrent) => {
-        if (prevCurrent) {
-          // Push the (now displaced) current track back onto the queue head
-          // so "next" returns to it after going back.
-          setQueue((q) => [prevCurrent, ...q]);
+      if (previousIndex != null) {
+        const previousTrack = snapshot.tracks[previousIndex];
+        if (previousTrack) {
+          setQueueState((previous) => ({ ...previous, currentIndex: previousIndex }));
+          return Boolean(startTrackPlayback(previousTrack));
         }
-        return previous;
-      });
-      setIsPlaying(true);
-      progressRef.current = 0;
-      setProgress(0);
-      setDuration(0);
-      return rest;
-    });
-  }, []);
+      }
+    }
+
+    // No earlier queue entry — restart current.
+    const media = playerRef.current;
+    if (media) {
+      try {
+        media.currentTime = 0;
+      } catch {
+        /* media not ready */
+      }
+    }
+    progressRef.current = 0;
+    setProgress(0);
+    return false;
+  }, [repeat, startTrackPlayback]);
 
   const toggleShuffle = useCallback(() => {
-    setShuffle((prev) => !prev);
+    setShuffle((previous) => !previous);
   }, []);
 
   const toggleRepeat = useCallback(() => {
-    setRepeat((prev) => {
-      if (prev === 'off') return 'all';
-      if (prev === 'all') return 'one';
+    setRepeat((previous) => {
+      if (previous === 'off') return 'all';
+      if (previous === 'all') return 'one';
       return 'off';
     });
   }, []);
@@ -320,34 +626,87 @@ export const PlayerProvider = ({ children }) => {
     if (Number.isFinite(seconds) && seconds > 0) setDuration(seconds);
   }, []);
 
-  // Called by FooterPlayer's onEnded — encapsulates repeat / autoplay / queue.
+  const extendSmartQueueAndContinue = useCallback(async () => {
+    const active = currentTrackRef.current;
+    if (!active) {
+      setIsPlaying(false);
+      return;
+    }
+    await generateSmartQueue(active, {
+      localCandidates: [...queueStateRef.current.tracks, ...history],
+    });
+
+    const snapshot = queueStateRef.current;
+    if (currentTrackRef.current?.id !== active.id) return;
+    const nextIndex = resolveNextIndex({
+      queueLength: snapshot.tracks.length,
+      currentIndex: snapshot.currentIndex,
+      shuffle,
+      repeat: 'all',
+    });
+    if (nextIndex == null) {
+      setIsPlaying(false);
+      return;
+    }
+    const nextTrack = snapshot.tracks[nextIndex];
+    if (!nextTrack) {
+      setIsPlaying(false);
+      return;
+    }
+    setQueueState((previous) => ({ ...previous, currentIndex: nextIndex }));
+    startTrackPlayback(nextTrack);
+  }, [generateSmartQueue, history, shuffle, startTrackPlayback]);
+
+  // Called by FooterPlayer's onEnded — encapsulates repeat/autoplay/queue logic.
   const handleTrackEnded = useCallback(() => {
     if (repeat === 'one') {
       seekTo(0);
       setIsPlaying(true);
       return;
     }
-    if (queue.length > 0) {
-      playNext();
+
+    if (playNext()) return;
+
+    if (
+      settings?.autoplay
+      && queueStateRef.current.queueMode === 'smart'
+      && currentTrackRef.current
+    ) {
+      void extendSmartQueueAndContinue();
       return;
     }
-    if (repeat === 'all') {
-      playNext();
-      return;
-    }
-    if (settings?.autoplay && currentTrack) {
-      // Autoplay fallback: replay current track if nothing else is queued.
-      // A real implementation would request a similar track from the catalog.
+
+    if (settings?.autoplay && currentTrackRef.current) {
       seekTo(0);
       setIsPlaying(true);
       return;
     }
-    setIsPlaying(false);
-  }, [repeat, queue.length, playNext, settings?.autoplay, currentTrack, seekTo]);
 
-  // Stable slice — memoized so its identity only changes when one of these
-  // durable values actually changes. Progress/duration are deliberately absent
-  // so a playhead tick never invalidates this object.
+    setIsPlaying(false);
+  }, [extendSmartQueueAndContinue, playNext, repeat, seekTo, settings?.autoplay]);
+
+  // Keep queue cursor in sync with external track swaps (e.g. restored state).
+  useEffect(() => {
+    if (!currentTrack?.id) return;
+    setQueueState((previous) => {
+      if (!previous.tracks.length) return previous;
+      if (previous.currentIndex >= 0 && previous.tracks[previous.currentIndex]?.id === currentTrack.id) {
+        return previous;
+      }
+      const index = previous.tracks.findIndex((row) => row.id === currentTrack.id);
+      if (index < 0) return previous;
+      return { ...previous, currentIndex: index };
+    });
+  }, [currentTrack?.id]);
+
+  const canGoNext = useMemo(() => {
+    if (!queue.length || queueIndex < 0) return false;
+    if (shuffle && queue.length > 1) return true;
+    if (queueIndex < queue.length - 1) return true;
+    return repeat === 'all' && queue.length > 0;
+  }, [queue.length, queueIndex, shuffle, repeat]);
+
+  // Stable slice — memoized so progress ticks don't invalidate it.
   const value = useMemo(
     () => ({
       currentTrack,
@@ -355,6 +714,8 @@ export const PlayerProvider = ({ children }) => {
       volume,
       isMuted,
       queue,
+      queueIndex,
+      queueMode,
       history,
       shuffle,
       repeat,
@@ -367,6 +728,7 @@ export const PlayerProvider = ({ children }) => {
       playTracksInOrder,
       playTrackNext,
       removeFromQueue,
+      removeFromQueueAt,
       reorderQueue,
       clearQueue,
       playNext,
@@ -377,7 +739,7 @@ export const PlayerProvider = ({ children }) => {
       playerRef,
       reportProgress,
       reportDuration,
-      canGoNext: queue.length > 0 || (repeat === 'all' && history.length > 0),
+      canGoNext,
     }),
     [
       currentTrack,
@@ -385,6 +747,8 @@ export const PlayerProvider = ({ children }) => {
       volume,
       isMuted,
       queue,
+      queueIndex,
+      queueMode,
       history,
       shuffle,
       repeat,
@@ -397,6 +761,7 @@ export const PlayerProvider = ({ children }) => {
       playTracksInOrder,
       playTrackNext,
       removeFromQueue,
+      removeFromQueueAt,
       reorderQueue,
       clearQueue,
       playNext,
@@ -406,19 +771,18 @@ export const PlayerProvider = ({ children }) => {
       handleTrackEnded,
       reportProgress,
       reportDuration,
+      canGoNext,
     ],
   );
 
-  // High-frequency slice. canGoPrevious lives here because it depends on
-  // progress (>3s restarts the track); the only consumers of it also paint the
-  // playhead, so they already subscribe to this context.
+  // High-frequency slice. canGoPrevious depends on playhead + queue cursor.
   const progressValue = useMemo(
     () => ({
       progress,
       duration,
-      canGoPrevious: history.length > 0 || progress > 3,
+      canGoPrevious: queueIndex > 0 || (repeat === 'all' && queue.length > 1) || progress > 3,
     }),
-    [progress, duration, history.length],
+    [progress, duration, queueIndex, queue.length, repeat],
   );
 
   return (
@@ -438,9 +802,7 @@ export const usePlayer = () => {
   return context;
 };
 
-// Subscribe only to the playhead (progress / duration / canGoPrevious).
-// Use this in components that paint the seek bar or sync to time so they
-// re-render on each tick without dragging the rest of the tree along.
+// Subscribe only to the playhead (progress/duration/canGoPrevious).
 export const usePlayerProgress = () => {
   const context = useContext(PlayerProgressContext);
   if (!context) {

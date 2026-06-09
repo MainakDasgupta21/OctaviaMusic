@@ -13,13 +13,13 @@ const Slider = React.forwardRef(({ className, ...props }, ref) => (
   <SliderPrimitive.Root
     ref={ref}
     className={cn(
-      "slider-root group relative flex w-full touch-none select-none items-center",
+      "slider-root group relative flex h-8 w-full touch-none select-none items-center",
       className,
     )}
     {...props}
   >
     <SliderPrimitive.Track
-      className="slider-track relative h-[4px] w-full grow overflow-hidden rounded-full bg-white/[0.10]"
+      className="slider-track relative h-[3px] w-full grow overflow-hidden rounded-full bg-white/[0.10]"
     >
       <SliderPrimitive.Range
         className="slider-range absolute h-full rounded-full"
@@ -31,10 +31,10 @@ const Slider = React.forwardRef(({ className, ...props }, ref) => (
     </SliderPrimitive.Track>
     <SliderPrimitive.Thumb
       className={cn(
-        "slider-thumb block h-3.5 w-3.5 rounded-full bg-bone ring-1 ring-white/20",
+        "slider-thumb block h-4 w-4 rounded-full bg-bone ring-1 ring-white/20",
         "shadow-[0_0_0_4px_hsl(var(--track-accent)/0.18)]",
-        "opacity-0 scale-90 transition-all duration-150",
-        "group-hover:opacity-100 group-hover:scale-100 group-focus-within:opacity-100 group-focus-within:scale-100",
+        "opacity-100 scale-100 transition-all duration-150 md:opacity-0 md:scale-90",
+        "md:group-hover:opacity-100 md:group-hover:scale-100 md:group-focus-within:opacity-100 md:group-focus-within:scale-100",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-track focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         "disabled:pointer-events-none disabled:opacity-50",
       )}

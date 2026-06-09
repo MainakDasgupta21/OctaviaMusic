@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 
 const skipBtn = (disabled) =>
   cn(
-    'inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/[0.07] bg-white/[0.02] transition-[background-color,color,border-color,transform] duration-short ease-emphasis focus-ring',
+    'touch-target inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/[0.07] bg-white/[0.02] transition-[background-color,color,border-color,transform] duration-short ease-emphasis focus-ring',
     disabled
       ? 'cursor-not-allowed text-ink-4 opacity-70'
       : 'text-ink-2 hover:border-white/[0.14] hover:bg-white/[0.08] hover:text-ink active:scale-95',
@@ -22,7 +22,7 @@ const skipBtn = (disabled) =>
 
 const toggleBtn = (active) =>
   cn(
-    'relative inline-flex h-9 w-9 items-center justify-center rounded-full transition-[background-color,color] duration-short ease-emphasis focus-ring',
+    'touch-target relative inline-flex h-10 w-10 items-center justify-center rounded-full transition-[background-color,color] duration-short ease-emphasis focus-ring',
     active
       ? 'bg-track/[0.12] text-accent ring-1 ring-track/35'
       : 'text-ink-3 hover:bg-white/[0.05] hover:text-ink',

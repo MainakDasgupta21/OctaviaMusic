@@ -20,8 +20,7 @@ const HeroCard = ({ feature, issueNum, onPlay, isPlayable }) => {
   return (
   <motion.section
     {...fadeUp}
-    className="relative overflow-hidden rounded-soft ring-1 ring-white/[0.08] shadow-elev-5"
-    style={{ minHeight: '460px' }}
+    className="relative overflow-hidden rounded-soft ring-1 ring-white/[0.08] shadow-elev-5 min-h-[320px] xs:min-h-[340px] sm:min-h-[390px] lg:min-h-[460px]"
   >
     <SmartImage
       src={feature.cover}
@@ -41,7 +40,7 @@ const HeroCard = ({ feature, issueNum, onPlay, isPlayable }) => {
     />
     <div
       aria-hidden="true"
-      className="absolute -bottom-32 -left-32 w-[480px] h-[480px] rounded-full opacity-50 blur-3xl"
+      className="absolute -bottom-28 -left-24 h-[min(480px,78vw)] w-[min(480px,78vw)] rounded-full opacity-50 blur-3xl"
       style={{ background: 'hsl(var(--track-accent) / 0.35)' }}
     />
 
@@ -58,7 +57,7 @@ const HeroCard = ({ feature, issueNum, onPlay, isPlayable }) => {
       </span>
     </div>
 
-    <div className="relative h-full p-7 md:p-12 md:pr-24 flex flex-col justify-end gap-7 max-w-3xl">
+    <div className="relative h-full p-5 sm:p-7 md:p-12 md:pr-24 flex flex-col justify-end gap-6 sm:gap-7 max-w-3xl">
       <div className="flex items-center gap-3">
         <span className="issue-pill">
           <span className="w-1.5 h-1.5 rounded-full bg-track" />
@@ -117,8 +116,7 @@ const HeroCard = ({ feature, issueNum, onPlay, isPlayable }) => {
 
 export const HeroSkeleton = () => (
   <div
-    className="relative overflow-hidden rounded-soft ring-1 ring-white/[0.08] bg-surface-2/60"
-    style={{ minHeight: '460px' }}
+    className="relative overflow-hidden rounded-soft ring-1 ring-white/[0.08] bg-surface-2/60 min-h-[320px] xs:min-h-[340px] sm:min-h-[390px] lg:min-h-[460px]"
   >
     <div className="absolute inset-x-0 bottom-0 p-7 md:p-12 space-y-4">
       <Skeleton variant="iris" className="h-3 w-24" />

@@ -385,7 +385,7 @@ const TopBar = () => {
     <TooltipProvider delayDuration={250}>
       <header
         className={cn(
-          'sticky top-0 z-40 h-[60px] flex items-center gap-3 px-3 md:px-6',
+          'sticky top-0 z-40 h-[60px] flex items-center gap-2 sm:gap-3 px-2.5 sm:px-3 md:px-5 xl:px-6',
           'bg-background/80 backdrop-blur-2xl border-b border-white/[0.07] relative',
           // Subtle inset top-light gives the chrome a premium "lifted" feel
           // without changing layout. Pairs with the bottom hairline.
@@ -410,7 +410,7 @@ const TopBar = () => {
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="md:hidden w-9 h-9 inline-flex items-center justify-center rounded-full text-ink-3 hover:text-ink hover:bg-white/[0.06] transition-colors focus-ring"
+            className="md:hidden touch-target w-11 h-11 inline-flex items-center justify-center rounded-full text-ink-3 hover:text-ink hover:bg-white/[0.06] transition-colors focus-ring"
             aria-label="Back"
           >
             <ChevronLeft className="w-5 h-5" />
@@ -419,7 +419,7 @@ const TopBar = () => {
           <button
             type="button"
             onClick={openMobileDrawer}
-            className="md:hidden w-9 h-9 inline-flex items-center justify-center rounded-full text-ink-3 hover:text-ink hover:bg-white/[0.06] transition-colors focus-ring"
+            className="md:hidden touch-target w-11 h-11 inline-flex items-center justify-center rounded-full text-ink-3 hover:text-ink hover:bg-white/[0.06] transition-colors focus-ring"
             aria-label="Open navigation"
           >
             <Menu className="w-5 h-5" />
@@ -467,11 +467,15 @@ const TopBar = () => {
           <Breadcrumb />
         </div>
 
-        <form onSubmit={handleSubmit} role="search" className="flex-1 max-w-md mx-auto lg:mx-0">
+        <form
+          onSubmit={handleSubmit}
+          role="search"
+          className="flex-1 min-w-0 max-w-xl lg:max-w-2xl mx-auto lg:mx-0"
+        >
           <button
             type="button"
             onClick={() => navigate('/search')}
-            className="md:hidden w-full flex items-center justify-center gap-2 h-10 rounded-full border border-white/10 text-ink-3 hover:text-ink hover:bg-white/[0.06] transition-colors focus-ring"
+            className="md:hidden w-full flex items-center justify-center gap-2 h-11 rounded-full border border-white/10 text-ink-3 hover:text-ink hover:bg-white/[0.06] transition-colors focus-ring"
             aria-label="Go to search"
           >
             <SearchIcon className="w-4 h-4" />
@@ -498,7 +502,7 @@ const TopBar = () => {
                   onKeyDown={handleInputKeyDown}
                   placeholder="Search songs, artists, albums…"
                   className={cn(
-                    'w-full h-10 pl-11 pr-28 rounded-full bg-white/[0.03]',
+                    'w-full h-11 pl-11 pr-20 lg:pr-28 rounded-full bg-white/[0.03]',
                     'border border-white/[0.08] hover:border-white/[0.16] hover:bg-white/[0.05]',
                     'text-[13.5px] text-ink placeholder:text-ink-3',
                     // On focus the field gains a subtle inset shadow + an
@@ -521,7 +525,7 @@ const TopBar = () => {
                   <button
                     type="button"
                     onClick={openPalette}
-                    className="inline-flex items-center gap-1 h-6 px-2 rounded-full border border-white/[0.10] bg-white/[0.06] text-[10px] font-medium text-ink-3 font-mono tracking-wider hover:text-ink hover:bg-white/[0.10] hover:border-white/[0.18] transition-colors focus-ring"
+                    className="hidden lg:inline-flex items-center gap-1 h-6 px-2 rounded-full border border-white/[0.10] bg-white/[0.06] text-[10px] font-medium text-ink-3 font-mono tracking-wider hover:text-ink hover:bg-white/[0.10] hover:border-white/[0.18] transition-colors focus-ring"
                     aria-label="Open command palette"
                   >
                     {isMac ? (
@@ -541,7 +545,7 @@ const TopBar = () => {
               sideOffset={10}
               onOpenAutoFocus={(e) => e.preventDefault()}
               onInteractOutside={() => setSearchOpen(false)}
-              className="w-[min(44rem,calc(100vw-2rem))] p-0 rounded-sharp border border-white/[0.10] bg-surface-3/95 backdrop-blur-2xl shadow-elev-5"
+              className="w-[min(46rem,calc(100vw-1.25rem))] sm:w-[min(46rem,calc(100vw-2rem))] p-0 rounded-sharp border border-white/[0.10] bg-surface-3/95 backdrop-blur-2xl shadow-elev-5"
             >
               <div data-lenis-prevent className="max-h-[70vh] overflow-y-auto custom-scrollbar p-2 space-y-2">
                 {!hasSearchValue && showTrending ? (
@@ -911,7 +915,7 @@ const TopBar = () => {
                   type="button"
                   onClick={() => navigate('/favorites')}
                   className={cn(
-                    'w-8 h-8 inline-flex items-center justify-center rounded-full transition-colors focus-ring press',
+                    'touch-target w-9 h-9 inline-flex items-center justify-center rounded-full transition-colors focus-ring press',
                     location.pathname === '/favorites'
                       ? 'text-accent bg-white/[0.05]'
                       : 'text-ink-3 hover:text-ink hover:bg-white/[0.06]',
@@ -933,7 +937,7 @@ const TopBar = () => {
               <PopoverTrigger asChild>
                 <button
                   type="button"
-                  className="w-8 h-8 inline-flex items-center justify-center rounded-full text-ink-3 hover:text-ink hover:bg-white/[0.06] transition-colors focus-ring press relative"
+                  className="touch-target w-9 h-9 inline-flex items-center justify-center rounded-full text-ink-3 hover:text-ink hover:bg-white/[0.06] transition-colors focus-ring press relative"
                   aria-label={
                     notifUnread > 0
                       ? `Notifications, ${notifUnread} unread`
@@ -952,7 +956,7 @@ const TopBar = () => {
             <PopoverContent
               align="end"
               sideOffset={8}
-              className="w-[340px] p-0 bg-surface-1/95 backdrop-blur-xl border-white/[0.08]"
+              className="w-[min(22rem,calc(100vw-1rem))] sm:w-[min(22rem,calc(100vw-2rem))] p-0 bg-surface-1/95 backdrop-blur-xl border-white/[0.08]"
             >
               <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-white/[0.06]">
                 <p className="eyebrow text-ink-3">Notifications</p>
@@ -1014,7 +1018,7 @@ const TopBar = () => {
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-full hover:bg-white/[0.06] transition-colors focus-ring press"
+                className="flex items-center gap-2 pl-1 pr-2 py-1.5 rounded-full hover:bg-white/[0.06] transition-colors focus-ring press"
                 aria-label="Account menu"
               >
                 <span

@@ -37,7 +37,7 @@ const SectionHeader = ({
 
   return (
     <header className={cn('mb-5', className)}>
-      <div className="flex items-end justify-between gap-4 mb-2">
+      <div className="flex flex-wrap items-end justify-between gap-3 sm:gap-4 mb-2">
         <div className="min-w-0">
           {(ordinal || eyebrow) ? (
             <div className="flex items-center gap-2.5 mb-2">
@@ -70,7 +70,11 @@ const SectionHeader = ({
             )}
           </h2>
         </div>
-        {action ? <div className="flex items-center gap-2 pb-1">{action}</div> : null}
+        {action ? (
+          <div className="w-full sm:w-auto flex items-center gap-2 pb-1 sm:justify-end">
+            {action}
+          </div>
+        ) : null}
       </div>
       {rule ? <div className="editorial-rule" /> : null}
       {subtitle ? (

@@ -52,7 +52,7 @@ const sumDuration = (tracks) => {
 
 const AlbumPageSkeleton = () => (
   <div className="pb-12">
-    <div className="pt-12 pb-8 px-5 md:px-10 max-w-[1600px] mx-auto">
+    <div className="page-shell-content pt-12 pb-8">
       <div className="flex flex-col md:flex-row items-center md:items-end gap-6 md:gap-8">
         <Skeleton className="w-48 h-48 md:w-64 md:h-64 rounded-sharp" />
         <div className="flex-1 w-full">
@@ -62,11 +62,11 @@ const AlbumPageSkeleton = () => (
         </div>
       </div>
     </div>
-    <div className="px-5 md:px-10 max-w-[1600px] mx-auto mb-8 flex items-center gap-3">
+    <div className="page-shell-content mb-8 flex items-center gap-3">
       <Skeleton className="h-12 w-28 rounded-sharp" />
       <Skeleton className="h-12 w-12 rounded-sharp" />
     </div>
-    <section className="px-5 md:px-10 max-w-[1600px] mx-auto">
+    <section className="page-shell-content">
       {Array.from({ length: 6 }).map((_, i) => (
         <div key={i} className="grid grid-cols-[2rem_1fr_auto] gap-4 px-4 py-3 items-center">
           <Skeleton className="h-4 w-4 mx-auto" />
@@ -84,7 +84,7 @@ const AlbumPageSkeleton = () => (
 const AlbumPage = () => {
   const { id } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { playTracksInOrder, playTrack, addToQueue, currentTrack, isPlaying } = usePlayer();
+  const { playTracksInOrder, currentTrack, isPlaying } = usePlayer();
   const { isLiked, toggleLiked } = useLikedAlbums();
   const autoplayHandledRef = useRef(false);
 
@@ -122,10 +122,13 @@ const AlbumPage = () => {
   const handleShuffle = useCallback(() => {
     if (!album?.tracks?.length) return;
     const shuffled = shuffleArray(album.tracks);
-    playTrack(shuffled[0]);
-    shuffled.slice(1).forEach((t) => addToQueue(t));
+    playTracksInOrder(shuffled, {
+      replaceQueue: true,
+      startIndex: 0,
+      forceSequential: false,
+    });
     notify.info('Shuffling album');
-  }, [album?.tracks, playTrack, addToQueue]);
+  }, [album?.tracks, playTracksInOrder]);
 
   const handleToggleLike = useCallback(() => {
     if (!album?.id) return;
@@ -194,7 +197,7 @@ const AlbumPage = () => {
 
   if (isError && pageError) {
     return (
-      <div className="p-6 md:p-10 max-w-[1600px] mx-auto">
+      <div className="page-shell-content pt-6 md:pt-10">
         <EmptyState
           icon={pageError.kind === 'not-found' ? Music2 : pageError.icon}
           title={pageError.title}
@@ -213,7 +216,7 @@ const AlbumPage = () => {
 
   if (!album || !album.tracks?.length) {
     return (
-      <div className="p-6 md:p-10 max-w-[1600px] mx-auto">
+      <div className="page-shell-content pt-6 md:pt-10">
         <EmptyState
           icon={Music2}
           title="No tracks here yet"
@@ -226,7 +229,7 @@ const AlbumPage = () => {
   return (
     <div className="pb-12">
       {/* Hero — editorial cover spread */}
-      <div className="relative pt-10 md:pt-14 pb-10 px-5 md:px-10 max-w-[1600px] mx-auto">
+      <div className="page-shell-content relative pt-10 md:pt-14 pb-10">
         <div
           aria-hidden="true"
           className="absolute inset-0 -z-10 opacity-60"
@@ -318,7 +321,7 @@ const AlbumPage = () => {
       </div>
 
       {/* Actions */}
-      <div className="px-5 md:px-10 max-w-[1600px] mx-auto mb-8 flex items-center gap-3 flex-wrap">
+      <div className="page-shell-content mb-8 flex items-center gap-3 flex-wrap">
         <Button
           size="lg"
           onClick={() => handlePlay(0)}
@@ -387,7 +390,7 @@ const AlbumPage = () => {
       </div>
 
       {/* Tracklist masthead strip */}
-      <section className="px-5 md:px-10 max-w-[1600px] mx-auto">
+      <section className="page-shell-content">
         <div
           aria-hidden="true"
           className="flex items-center justify-between gap-4 mb-5 text-[10px] font-mono uppercase tracking-[0.22em] text-ink-4 border-b border-white/[0.08] pb-3"
@@ -414,10 +417,10 @@ const AlbumPage = () => {
         </div>
 
         <div className="rounded-soft border border-white/[0.06] bg-surface-2/40 backdrop-blur-md overflow-hidden">
-          <div className="grid grid-cols-[2.5rem_1fr_auto_auto] gap-4 px-4 py-3 border-b border-white/[0.08] text-[10px] font-mono uppercase tracking-[0.18em] text-ink-4">
+          <div className="grid grid-cols-[2.1rem_minmax(0,1fr)_auto] sm:grid-cols-[2.5rem_minmax(0,1fr)_auto_auto] gap-2.5 sm:gap-4 px-3 sm:px-4 py-3 border-b border-white/[0.08] text-[10px] font-mono uppercase tracking-[0.18em] text-ink-4">
             <span className="text-center">№</span>
             <span>Title</span>
-            <span className="w-8" aria-hidden="true" />
+            <span className="hidden sm:inline w-8" aria-hidden="true" />
             <span className="text-right">
               <Clock className="w-3.5 h-3.5 inline" />
             </span>
@@ -445,7 +448,7 @@ const AlbumPage = () => {
                   role="button"
                   aria-disabled={!isPlayable}
                   className={cn(
-                    'group row-hover grid grid-cols-[2.5rem_1fr_auto_auto] gap-4 px-4 py-3.5',
+                    'group row-hover grid grid-cols-[2.1rem_minmax(0,1fr)_auto] sm:grid-cols-[2.5rem_minmax(0,1fr)_auto_auto] gap-2.5 sm:gap-4 px-3 sm:px-4 py-3.5',
                     'items-center transition-colors border-b border-white/[0.05] last:border-0',
                     isPlayable ? 'cursor-pointer' : 'cursor-not-allowed opacity-55',
                     isCurrent ? 'bg-track/[0.08]' : isPlayable ? 'hover:bg-white/[0.035]' : '',
@@ -475,7 +478,7 @@ const AlbumPage = () => {
                   </div>
                   <div
                     onClick={(e) => e.stopPropagation()}
-                    className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex items-center gap-1"
+                    className="touch-action-visible hidden sm:flex opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity items-center gap-1"
                   >
                     {isPlayable ? (
                       <>
@@ -490,7 +493,7 @@ const AlbumPage = () => {
                       <span className="w-[64px] h-7 inline-block" aria-hidden />
                     )}
                   </div>
-                  <span className="font-mono text-[12px] text-ink-4 tabular-nums tracking-tight">
+                  <span className="font-mono text-[12px] text-ink-4 tabular-nums tracking-tight justify-self-end">
                     {track.duration || '—'}
                   </span>
                 </motion.div>

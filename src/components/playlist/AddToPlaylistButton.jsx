@@ -54,7 +54,7 @@ const AddToPlaylistButton = ({
         align={align}
         side={side}
         sideOffset={sideOffset}
-        className={cn('w-[320px] p-0 bg-surface-1/95 backdrop-blur-xl border-white/[0.08]', contentClassName)}
+        className={cn('w-[min(20rem,calc(100vw-1rem))] sm:w-[min(20rem,calc(100vw-2rem))] p-0 bg-surface-1/95 backdrop-blur-xl border-white/[0.08]', contentClassName)}
       >
         <div className="px-4 pt-3 pb-2 border-b border-white/[0.06] flex items-center justify-between gap-2">
           <p className="eyebrow text-ink-3">Add to playlist</p>

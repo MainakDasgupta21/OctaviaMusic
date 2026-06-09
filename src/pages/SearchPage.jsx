@@ -407,18 +407,18 @@ const SearchPage = () => {
       } else if (isLast) {
         e.preventDefault();
         setSelectedIdx(songs.length - 1);
-      } else if (e.key === 'Enter') {
-        e.preventDefault();
-        const t = songs[selectedIdx];
-        if (t) {
-          playTrack(toTrack(t));
-          commitRecent(userText);
-        }
       } else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
         e.preventDefault();
         const t = songs[selectedIdx];
         if (t) {
           addToQueue(toTrack(t));
+          commitRecent(userText);
+        }
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const t = songs[selectedIdx];
+        if (t) {
+          playTrack(toTrack(t));
           commitRecent(userText);
         }
       }
@@ -487,7 +487,7 @@ const SearchPage = () => {
       onClick={() => { playTrack(toTrack(track)); commitRecent(userText); }}
       onMouseEnter={() => setSelectedIdx(globalIndex)}
       className={cn(
-        'group relative flex items-center gap-4 p-3.5 cursor-pointer border-b border-white/[0.05] last:border-0',
+        'group relative flex min-w-0 items-center gap-3 sm:gap-4 p-3 sm:p-3.5 cursor-pointer border-b border-white/[0.05] last:border-0',
         // Active row keeps its accent fill; idle rows pick up the
         // universal `.row-hover` slide-in.
         selectedIdx === globalIndex
@@ -506,13 +506,13 @@ const SearchPage = () => {
       >
         {String(globalIndex + 1).padStart(2, '0')}
       </span>
-      <div className="relative w-12 h-12 flex-shrink-0">
+      <div className="relative w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0">
         <SmartImage
           src={track.thumbnail}
           alt=""
           kind="track"
           rounded="rounded-sharp"
-          className="w-12 h-12 ring-1 ring-white/10"
+          className="w-10 h-10 sm:w-12 sm:h-12 ring-1 ring-white/10"
           imgClassName="object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-br from-black/65 via-black/45 to-black/65 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-sharp">
@@ -557,7 +557,7 @@ const SearchPage = () => {
       ) : null}
       <div
         onClick={(e) => e.stopPropagation()}
-        className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-75 flex items-center gap-1"
+        className="touch-action-visible opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200 delay-75 flex items-center gap-1"
       >
         <AddToPlaylistButton
           track={toTrack(track)}
@@ -575,10 +575,10 @@ const SearchPage = () => {
   );
 
   return (
-    <div className="relative isolate page-shell pt-5 md:pt-10">
+    <div className="relative isolate page-shell pt-4 md:pt-10">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -top-32 -left-32 w-[720px] h-[720px] -z-10 opacity-60 mix-blend-screen"
+        className="pointer-events-none absolute -top-24 -left-24 h-[min(720px,88vw)] w-[min(720px,88vw)] -z-10 opacity-60 mix-blend-screen"
         style={{
           background:
             'radial-gradient(circle at 30% 30%, hsl(var(--track-accent) / 0.10), transparent 65%)',
@@ -598,7 +598,7 @@ const SearchPage = () => {
         <span>The index</span>
       </div>
 
-      <motion.div {...fadeUp} className="mb-6">
+      <motion.div {...fadeUp} className="mb-4 sm:mb-6">
         <p className="eyebrow eyebrow-accent mb-3 flex items-center gap-2">
           <span className="w-8 h-px bg-track" />
           The index
@@ -611,7 +611,7 @@ const SearchPage = () => {
         </h1>
       </motion.div>
 
-      <motion.div {...fadeUp} className="mb-5 max-w-3xl">
+      <motion.div {...fadeUp} className="mb-4 max-w-3xl sm:mb-5">
         <label htmlFor="search-page-input" className="sr-only">
           Search songs, artists, albums and lyrics
         </label>
@@ -677,7 +677,7 @@ const SearchPage = () => {
         </motion.p>
       ) : null}
 
-      <div className="mb-9">
+      <div className="mb-6 sm:mb-8 md:mb-9">
         <FilterChipBar
           filters={filters}
           type={filter}
@@ -730,7 +730,7 @@ const SearchPage = () => {
           // Idle state: presets + recents + trending. Presets write through
           // structured filter state so the search input stays untouched and
           // chips appear above as soon as one is picked.
-          <motion.div key="idle" {...fadeUp} className="space-y-10">
+          <motion.div key="idle" {...fadeUp} className="space-y-8 pb-2 sm:space-y-10">
             <QuickPresets
               filters={filters}
               onFiltersChange={(next) => {
@@ -774,7 +774,7 @@ const SearchPage = () => {
                           setRecents(next);
                           writeRecents(next);
                         }}
-                        className="opacity-0 group-hover:opacity-100 text-ink-3 hover:text-ink focus-ring rounded-sharp p-0.5"
+                        className="touch-action-visible opacity-100 md:opacity-0 md:group-hover:opacity-100 text-ink-3 hover:text-ink focus-ring rounded-sharp p-0.5"
                         aria-label={`Remove ${r}`}
                       >
                         <X className="w-3 h-3" />
@@ -895,7 +895,7 @@ const SearchPage = () => {
                       variants={fadeUp}
                       key={`lib-${r.id || r.videoId}-${i}`}
                       onClick={() => playTrack(toTrack(r))}
-                      className="group flex items-center gap-4 p-3 cursor-pointer border-b border-white/[0.05] last:border-0 row-hover"
+                      className="group flex min-w-0 items-center gap-3 sm:gap-4 p-3 cursor-pointer border-b border-white/[0.05] last:border-0 row-hover"
                     >
                       <div className="relative w-11 h-11 flex-shrink-0">
                         <SmartImage
@@ -920,7 +920,7 @@ const SearchPage = () => {
                       </div>
                       <div
                         onClick={(e) => e.stopPropagation()}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1"
+                        className="touch-action-visible opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex items-center gap-1"
                       >
                         <AddToPlaylistButton
                           track={toTrack(r)}
@@ -937,9 +937,9 @@ const SearchPage = () => {
 
             {/* Top result + songs grid */}
             {songs.length > 0 || topResult ? (
-              <div className={cn('grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8', songs.length === 0 && 'lg:grid-cols-1')}>
+              <div className={cn('grid grid-cols-1 xl:grid-cols-3 gap-6 xl:gap-8', songs.length === 0 && 'xl:grid-cols-1')}>
                 {topResult ? (
-                  <motion.div variants={fadeUp} className="lg:col-span-1">
+                  <motion.div variants={fadeUp} className="xl:col-span-1">
                     <SectionRule ordinal="02" label="Top result" tone="accent" className="mb-3 mt-0" />
 
                     <TopResultCard
@@ -961,7 +961,7 @@ const SearchPage = () => {
                 ) : null}
 
                 {songs.length > 0 ? (
-                  <div className="lg:col-span-2 min-w-0 space-y-5">
+                  <div className="xl:col-span-2 min-w-0 space-y-5">
                     <SectionRule
                       ordinal="03"
                       label="Songs"
@@ -1020,7 +1020,7 @@ const SearchPage = () => {
                   variants={staggerChildren(0.03)}
                   initial="initial"
                   animate="animate"
-                  className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4"
+                  className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4"
                 >
                   {grouped.artists.map((a) => {
                     const slug = a.slug || a.artistSlug;
@@ -1062,7 +1062,7 @@ const SearchPage = () => {
                   variants={staggerChildren(0.03)}
                   initial="initial"
                   animate="animate"
-                  className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4"
+                  className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4"
                 >
                   {grouped.albums.map((a) => (
                     <motion.div variants={fadeUp} key={a.id}>
@@ -1132,7 +1132,7 @@ const TopResultCard = ({ result, tokens = [], onPlay, onNavigate }) => {
         if (target && !isSong) onNavigate(target);
         else onPlay();
       }}
-      className="relative group block w-full text-left p-6 rounded-sharp bg-surface-2/40 backdrop-blur-md border border-white/[0.06] hover:border-white/[0.18] hover:ring-1 hover:ring-inset hover:ring-white/[0.06] focus-ring shadow-elev-3 hover:shadow-elev-4 transition-shadow duration-med ease-emphasis lift press"
+      className="relative group block w-full text-left p-5 sm:p-6 rounded-sharp bg-surface-2/40 backdrop-blur-md border border-white/[0.06] hover:border-white/[0.18] hover:ring-1 hover:ring-inset hover:ring-white/[0.06] focus-ring shadow-elev-3 hover:shadow-elev-4 transition-shadow duration-med ease-emphasis lift press"
     >
       <div
         aria-hidden="true"
@@ -1153,11 +1153,11 @@ const TopResultCard = ({ result, tokens = [], onPlay, onNavigate }) => {
         alt=""
         kind={isArtist ? 'artist' : isAlbum ? 'album' : 'track'}
         rounded={isArtist ? 'rounded-full' : 'rounded-sharp'}
-        className={`w-28 h-28 shadow-elev-3 mb-4 ring-1 ring-white/10`}
+        className="w-24 h-24 sm:w-28 sm:h-28 shadow-elev-3 mb-4 ring-1 ring-white/10"
         imgClassName="object-cover"
       />
       <p className="eyebrow mb-2">{subtype}</p>
-      <p className="font-display text-[28px] text-ink leading-[1.05] truncate headline-balance">
+      <p className="font-display text-[24px] sm:text-[28px] text-ink leading-[1.05] truncate headline-balance">
         <SearchHighlight text={title} tokens={tokens} />
       </p>
       {!isArtist ? (
@@ -1167,7 +1167,7 @@ const TopResultCard = ({ result, tokens = [], onPlay, onNavigate }) => {
       ) : null}
       {isSong ? (
         <span
-          className="absolute bottom-6 right-6 w-14 h-14 rounded-full text-track-fg flex items-center justify-center shadow-accent ring-1 ring-white/15 scale-90 opacity-0 group-hover:scale-100 group-hover:opacity-100 group-hover:animate-pulse transition-all duration-med ease-emphasis"
+          className="touch-action-visible absolute bottom-5 right-5 sm:bottom-6 sm:right-6 w-12 h-12 sm:w-14 sm:h-14 rounded-full text-track-fg flex items-center justify-center shadow-accent ring-1 ring-white/15 scale-100 opacity-100 md:scale-90 md:opacity-0 md:group-hover:scale-100 md:group-hover:opacity-100 md:group-hover:animate-pulse transition-all duration-med ease-emphasis"
           style={{
             backgroundImage:
               'radial-gradient(circle at 30% 25%, hsl(var(--ink-primary) / 0.22), transparent 55%), linear-gradient(135deg, hsl(var(--track-accent)), hsl(var(--track-accent-strong)))',

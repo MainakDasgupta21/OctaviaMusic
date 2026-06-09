@@ -62,9 +62,15 @@ import { fadeUp } from '@/design/motion';
 
 const SURPRISE_FETCH_LIMIT = 60;
 const SURPRISE_FETCH_ATTEMPTS = 3;
+const handleCardKeyboardActivation = (event, action) => {
+  if (event.target !== event.currentTarget) return;
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  event.preventDefault();
+  action();
+};
 
 const ExplorePageV2 = () => {
-  const { history, playTrack, addToQueue, playTracksInOrder } = usePlayer();
+  const { history, playTrack, playTracksInOrder } = usePlayer();
   const { list: favorites, toggleFavorite, isFavorite } = useFavorites();
   const { list: followedArtists } = useFollowedArtists();
   const { settings } = useSettings();
@@ -451,7 +457,7 @@ const ExplorePageV2 = () => {
   ]);
 
   return (
-    <div className="p-5 md:p-10 max-w-[1500px] mx-auto pb-12">
+    <div className="page-shell-content-wide pt-5 md:pt-8 pb-12">
       {EXPLORE_V2_ENABLED && isColdStart ? (
         <ExploreOnboarding
           open={onboardingOpen}
@@ -618,7 +624,7 @@ const ExplorePageV2 = () => {
       <section className="mb-14">
         <SectionHeader ordinal={3} eyebrow="Daily rotation" title="Your mixes" />
         {dailyMixes.length ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-4 gap-3">
             {dailyMixes.slice(0, 4).map((mix) => (
               <button
                 key={mix.id}
@@ -646,7 +652,7 @@ const ExplorePageV2 = () => {
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-4 gap-3">
             {Array.from({ length: 4 }).map((_, index) => (
               <Skeleton key={index} className="aspect-square rounded-sharp" />
             ))}
@@ -657,7 +663,7 @@ const ExplorePageV2 = () => {
       <section ref={genresSectionRef} className="mb-14 scroll-mt-24">
         <SectionHeader ordinal={4} eyebrow="Atlas" title="Browse genres" />
         {genresLoading ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
             {Array.from({ length: 6 }).map((_, index) => (
               <Skeleton key={index} className="aspect-[5/3] rounded-sharp" />
             ))}
@@ -670,7 +676,7 @@ const ExplorePageV2 = () => {
             action={<Button onClick={() => refetchGenres()}>Try again</Button>}
           />
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
             {genres.slice(0, 6).map((genre) => (
               <button
                 key={genre.id}
@@ -706,11 +712,13 @@ const ExplorePageV2 = () => {
           {hiddenGems.length ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               {hiddenGems.slice(0, 8).map((track) => (
-                <button
+                <div
                   key={track.id}
-                  type="button"
+                  role="button"
+                  tabIndex={0}
                   onClick={() => playTrack(track)}
-                  className="group border border-white/[0.08] hover:border-white/25 rounded-sharp overflow-hidden text-left focus-ring"
+                  onKeyDown={(event) => handleCardKeyboardActivation(event, () => playTrack(track))}
+                  className="group border border-white/[0.08] hover:border-white/25 rounded-sharp overflow-hidden text-left focus-ring cursor-pointer"
                 >
                   <div className="relative aspect-[4/3]">
                     <SmartImage
@@ -736,7 +744,7 @@ const ExplorePageV2 = () => {
                     <p className="text-[14px] text-ink truncate">{track.title}</p>
                     <p className="text-[12px] text-ink-3 truncate">{track.artist}</p>
                   </div>
-                </button>
+                </div>
               ))}
             </div>
           ) : (
@@ -759,8 +767,11 @@ const ExplorePageV2 = () => {
               <button
                 type="button"
                 onClick={() => {
-                  playTrack(becauseList[0]);
-                  becauseList.slice(1).forEach((track) => addToQueue(track));
+                  playTracksInOrder(becauseList, {
+                    replaceQueue: true,
+                    startIndex: 0,
+                    forceSequential: false,
+                  });
                 }}
                 className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.16em] text-ink-3 hover:text-ink"
               >
@@ -771,11 +782,13 @@ const ExplorePageV2 = () => {
           />
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {becauseList.map((track) => (
-              <button
+              <div
                 key={track.id}
-                type="button"
+                role="button"
+                tabIndex={0}
                 onClick={() => playTrack(track)}
-                className="group flex items-center gap-3 p-2.5 rounded-sharp border border-white/[0.08] bg-surface-2/45 focus-ring text-left"
+                onKeyDown={(event) => handleCardKeyboardActivation(event, () => playTrack(track))}
+                className="group flex items-center gap-3 p-2.5 rounded-sharp border border-white/[0.08] bg-surface-2/45 focus-ring text-left min-w-0 cursor-pointer"
               >
                 <SmartImage
                   src={track.thumbnail}
@@ -789,7 +802,7 @@ const ExplorePageV2 = () => {
                   <p className="text-[12px] text-ink-3 truncate">{track.artist}</p>
                 </div>
                 <div
-                  className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1"
+                  className="touch-action-visible ml-auto opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex items-center gap-1"
                   onClick={(event) => event.stopPropagation()}
                 >
                   <AddToPlaylistButton
@@ -799,7 +812,7 @@ const ExplorePageV2 = () => {
                   />
                   <HeartButton track={track} size="sm" />
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         </section>

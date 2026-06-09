@@ -89,7 +89,7 @@ const NowPlayingBars = () => (
 
 const LibraryPage = () => {
   const navigate = useNavigate();
-  const { history, playTrack, addToQueue, currentTrack, isPlaying } = usePlayer();
+  const { history, playTrack, playTracksInOrder, currentTrack, isPlaying } = usePlayer();
   const { list: favorites } = useFavorites();
   const { list: followedArtists, unfollow } = useFollowedArtists();
   const { list: likedAlbums, removeLiked } = useLikedAlbums();
@@ -104,7 +104,7 @@ const LibraryPage = () => {
   const masthead = useMemo(() => formatMasthead(), []);
   const issueNum = useMemo(() => {
     const start = new Date(new Date().getFullYear(), 0, 0);
-    return String(Math.floor((Date.now() - start.getTime()) / 86_400_000)).padStart(3, '0');
+    return String(Math.floor((Date.now() - start.getTime()) / 86400000)).padStart(3, '0');
   }, []);
 
   useEffect(() => {
@@ -133,8 +133,11 @@ const LibraryPage = () => {
 
   const handlePlayAll = (tracks) => {
     if (!tracks.length) return;
-    playTrack(tracks[0]);
-    tracks.slice(1).forEach((t) => addToQueue(t));
+    playTracksInOrder(tracks, {
+      replaceQueue: true,
+      startIndex: 0,
+      forceSequential: true,
+    });
   };
 
   const handleClearSearches = () => {
@@ -316,7 +319,7 @@ const Overview = ({
           title="The voices on repeat"
           subtitle="Aggregated from your recent listening."
         />
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-5">
+        <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-5">
           {topArtists.map((a) => (
             <Link
               key={a.artist}
@@ -381,15 +384,24 @@ const Overview = ({
 // Pieces
 // ============================================================================
 
+const handleCardKeyActivate = (event, action) => {
+  if (event.target !== event.currentTarget) return;
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  event.preventDefault();
+  action?.();
+};
+
 const CompactTrack = ({ track, index, onPlay, isCurrent, isPlaying }) => (
-  <motion.button
+  <motion.div
     variants={fadeUp}
-    type="button"
+    role="button"
+    tabIndex={0}
     onClick={onPlay}
+    onKeyDown={(event) => handleCardKeyActivate(event, onPlay)}
     className={cn(
-      'group flex items-center gap-3 p-2.5 pr-4 rounded-sharp',
+      'group flex min-w-0 items-center gap-2.5 sm:gap-3 p-2.5 pr-3 sm:pr-4 rounded-sharp',
       'border border-white/[0.06] bg-surface-2/50 backdrop-blur-md',
-      'hover:bg-surface-2 hover:border-white/[0.12] transition-colors text-left focus-ring',
+      'hover:bg-surface-2 hover:border-white/[0.12] transition-colors text-left focus-ring cursor-pointer',
       isCurrent && 'ring-1 ring-track/50 border-track/40',
     )}
   >
@@ -399,7 +411,7 @@ const CompactTrack = ({ track, index, onPlay, isCurrent, isPlaying }) => (
         alt=""
         kind="track"
         rounded="rounded-sharp"
-        className="w-14 h-14 ring-1 ring-white/10"
+        className="w-12 h-12 sm:w-14 sm:h-14 ring-1 ring-white/10"
         imgClassName="object-cover"
       />
       {typeof index === 'number' ? (
@@ -421,7 +433,7 @@ const CompactTrack = ({ track, index, onPlay, isCurrent, isPlaying }) => (
     </div>
     <div
       onClick={(e) => e.stopPropagation()}
-      className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex items-center gap-1"
+      className="touch-action-visible opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity flex items-center gap-1"
     >
       <AddToPlaylistButton
         track={track}
@@ -430,10 +442,10 @@ const CompactTrack = ({ track, index, onPlay, isCurrent, isPlaying }) => (
       />
       <HeartButton track={track} size="sm" />
     </div>
-    <div className="w-9 h-9 rounded-full flex items-center justify-center transition-colors text-ink-3 group-hover:text-accent">
+    <div className="touch-target w-9 h-9 rounded-full flex items-center justify-center transition-colors text-ink-3 group-hover:text-accent">
       {isCurrent && isPlaying ? <NowPlayingBars /> : <Play className="w-4 h-4 fill-current" />}
     </div>
-  </motion.button>
+  </motion.div>
 );
 
 const TrackList = ({
@@ -456,7 +468,7 @@ const TrackList = ({
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <p className="font-editorial text-[13px] text-ink-3">
           {tracks.length} {tracks.length === 1 ? 'track' : 'tracks'}
         </p>
@@ -486,7 +498,7 @@ const TrackList = ({
               tabIndex={0}
               role="button"
               className={cn(
-                'group row-hover grid grid-cols-[2.5rem_3rem_1fr_auto_auto] gap-4 px-4 py-3.5',
+                'group row-hover grid grid-cols-[2rem_2.5rem_minmax(0,1fr)_auto] sm:grid-cols-[2.3rem_3rem_minmax(0,1fr)_auto_auto] gap-2.5 sm:gap-4 px-3 sm:px-4 py-3.5',
                 'items-center cursor-pointer transition-colors border-b border-white/[0.05] last:border-0',
                 isCurrent ? 'bg-track/[0.08]' : 'hover:bg-white/[0.035]',
               )}
@@ -497,7 +509,7 @@ const TrackList = ({
                 ) : (
                   <span
                     className={cn(
-                      'font-display italic text-2xl leading-none tabular-nums',
+                      'font-display italic text-xl sm:text-2xl leading-none tabular-nums',
                       isCurrent ? 'text-accent' : 'text-ink-3 group-hover:text-ink',
                     )}
                   >
@@ -510,7 +522,7 @@ const TrackList = ({
                 alt=""
                 kind="track"
                 rounded="rounded-sharp"
-                className="w-12 h-12 ring-1 ring-white/10"
+                className="w-10 h-10 sm:w-12 sm:h-12 ring-1 ring-white/10"
                 imgClassName="object-cover"
               />
               <div className="flex-1 min-w-0">
@@ -527,7 +539,7 @@ const TrackList = ({
                 </p>
               </div>
               <div
-                className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex items-center gap-1"
+                className="touch-action-visible opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity flex items-center gap-1"
                 onClick={(e) => e.stopPropagation()}
               >
                 <AddToPlaylistButton
@@ -538,14 +550,14 @@ const TrackList = ({
                 <HeartButton track={track} size="sm" />
               </div>
               {track.duration ? (
-                <div className="hidden md:flex items-center gap-2 text-ink-4">
+                <div className="hidden sm:flex items-center gap-2 text-ink-4 justify-end">
                   <Clock className="w-3.5 h-3.5" />
                   <span className="font-mono text-[12px] tabular-nums tracking-tight">
                     {track.duration}
                   </span>
                 </div>
               ) : (
-                <span className="hidden md:inline-block w-12" aria-hidden />
+                <span className="hidden sm:inline-block w-12" aria-hidden />
               )}
             </motion.div>
           );
@@ -583,7 +595,7 @@ const PlaylistsTab = ({
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <p className="font-editorial text-[13px] text-ink-3">
           {playlists.length} {playlists.length === 1 ? 'playlist' : 'playlists'}
         </p>
@@ -609,7 +621,7 @@ const PlaylistsTab = ({
             <motion.div
               variants={fadeUp}
               key={playlist.id}
-              className="group grid grid-cols-[3rem_1fr_auto] items-center gap-4 px-4 py-3 border-b border-white/[0.05] last:border-0 hover:bg-white/[0.035] transition-colors"
+              className="group grid grid-cols-[2.6rem_minmax(0,1fr)_auto] sm:grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-3 sm:gap-4 px-3 sm:px-4 py-3 border-b border-white/[0.05] last:border-0 hover:bg-white/[0.035] transition-colors"
             >
               <button
                 type="button"
@@ -623,11 +635,11 @@ const PlaylistsTab = ({
                     alt=""
                     kind="mix"
                     rounded="rounded-sharp"
-                    className="w-12 h-12 ring-1 ring-white/10"
+                    className="w-10 h-10 sm:w-12 sm:h-12 ring-1 ring-white/10"
                     imgClassName="object-cover"
                   />
                 ) : (
-                  <div className="w-12 h-12 rounded-sharp ring-1 ring-white/10 bg-surface-1 flex items-center justify-center">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-sharp ring-1 ring-white/10 bg-surface-1 flex items-center justify-center">
                     <ListMusic className="w-4 h-4 text-ink-4" />
                   </div>
                 )}
@@ -661,7 +673,7 @@ const PlaylistsTab = ({
                     disabled={alreadyHasCurrent}
                     onClick={() => onAddCurrentToPlaylist(playlist)}
                     className={cn(
-                      'h-8 px-2.5 rounded-sharp border text-[11px] font-mono uppercase tracking-[0.12em] focus-ring transition-colors inline-flex items-center gap-1.5',
+                      'touch-target h-9 sm:h-8 px-2.5 rounded-sharp border text-[11px] font-mono uppercase tracking-[0.12em] focus-ring transition-colors inline-flex items-center gap-1.5',
                       alreadyHasCurrent
                         ? 'border-track/35 text-track bg-track/10 cursor-default'
                         : 'border-white/[0.12] text-ink-3 hover:text-ink hover:bg-white/[0.05]',
@@ -675,12 +687,14 @@ const PlaylistsTab = ({
                     {alreadyHasCurrent ? (
                       <>
                         <Check className="w-3.5 h-3.5" />
-                        Added
+                        <span className="sm:hidden">Added</span>
+                        <span className="hidden sm:inline">Added</span>
                       </>
                     ) : (
                       <>
                         <Plus className="w-3.5 h-3.5" />
-                        Add current
+                        <span className="sm:hidden">Add</span>
+                        <span className="hidden sm:inline">Add current</span>
                       </>
                     )}
                   </button>
@@ -714,7 +728,7 @@ const RecentSearches = ({ searches, onPick, onClear }) => {
         <button
           type="button"
           onClick={onClear}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-sharp text-[12px] text-ink-3 hover:text-danger hover:bg-danger/10 transition-colors focus-ring"
+          className="touch-target inline-flex items-center gap-2 px-3 py-1.5 rounded-sharp text-[12px] text-ink-3 hover:text-danger hover:bg-danger/10 transition-colors focus-ring"
         >
           <Trash2 className="w-3.5 h-3.5" />
           Clear all
@@ -726,7 +740,7 @@ const RecentSearches = ({ searches, onPick, onClear }) => {
             key={q}
             type="button"
             onClick={() => onPick(q)}
-            className="px-3.5 py-1.5 rounded-sharp text-[13px] border border-white/[0.10] text-ink-2 hover:text-ink hover:border-white/25 hover:bg-white/[0.04] transition-colors focus-ring"
+            className="touch-target px-3.5 py-1.5 rounded-sharp text-[13px] border border-white/[0.10] text-ink-2 hover:text-ink hover:border-white/25 hover:bg-white/[0.04] transition-colors focus-ring"
           >
             {q}
           </button>
@@ -805,7 +819,7 @@ const FollowedArtistList = ({ artists, onUnfollow }) => {
             type="button"
             onClick={() => onUnfollow?.(a.slug || a.id)}
             aria-label={`Unfollow ${a.name}`}
-            className="p-1.5 rounded-sharp text-ink-3 hover:text-danger hover:bg-danger/10 focus-ring transition-colors opacity-60 group-hover:opacity-100"
+            className="touch-action-visible p-1.5 rounded-sharp text-ink-3 hover:text-danger hover:bg-danger/10 focus-ring transition-colors opacity-100 md:opacity-60 md:group-hover:opacity-100"
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
@@ -861,7 +875,7 @@ const LikedAlbumGrid = ({ albums, onRemove }) => {
             type="button"
             onClick={() => onRemove?.(a.id)}
             aria-label={`Unlike ${a.title}`}
-            className="absolute top-2 right-2 p-1.5 rounded-full text-ink-3 hover:text-danger hover:bg-danger/15 focus-ring transition-colors bg-bg/60 opacity-0 group-hover:opacity-100"
+            className="touch-action-visible absolute top-2 right-2 p-1.5 rounded-full text-ink-3 hover:text-danger hover:bg-danger/15 focus-ring transition-colors bg-bg/60 opacity-100 md:opacity-0 md:group-hover:opacity-100"
           >
             <Trash2 className="w-3 h-3" />
           </button>

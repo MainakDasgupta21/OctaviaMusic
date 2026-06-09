@@ -16,8 +16,8 @@ const ExploreFlowShell = ({
   const queueCount = Math.max(0, deck.length - 1);
 
   return (
-    <div className="p-5 md:p-10 max-w-[1300px] mx-auto pb-12">
-      <section className="mb-8 rounded-soft border border-white/[0.08] bg-surface-2/45 p-5 md:p-6">
+    <div className="page-shell-content-narrow pt-5 md:pt-8 pb-12">
+      <section className="mb-8 rounded-soft border border-white/[0.08] bg-surface-2/45 p-4 sm:p-5 md:p-6">
         <p className="eyebrow eyebrow-accent mb-2 inline-flex items-center gap-2">
           <Radar className="w-3.5 h-3.5" />
           Explore flow

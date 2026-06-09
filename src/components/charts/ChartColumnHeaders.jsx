@@ -1,4 +1,8 @@
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
+import {
+  CHART_ARTIST_GRID_TEMPLATE,
+  CHART_SONG_GRID_TEMPLATE,
+} from '@/components/charts/grid-templates';
 import { cn } from '@/lib/utils';
 
 const SortIcon = ({ active, direction }) => {
@@ -40,7 +44,13 @@ const HeaderButton = ({
 const ChartColumnHeaders = ({ mode, window, sortColumn, sortDirection, onSort }) => {
   if (mode === 'artists') {
     return (
-      <div className="grid grid-cols-[2.8rem_3rem_minmax(0,1fr)_4.8rem_6.2rem] md:grid-cols-[3.6rem_5.2rem_minmax(0,1fr)_minmax(0,0.85fr)_6.5rem_8rem] gap-3 px-3 sm:px-4 py-3 border-b border-white/[0.08] text-[10px] font-mono uppercase tracking-[0.18em] text-ink-4">
+      <div
+        className={cn(
+          'grid',
+          CHART_ARTIST_GRID_TEMPLATE,
+          'gap-2.5 sm:gap-3 px-3 sm:px-4 py-3 border-b border-white/[0.08] text-[10px] font-mono uppercase tracking-[0.18em] text-ink-4',
+        )}
+      >
         <span>Rank</span>
         <span aria-hidden="true" />
         <HeaderButton
@@ -51,7 +61,7 @@ const ChartColumnHeaders = ({ mode, window, sortColumn, sortDirection, onSort })
           sortColumn={sortColumn}
           sortDirection={sortDirection}
         />
-        <span className="hidden md:block">Top song</span>
+        <span className="hidden lg:block">Top song</span>
         <HeaderButton
           label="Tracks"
           column="tracksOnChart"
@@ -68,14 +78,20 @@ const ChartColumnHeaders = ({ mode, window, sortColumn, sortDirection, onSort })
           onSort={onSort}
           sortColumn={sortColumn}
           sortDirection={sortDirection}
-          className="justify-self-end"
+          className="hidden sm:inline-flex justify-self-end"
         />
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-[2.6rem_2.8rem_minmax(0,1fr)_auto] sm:grid-cols-[2.8rem_3rem_minmax(0,1fr)_5.6rem_auto] md:grid-cols-[3.2rem_4.2rem_minmax(0,1fr)_4.8rem_7rem_auto] lg:grid-cols-[3.2rem_4.2rem_minmax(0,1fr)_4.8rem_7rem_4.6rem_auto] gap-3 px-3 sm:px-4 py-3 border-b border-white/[0.08] text-[10px] font-mono uppercase tracking-[0.18em] text-ink-4">
+    <div
+      className={cn(
+        'grid',
+        CHART_SONG_GRID_TEMPLATE,
+        'gap-2.5 sm:gap-3 px-3 sm:px-4 py-3 border-b border-white/[0.08] text-[10px] font-mono uppercase tracking-[0.18em] text-ink-4',
+      )}
+    >
       <span>Rank</span>
       <span aria-hidden="true" />
       <span>Title</span>
@@ -86,7 +102,7 @@ const ChartColumnHeaders = ({ mode, window, sortColumn, sortDirection, onSort })
         onSort={onSort}
         sortColumn={sortColumn}
         sortDirection={sortDirection}
-        className="hidden md:inline-flex justify-self-end"
+        className="hidden lg:inline-flex justify-self-end"
       />
       <HeaderButton
         label={window === 'all_time' ? 'Streams (all time)' : 'Streams'}

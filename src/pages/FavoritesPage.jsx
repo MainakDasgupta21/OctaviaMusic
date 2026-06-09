@@ -20,6 +20,8 @@ const SORTS = {
   title: { label: 'Title', fn: (a, b) => a.title.localeCompare(b.title) },
   artist: { label: 'Artist', fn: (a, b) => a.artist.localeCompare(b.artist) },
 };
+const FAVORITES_ROW_GRID =
+  'grid-cols-[2.1rem_2.6rem_minmax(0,1fr)_auto] sm:grid-cols-[2.4rem_3rem_minmax(0,1fr)_auto_auto] lg:grid-cols-[2.4rem_3rem_minmax(0,1fr)_auto_auto_auto]';
 
 const NowPlayingBars = () => (
   <span className="inline-flex items-end gap-0.5 h-4" aria-label="Now playing">
@@ -36,7 +38,7 @@ const NowPlayingBars = () => (
 );
 
 const FavoritesPage = () => {
-  const { playTrack, currentTrack, isPlaying, addToQueue } = usePlayer();
+  const { playTrack, playTracksInOrder, currentTrack, isPlaying, addToQueue } = usePlayer();
   const { list, removeFavorite, toggleFavorite } = useFavorites();
   const [sort, setSort] = useState('recent');
 
@@ -57,16 +59,22 @@ const FavoritesPage = () => {
 
   const handlePlayAll = () => {
     if (sorted.length > 0) {
-      playTrack(sorted[0]);
-      sorted.slice(1).forEach((track) => addToQueue(track));
+      playTracksInOrder(sorted, {
+        replaceQueue: true,
+        startIndex: 0,
+        forceSequential: true,
+      });
     }
   };
 
   const handleShuffle = () => {
     if (sorted.length === 0) return;
     const shuffled = [...sorted].sort(() => Math.random() - 0.5);
-    playTrack(shuffled[0]);
-    shuffled.slice(1).forEach((track) => addToQueue(track));
+    playTracksInOrder(shuffled, {
+      replaceQueue: true,
+      startIndex: 0,
+      forceSequential: false,
+    });
   };
 
   return (
@@ -129,12 +137,12 @@ const FavoritesPage = () => {
             aria-label="Favorite tracks"
           >
             {/* Table header */}
-            <div className="grid grid-cols-[2.5rem_3rem_1fr_auto_auto_auto] gap-4 px-4 py-3 border-b border-white/[0.08] text-[10px] font-mono uppercase tracking-[0.18em] text-ink-4">
+            <div className={cn('grid', FAVORITES_ROW_GRID, 'gap-2.5 sm:gap-4 px-3 sm:px-4 py-3 border-b border-white/[0.08] text-[10px] font-mono uppercase tracking-[0.18em] text-ink-4')}>
               <span className="text-center">№</span>
               <span aria-hidden="true" />
               <span>Title</span>
-              <span aria-hidden="true" className="w-8" />
-              <span className="hidden md:block text-right">
+              <span aria-hidden="true" className="hidden sm:inline w-8" />
+              <span className="hidden lg:block text-right">
                 <Clock className="w-3.5 h-3.5 inline" />
               </span>
               <span className="w-8" aria-hidden="true" />
@@ -160,7 +168,8 @@ const FavoritesPage = () => {
                     tabIndex={0}
                     aria-selected={isSelected}
                     className={cn(
-                      'group row-hover grid grid-cols-[2.5rem_3rem_1fr_auto_auto_auto] gap-4 px-4 py-3.5',
+                      'group row-hover grid gap-2.5 sm:gap-4 px-3 sm:px-4 py-3.5',
+                      FAVORITES_ROW_GRID,
                       'items-center cursor-pointer transition-colors border-b border-white/[0.05] last:border-0',
                       isCurrentTrack && 'bg-track/[0.10]',
                       isSelected && !isCurrentTrack && 'bg-white/[0.05]',
@@ -173,7 +182,7 @@ const FavoritesPage = () => {
                       ) : (
                         <span
                           className={cn(
-                            'font-display italic text-2xl leading-none tabular-nums',
+                            'font-display italic text-xl sm:text-2xl leading-none tabular-nums',
                             isCurrentTrack ? 'text-accent' : 'text-ink-3 group-hover:text-ink',
                           )}
                         >
@@ -188,7 +197,7 @@ const FavoritesPage = () => {
                         alt=""
                         kind="track"
                         rounded="rounded-sharp"
-                        className="w-12 h-12 ring-1 ring-white/10"
+                        className="w-10 h-10 sm:w-12 sm:h-12 ring-1 ring-white/10"
                         imgClassName="object-cover"
                       />
                       <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex items-center justify-center rounded-sharp">
@@ -210,11 +219,11 @@ const FavoritesPage = () => {
                       </p>
                     </div>
 
-                    <div onClick={(e) => e.stopPropagation()}>
+                    <div onClick={(e) => e.stopPropagation()} className="hidden sm:block">
                       <HeartButton track={track} size="sm" />
                     </div>
 
-                    <div className="hidden md:flex items-center justify-end gap-2 text-ink-4">
+                    <div className="hidden lg:flex items-center justify-end gap-2 text-ink-4">
                       <span className="font-mono text-[12px] tabular-nums tracking-tight">
                         {track.duration || '\u2014'}
                       </span>
@@ -227,7 +236,7 @@ const FavoritesPage = () => {
                         removeFavorite(track.id);
                         notify.unliked(track.title);
                       }}
-                      className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 p-2 rounded-sharp text-ink-3 hover:text-danger hover:bg-danger/10 transition-all focus-ring"
+                      className="touch-action-visible opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 p-2 rounded-sharp text-ink-3 hover:text-danger hover:bg-danger/10 transition-all focus-ring"
                       aria-label="Remove from favorites"
                     >
                       <X className="w-4 h-4" />

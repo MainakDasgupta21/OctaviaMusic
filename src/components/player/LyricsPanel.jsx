@@ -31,8 +31,9 @@ const LyricsPanel = () => {
 
   const title = currentTrack?.title || '';
   const artist = currentTrack?.artist || '';
+  const videoId = currentTrack?.videoId || currentTrack?.id || '';
   const durationSec = duration > 0 ? duration : null;
-  const enabled = Boolean(title && artist);
+  const enabled = Boolean((title && artist) || videoId);
 
   const {
     data,
@@ -41,8 +42,14 @@ const LyricsPanel = () => {
     error,
     refetch,
   } = useQuery({
-    queryKey: queryKeys.lyrics(title, artist, durationSec),
-    queryFn: () => getLyrics({ title, artist, durationSec: durationSec ?? undefined }),
+    queryKey: queryKeys.lyrics(title, artist, durationSec, videoId),
+    queryFn: () =>
+      getLyrics({
+        title,
+        artist,
+        videoId,
+        durationSec: durationSec ?? undefined,
+      }),
     enabled,
     staleTime: cachePolicy.lyrics.staleTime,
     gcTime: cachePolicy.lyrics.gcTime,
@@ -97,7 +104,7 @@ const LyricsPanel = () => {
 
   if (isLoading) {
     return (
-      <div className="h-full overflow-y-auto custom-scrollbar px-4 py-11 sm:px-5 sm:py-13 space-y-3">
+      <div className="h-full overflow-y-auto custom-scrollbar px-4 py-7 sm:px-5 sm:py-9 space-y-3">
         <div className="flex items-center justify-center gap-2 text-ink-3 text-[13px] mb-6">
           <Loader2 className="w-4 h-4 animate-spin" /> Syncing lyrics…
         </div>
@@ -173,7 +180,7 @@ const LyricsPanel = () => {
         ref={scrollRef}
         data-lenis-prevent
         onScroll={handleManualScroll}
-        className="h-full overflow-y-auto custom-scrollbar px-4 py-11 text-left sm:px-5 sm:py-13 space-y-1"
+        className="h-full overflow-y-auto custom-scrollbar px-4 py-7 text-left sm:px-5 sm:py-9 space-y-1"
         style={{
           maskImage:
             'linear-gradient(180deg, transparent 0%, #000 12%, #000 88%, transparent 100%)',
@@ -222,7 +229,7 @@ const LyricsPanel = () => {
   return (
     <div
       data-lenis-prevent
-      className="h-full overflow-y-auto custom-scrollbar px-5 py-10"
+      className="h-full overflow-y-auto custom-scrollbar px-4 py-7 sm:px-5 sm:py-8"
       style={{
         maskImage:
           'linear-gradient(180deg, transparent 0%, #000 8%, #000 92%, transparent 100%)',

@@ -4,19 +4,40 @@ import tailwindcssAnimate from "tailwindcss-animate";
 export default {
   darkMode: ["class"],
   content: [
-    "./pages/**/*.{js,jsx,ts,tsx}",
-    "./components/**/*.{js,jsx,ts,tsx}",
-    "./app/**/*.{js,jsx,ts,tsx}",
+    "./index.html",
     "./src/**/*.{js,jsx,ts,tsx}",
   ],
   prefix: "",
   theme: {
+    screens: {
+      xs: "480px",
+      sm: "640px",
+      md: "768px",
+      lg: "1024px",
+      xl: "1280px",
+      "2xl": "1536px",
+      "3xl": "1680px",
+      "4xl": "1920px",
+    },
     container: {
       center: true,
-      padding: "2rem",
-      screens: { "2xl": "1400px" },
+      padding: "1rem",
+      screens: {
+        sm: "640px",
+        md: "768px",
+        lg: "1024px",
+        xl: "1280px",
+        "2xl": "1440px",
+        "3xl": "1680px",
+        "4xl": "1920px",
+      },
     },
     extend: {
+      maxWidth: {
+        page: "var(--page-max)",
+        "page-wide": "var(--page-max-wide)",
+        "page-narrow": "var(--page-max-narrow)",
+      },
       fontFamily: {
         // Roboto is the single typeface for the whole app. All of these
         // aliases resolve to Roboto so existing `font-display`, `font-headline`,

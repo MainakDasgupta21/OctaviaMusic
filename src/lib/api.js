@@ -34,6 +34,29 @@ const api = axios.create({
 
 export const upgradeImageQuality = (url) => {
   if (!url || typeof url !== 'string') return url;
+  let parsed = null;
+  try {
+    parsed = new URL(url, 'http://localhost');
+  } catch {
+    return url;
+  }
+
+  const host = String(parsed.hostname || '').toLowerCase();
+  const isYouTubeThumbHost =
+    host.includes('ytimg.com') || host.includes('youtube.com');
+  const isGoogleAvatarHost =
+    host.includes('yt3.ggpht.com') || host.includes('googleusercontent.com');
+
+  // Artist/avatar hosts are especially sensitive to arbitrary size rewrites and
+  // can start returning 429/403; keep their original params untouched.
+  if (isGoogleAvatarHost && !isYouTubeThumbHost) {
+    return url;
+  }
+
+  if (!isYouTubeThumbHost) {
+    return url;
+  }
+
   return url
     .replace(/=w\d+-h\d+/, '=w544-h544')
     .replace(/=s\d+/, '=s544')
@@ -220,9 +243,19 @@ export const getExploreJourney = async (journeyId, { signal } = {}) => {
 // Lyrics live behind the same backend (proxied via LRCLib). React Query
 // distinguishes a 404 (no lyrics for this song) from a 5xx (provider down) so
 // the UI can decide between "not available" and "retry".
-export const getLyrics = async ({ title, artist, durationSec } = {}) => {
-  if (!title || !artist) return null;
-  const params = { title, artist };
+export const getLyrics = async ({ title, artist, durationSec, videoId } = {}) => {
+  const hasTitleArtist = Boolean(title && artist);
+  const hasVideoId = Boolean(videoId && String(videoId).trim());
+  if (!hasTitleArtist && !hasVideoId) return null;
+
+  const params = {};
+  if (hasTitleArtist) {
+    params.title = title;
+    params.artist = artist;
+  }
+  if (hasVideoId) {
+    params.videoId = String(videoId).trim();
+  }
   if (Number.isFinite(durationSec) && durationSec > 0) {
     params.duration = Math.round(durationSec);
   }

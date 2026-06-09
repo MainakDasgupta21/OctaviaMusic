@@ -33,12 +33,12 @@ const FilterPillGroup = ({
   );
 
   return (
-    <div className="flex items-center gap-2 min-w-0">
+    <div className="flex min-w-0 items-center gap-1.5 xs:gap-2">
       <span className="issue-pill hidden md:inline-flex">{label}</span>
       <div
         role="tablist"
         aria-label={ariaLabel}
-        className="flex items-center gap-2 overflow-x-auto no-scrollbar min-w-0"
+        className="flex min-w-0 w-full flex-nowrap items-center gap-1.5 overflow-x-auto pb-1 pr-2 no-scrollbar [scrollbar-width:none] xs:gap-2 xs:pr-1"
         onKeyDown={(event) => {
           const idx = normalizedOptions.findIndex((item) => item.id === value);
           const nextIdx = nextIndexFromKey(event.key, idx, normalizedOptions.length);
@@ -66,7 +66,7 @@ const FilterPillGroup = ({
               tabIndex={active ? 0 : -1}
               onClick={() => onChange(option.id)}
               className={cn(
-                'whitespace-nowrap rounded-full border px-3 py-1.5 text-[12px] font-mono uppercase tracking-[0.14em] transition-colors focus-ring',
+                'touch-target shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-[11px] font-mono uppercase tracking-[0.08em] transition-colors focus-ring xs:px-3.5 xs:py-2 xs:text-[12px] xs:tracking-[0.14em]',
                 active ? activeClassName : inactiveClassName,
               )}
             >
@@ -87,7 +87,7 @@ const ChartsFilters = ({
   setRegion,
   setWindow,
 }) => (
-  <div className="sticky top-0 z-20 -mx-2 px-2 py-3 mb-6 bg-surface-1/90 backdrop-blur-md border-y border-white/[0.06] md:static md:mx-0 md:px-0 md:py-0 md:bg-transparent md:border-0">
+  <div className="sticky top-0 z-20 -mx-1 mb-6 border-y border-white/[0.06] bg-surface-1/90 px-1 py-3 backdrop-blur-md xs:-mx-2 xs:px-2 md:static md:mx-0 md:border-0 md:bg-transparent md:px-0 md:py-0">
     <div className="flex flex-col gap-3">
       <FilterPillGroup
         label="Mode"

@@ -115,8 +115,24 @@
 
     /* Shared page-shell rhythm tokens. */
     --page-max: 1600px;
+    --page-max-wide: 1760px;
+    --page-max-narrow: 1320px;
+    --page-pad-x-xs: 0.9rem;
+    --page-pad-x-sm: 1.1rem;
     --page-pad-x: 1.25rem;
-    --page-pad-x-md: 2.5rem;
+    --page-pad-x-md: 2rem;
+    --page-pad-x-lg: 2.5rem;
+    --page-pad-x-xl: 3rem;
+
+    /* App chrome dimensions used to derive main-content bottom spacing. */
+    --mobile-nav-height: 3.75rem;
+    --mobile-nav-offset: 0.5rem;
+    --mobile-mini-height: 3.75rem;
+    --mobile-mini-gap: 0.75rem;
+    --desktop-footer-height: 100px;
+    --app-main-bottom: calc(var(--mobile-nav-height) + var(--mobile-nav-offset) + env(safe-area-inset-bottom, 0px) + 0.75rem);
+    --app-main-bottom-with-player: calc(var(--mobile-nav-height) + var(--mobile-nav-offset) + var(--mobile-mini-height) + var(--mobile-mini-gap) + env(safe-area-inset-bottom, 0px) + 0.85rem);
+    --player-page-bottom-pad: calc(var(--mobile-nav-height) + var(--mobile-nav-offset) + env(safe-area-inset-bottom, 0px) + 1.25rem);
 
     --sidebar-bg: 30 14% 4%;
     --sidebar-active: var(--track-accent);
@@ -175,6 +191,22 @@
     --hairline-strong: 1px solid hsl(var(--ink-primary) / 0.14);
   }
 
+  @media (min-width: 768px) {
+    :root {
+      --app-main-bottom: calc(var(--desktop-footer-height) + 1rem);
+      --app-main-bottom-with-player: calc(var(--desktop-footer-height) + 1rem);
+      --player-page-bottom-pad: 1.75rem;
+    }
+  }
+
+  @media (min-width: 768px) and (max-width: 1023px) {
+    :root {
+      /* Tablet band: slightly shorter desktop footer to preserve vertical room
+         for dense pages and landscape devices. */
+      --desktop-footer-height: 92px;
+    }
+  }
+
   /* The page tint glides between accents in JS — `use-color-extraction`
      RAF-lerps --track-accent / -2 / -3 (and their `-strong` companions)
      in HSL space when the track changes, so every accent-driven surface
@@ -199,12 +231,16 @@
     font-synthesis: none;
     -webkit-font-feature-settings: 'kern' 1, 'liga' 1;
             font-feature-settings: 'kern' 1, 'liga' 1;
+    width: 100%;
+    min-height: 100%;
   }
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
     background: var(--gradient-main);
     min-height: 100vh;
+    width: 100%;
+    overflow-x: clip;
     /* Paragraph rhythm: Roboto 400 reads slightly cool at 1.5 line-height;
        1.55 with a hair of positive tracking pushes it into magazine
        territory without bloating each row. Small but every paragraph in
@@ -213,6 +249,18 @@
     letter-spacing: 0.003em;
     -webkit-font-feature-settings: 'kern' 1, 'liga' 1;
             font-feature-settings: 'kern' 1, 'liga' 1;
+  }
+
+  #root {
+    min-height: 100%;
+    width: 100%;
+  }
+
+  img,
+  video,
+  canvas {
+    max-width: 100%;
+    height: auto;
   }
 
   /* -------------------------------------------------------------------------
@@ -440,15 +488,120 @@
   }
 
   /* Shared horizontal rhythm for top-level pages. */
-  .page-shell {
+  .page-shell,
+  .page-shell-wide,
+  .page-shell-narrow,
+  .page-shell-content,
+  .page-shell-content-wide,
+  .page-shell-content-narrow {
     margin-inline: auto;
-    max-width: var(--page-max);
+    width: 100%;
     padding-inline: var(--page-pad-x);
+  }
+  .page-shell,
+  .page-shell-wide,
+  .page-shell-narrow {
     padding-bottom: 3rem;
   }
+  .page-shell {
+    max-width: var(--page-max);
+  }
+  .page-shell-wide {
+    max-width: var(--page-max-wide);
+  }
+  .page-shell-narrow {
+    max-width: var(--page-max-narrow);
+  }
+  .page-shell-content {
+    max-width: var(--page-max);
+  }
+  .page-shell-content-wide {
+    max-width: var(--page-max-wide);
+  }
+  .page-shell-content-narrow {
+    max-width: var(--page-max-narrow);
+  }
+  @media (max-width: 479px) {
+    .page-shell,
+    .page-shell-wide,
+    .page-shell-narrow,
+    .page-shell-content,
+    .page-shell-content-wide,
+    .page-shell-content-narrow {
+      padding-inline: var(--page-pad-x-xs);
+    }
+  }
+  @media (min-width: 480px) {
+    .page-shell,
+    .page-shell-wide,
+    .page-shell-narrow,
+    .page-shell-content,
+    .page-shell-content-wide,
+    .page-shell-content-narrow {
+      padding-inline: var(--page-pad-x-sm);
+    }
+  }
   @media (min-width: 768px) {
-    .page-shell {
+    .page-shell,
+    .page-shell-wide,
+    .page-shell-narrow,
+    .page-shell-content,
+    .page-shell-content-wide,
+    .page-shell-content-narrow {
       padding-inline: var(--page-pad-x-md);
+    }
+  }
+  @media (min-width: 1280px) {
+    .page-shell,
+    .page-shell-wide,
+    .page-shell-narrow,
+    .page-shell-content,
+    .page-shell-content-wide,
+    .page-shell-content-narrow {
+      padding-inline: var(--page-pad-x-lg);
+    }
+  }
+  @media (min-width: 1920px) {
+    .page-shell,
+    .page-shell-wide,
+    .page-shell-narrow,
+    .page-shell-content,
+    .page-shell-content-wide,
+    .page-shell-content-narrow {
+      padding-inline: var(--page-pad-x-xl);
+    }
+  }
+
+  .app-main-padding {
+    padding-bottom: var(--app-main-bottom);
+  }
+  .app-main-padding--player {
+    padding-bottom: var(--app-main-bottom-with-player);
+  }
+  .player-page-shell {
+    padding-bottom: var(--player-page-bottom-pad);
+  }
+
+  .touch-target {
+    min-width: 2.25rem;
+    min-height: 2.25rem;
+  }
+  .touch-action-visible {
+    opacity: 0;
+    transition: opacity var(--dur-short) var(--ease-emphasis);
+  }
+  .group:hover .touch-action-visible,
+  .group:focus-within .touch-action-visible {
+    opacity: 1;
+  }
+
+  @media (hover: none), (pointer: coarse) {
+    .touch-target {
+      min-width: 2.75rem;
+      min-height: 2.75rem;
+    }
+    .touch-action-visible {
+      opacity: 1 !important;
     }
   }
 

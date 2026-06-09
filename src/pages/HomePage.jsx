@@ -410,7 +410,7 @@ const HomePage = () => {
             ? Array.from({ length: 8 }).map((_, index) => <TileSkeleton key={index} />)
             : homeQuery.isError && trendingPreview.length === 0
               ? (
-                <div className="w-full min-w-[320px] max-w-2xl">
+                <div className="w-full min-w-[min(320px,100%)] max-w-2xl">
                   <InlineIssue
                     title="Trending feed unavailable"
                     description="Trending tracks could not be loaded. Retry to reconnect."
@@ -429,7 +429,7 @@ const HomePage = () => {
                     />
                   ))
                 : (
-                  <div className="w-full min-w-[280px] rounded-sharp border border-white/[0.08] p-5">
+                  <div className="w-full min-w-[min(280px,100%)] rounded-sharp border border-white/[0.08] p-5">
                     <p className="font-editorial text-sm text-ink-3">
                       No trending tracks are available right now.
                     </p>
@@ -453,7 +453,7 @@ const HomePage = () => {
               ? Array.from({ length: 8 }).map((_, index) => <TileSkeleton key={index} />)
               : chartsQuery.isError && charts.length === 0
                 ? (
-                  <div className="w-full min-w-[320px] max-w-2xl">
+                  <div className="w-full min-w-[min(320px,100%)] max-w-2xl">
                     <InlineIssue
                       title="Charts unavailable"
                       description="The charts feed could not be loaded. Retry to reconnect."
@@ -536,7 +536,7 @@ const HomePage = () => {
             variants={staggerChildren(0.05)}
             initial="initial"
             animate="animate"
-            className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4"
+            className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4"
           >
             {dailyMixes.map((mix, index) => (
               <motion.div variants={fadeUp} key={mix.id} className="relative">
@@ -657,7 +657,7 @@ const ColdStartRail = () => (
       </div>
     </div>
 
-    <div className="grid md:grid-cols-3 gap-3">
+    <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
       {COLD_START_STARTERS.map((p) => (
         <Link
           key={p.id}
@@ -716,7 +716,7 @@ const GenresRail = ({ genres = [], isLoading, isError, onRetry }) => {
         variants={staggerChildren(0.04)}
         initial="initial"
         animate="animate"
-        className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3"
+        className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3"
       >
         {isLoading
           ? Array.from({ length: 6 }).map((_, i) => (

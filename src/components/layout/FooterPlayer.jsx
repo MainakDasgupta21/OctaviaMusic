@@ -376,7 +376,7 @@ const FooterPlayer = () => {
           initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 100, opacity: 0 }}
-          className="fixed bottom-0 inset-x-0 md:left-[var(--sidebar-w,80px)] md:right-0 h-[68px] z-40 glass-strong border-t border-warning/30 flex items-center px-5 gap-4"
+          className="fixed inset-x-2 bottom-[calc(var(--mobile-nav-height)+var(--mobile-nav-offset)+env(safe-area-inset-bottom)+0.5rem)] md:inset-x-auto md:bottom-0 md:left-[var(--sidebar-w,80px)] md:right-0 h-[68px] z-40 glass-strong border border-warning/30 md:border-x-0 md:border-b-0 flex items-center px-4 md:px-5 gap-3 md:gap-4 rounded-soft md:rounded-none"
           role="alert"
         >
           <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
@@ -434,7 +434,7 @@ const FooterPlayer = () => {
           initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 100, opacity: 0 }}
-          className="hidden md:flex fixed bottom-0 right-0 h-[100px] glass-strong z-40 transition-[left] duration-med ease-emphasis border-t border-white/[0.06]"
+          className="hidden md:flex fixed bottom-0 right-0 h-[var(--desktop-footer-height)] glass-strong z-40 transition-[left] duration-med ease-emphasis border-t border-white/[0.06]"
           style={{
             left: 'var(--sidebar-w, 80px)',
             // Rim-light along the top edge so the footer reads as a
@@ -464,12 +464,12 @@ const FooterPlayer = () => {
                 'linear-gradient(90deg, transparent 0%, hsl(var(--track-accent) / 0.55) 25%, hsl(var(--track-accent-2) / 0.7) 50%, hsl(var(--track-accent-3) / 0.55) 75%, transparent 100%)',
             }}
           />
-          <div className="relative w-full h-full flex items-center px-7 gap-7">
-            <div className="flex items-center gap-4 w-72 min-w-0">
+          <div className="relative flex h-full w-full items-center gap-2.5 px-3 md:gap-3 md:px-4 lg:gap-7 lg:px-7">
+            <div className="flex min-w-0 shrink items-center gap-2 md:basis-[38%] lg:basis-auto lg:gap-4 lg:w-72">
               <button
                 type="button"
                 onClick={() => navigate('/player')}
-                className="flex items-center gap-3 min-w-0 flex-1 text-left focus-ring rounded-sharp p-1 -m-1 hover:bg-white/[0.04] transition-colors"
+                className="flex min-w-0 flex-1 items-center gap-2.5 rounded-sharp p-1 text-left transition-colors focus-ring hover:bg-white/[0.04] lg:gap-3"
                 aria-label="Open now playing page"
               >
                 {/* Album thumb wrapped in a thin progress ring — the single
@@ -516,25 +516,25 @@ const FooterPlayer = () => {
                   </p>
                 </div>
               </button>
-              <HeartButton track={currentTrack} size="sm" />
+              <HeartButton track={currentTrack} size="sm" className="hidden lg:inline-flex" />
               <AddToPlaylistButton
                 track={currentTrack}
-                className="p-2"
+                className="hidden lg:inline-flex p-2"
                 align="start"
                 side="top"
                 sideOffset={12}
               />
             </div>
 
-            <div className="flex-1 flex flex-col items-center gap-1.5 min-w-0">
-              <div className="flex items-center gap-4">
+            <div className="flex min-w-0 flex-col items-center gap-1.5 md:basis-[44%] lg:flex-1 lg:basis-auto">
+              <div className="flex items-center gap-2.5 lg:gap-4">
                 <motion.button
                   type="button"
                   whileHover={reduceMotion ? undefined : { scale: 1.02 }}
                   whileTap={reduceMotion ? undefined : { scale: 0.92 }}
                   onClick={transport.onToggleShuffle}
                   className={cn(
-                    'p-2 rounded-full transition-colors focus-ring',
+                    'hidden rounded-full p-2 transition-colors focus-ring lg:inline-flex',
                     shuffle ? 'text-accent' : 'text-ink-3 hover:text-ink',
                   )}
                   aria-label={transport.labels.shuffle}
@@ -550,7 +550,7 @@ const FooterPlayer = () => {
                   className="p-2 text-ink-3 hover:text-ink transition-colors focus-ring rounded-full disabled:opacity-40 disabled:cursor-not-allowed"
                   aria-label={transport.labels.previous}
                 >
-                  <SkipBack className="w-5 h-5" />
+                  <SkipBack className="h-4 w-4 lg:h-5 lg:w-5" />
                 </motion.button>
                 <motion.button
                   type="button"
@@ -558,7 +558,7 @@ const FooterPlayer = () => {
                   whileTap={reduceMotion ? undefined : { scale: 0.94 }}
                   onClick={transport.onTogglePlay}
                   className={cn(
-                    'relative w-12 h-12 rounded-full gradient-accent text-track-fg flex items-center justify-center shadow-accent focus-premium ring-1 ring-white/15',
+                    'relative flex h-10 w-10 items-center justify-center rounded-full text-track-fg ring-1 ring-white/15 shadow-accent focus-premium gradient-accent lg:h-12 lg:w-12',
                     // Subtle pulse glow when playing — sells "live, breathing"
                     // without being noisy. Off entirely when paused.
                     isPlaying && 'pulse-glow',
@@ -574,9 +574,9 @@ const FooterPlayer = () => {
                   }}
                 >
                   {isPlaying ? (
-                    <Pause className="w-[18px] h-[18px] fill-current" />
+                    <Pause className="h-4 w-4 fill-current lg:h-[18px] lg:w-[18px]" />
                   ) : (
-                    <Play className="w-[18px] h-[18px] fill-current ml-0.5" />
+                    <Play className="ml-0.5 h-4 w-4 fill-current lg:h-[18px] lg:w-[18px]" />
                   )}
                 </motion.button>
                 <motion.button
@@ -587,14 +587,14 @@ const FooterPlayer = () => {
                   className="p-2 text-ink-3 hover:text-ink transition-colors focus-ring rounded-full disabled:opacity-40 disabled:cursor-not-allowed"
                   aria-label={transport.labels.next}
                 >
-                  <SkipForward className="w-5 h-5" />
+                  <SkipForward className="h-4 w-4 lg:h-5 lg:w-5" />
                 </motion.button>
                 <motion.button
                   type="button"
                   whileTap={reduceMotion ? undefined : { scale: 0.92 }}
                   onClick={transport.onToggleRepeat}
                   className={cn(
-                    'relative p-2 rounded-full transition-colors focus-ring',
+                    'relative hidden rounded-full p-2 transition-colors focus-ring lg:inline-flex',
                     repeat !== 'off'
                       ? 'text-accent'
                       : 'text-ink-3 hover:text-ink',
@@ -628,11 +628,11 @@ const FooterPlayer = () => {
                   palette as the ring and the play button. */}
               <div
                 className={cn(
-                  'flex w-full max-w-[560px] items-center gap-2.5',
+                  'flex w-full max-w-[460px] items-center gap-2.5 lg:max-w-[520px] xl:max-w-[620px]',
                   isBuffering && 'animate-pulse',
                 )}
               >
-                <span className="w-10 shrink-0 text-right font-mono text-[10.5px] tabular tracking-tight text-ink-3">
+                <span className="hidden w-10 shrink-0 text-right font-mono text-[10.5px] tabular tracking-tight text-ink-3 lg:block">
                   {formatTime(displayedProgress)}
                 </span>
                 <Slider
@@ -651,16 +651,16 @@ const FooterPlayer = () => {
                   className="flex-1 [&_.slider-track]:h-[2px] [&_.slider-track]:transition-[height] [&_.slider-track]:duration-med [&_.slider-track]:ease-emphasis hover:[&_.slider-track]:h-[4px] focus-within:[&_.slider-track]:h-[4px]"
                   aria-label="Seek"
                 />
-                <span className="w-10 shrink-0 font-mono text-[10.5px] tabular tracking-tight text-ink-4">
+                <span className="hidden w-10 shrink-0 font-mono text-[10.5px] tabular tracking-tight text-ink-4 lg:block">
                   {formatTime(duration)}
                 </span>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 w-48 group/volume">
+            <div className="flex min-w-0 items-center justify-end gap-1 md:basis-[18%] lg:basis-auto lg:gap-3 lg:w-48">
               <button
                 onClick={toggleMute}
-                className="text-ink-3 hover:text-ink transition-colors focus-ring rounded-full p-1"
+                className="touch-target text-ink-3 hover:text-ink transition-colors focus-ring rounded-full p-1"
                 aria-label={isMuted || volume === 0 ? 'Unmute' : 'Mute'}
               >
                 {isMuted || volume === 0 ? (
@@ -675,14 +675,14 @@ const FooterPlayer = () => {
                 step={1}
                 onValueChange={(value) => setVolume(value[0] / 100)}
                 // Same delicate-then-tactile treatment as the seek bar.
-                className="flex-1 [&_.slider-track]:h-[2px] [&_.slider-track]:transition-[height] [&_.slider-track]:duration-med [&_.slider-track]:ease-emphasis hover:[&_.slider-track]:h-[4px] focus-within:[&_.slider-track]:h-[4px]"
+                className="hidden flex-1 [&_.slider-track]:h-[2px] [&_.slider-track]:transition-[height] [&_.slider-track]:duration-med [&_.slider-track]:ease-emphasis hover:[&_.slider-track]:h-[4px] focus-within:[&_.slider-track]:h-[4px] lg:block"
                 aria-label="Volume"
               />
               <Popover>
                 <PopoverTrigger asChild>
                   <button
                     type="button"
-                    className="relative p-2 rounded-full text-ink-3 hover:text-ink hover:bg-white/5 transition-colors focus-ring"
+                    className="touch-target relative p-2 rounded-full text-ink-3 hover:text-ink hover:bg-white/5 transition-colors focus-ring"
                     aria-label="Show queue"
                   >
                     <ListMusic className="w-4 h-4" />
@@ -702,10 +702,10 @@ const FooterPlayer = () => {
                   align="end"
                   side="top"
                   sideOffset={12}
-                  className="w-[360px] p-0 bg-surface-1/95 backdrop-blur-xl border-white/[0.08]"
+                  className="w-[min(22rem,calc(100vw-1rem))] sm:w-[min(22rem,calc(100vw-2rem))] p-0 bg-surface-1/95 backdrop-blur-xl border-white/[0.08]"
                 >
                   <div className="px-4 pt-3 pb-2 border-b border-white/[0.06] flex items-center justify-between">
-                    <p className="eyebrow text-ink-3">Up next</p>
+                    <p className="eyebrow text-ink-3">Queue</p>
                     <button
                       type="button"
                       onClick={() => navigate('/player?panel=queue')}
@@ -731,8 +731,10 @@ const FooterPlayer = () => {
             initial={{ y: 100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 100, opacity: 0 }}
-            className="md:hidden fixed inset-x-2 bottom-[4.75rem] z-40 h-[60px] rounded-soft glass-strong overflow-hidden ring-1 ring-white/[0.06]"
+            className="md:hidden fixed inset-x-2 z-40 h-[var(--mobile-mini-height)] rounded-soft glass-strong overflow-hidden ring-1 ring-white/[0.06]"
             style={{
+              bottom:
+                'calc(var(--mobile-nav-height) + var(--mobile-nav-offset) + env(safe-area-inset-bottom, 0px) + var(--mobile-mini-gap))',
               // Same rim-light vocabulary as the desktop footer.
               boxShadow:
                 'inset 0 1px 0 hsl(var(--ink-primary) / 0.07), var(--shadow-3)',

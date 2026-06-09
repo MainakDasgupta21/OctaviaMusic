@@ -53,7 +53,7 @@ const TrackHeadline = () => {
               ease: easings.accel,
             },
           }}
-          className="flex items-start justify-between gap-3"
+          className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
         >
           <div className="min-w-0 flex-1 max-w-[48ch]">
             <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-4/90">
@@ -93,7 +93,7 @@ const TrackHeadline = () => {
             </p>
           </div>
 
-          <div className="mt-0.5 shrink-0 flex items-center gap-2">
+          <div className="mt-0.5 shrink-0 flex items-center gap-2 self-start sm:self-auto">
             <AddToPlaylistButton
               track={currentTrack}
               className="border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.06]"

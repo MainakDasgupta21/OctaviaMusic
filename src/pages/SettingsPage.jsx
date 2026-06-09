@@ -56,7 +56,7 @@ const SectionCard = ({ icon: Icon, ordinal, eyebrow, title, delay = 0, children 
     initial={{ opacity: 0, y: 16 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ delay, duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
-    className="rounded-sharp bg-surface-2/40 backdrop-blur-md border border-white/[0.07] p-6 md:p-7"
+    className="rounded-sharp bg-surface-2/40 backdrop-blur-md border border-white/[0.07] p-4 sm:p-6 md:p-7"
   >
     <header className="mb-6">
       <div className="flex items-center gap-2.5 mb-2">
@@ -83,7 +83,7 @@ const SectionCard = ({ icon: Icon, ordinal, eyebrow, title, delay = 0, children 
 );
 
 const Row = ({ title, description, children }) => (
-  <div className="flex items-center justify-between gap-5 py-1">
+  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-5 py-1">
     <div className="min-w-0 flex-1">
       <p className="text-[14px] font-medium text-ink">{title}</p>
       {description ? (
@@ -92,7 +92,7 @@ const Row = ({ title, description, children }) => (
         </p>
       ) : null}
     </div>
-    {children}
+    <div className="self-start sm:self-auto">{children}</div>
   </div>
 );
 
@@ -157,7 +157,7 @@ const EditableField = ({ label, value, onSave, type = 'text' }) => {
           <button
             type="button"
             onClick={commit}
-            className="p-2 rounded-sharp text-accent hover:bg-track/15 focus-ring"
+            className="touch-target p-2 rounded-sharp text-accent hover:bg-track/15 focus-ring"
             aria-label="Save"
           >
             <Check className="w-4 h-4" />
@@ -165,7 +165,7 @@ const EditableField = ({ label, value, onSave, type = 'text' }) => {
           <button
             type="button"
             onClick={cancel}
-            className="p-2 rounded-sharp text-ink-3 hover:bg-white/5 focus-ring"
+            className="touch-target p-2 rounded-sharp text-ink-3 hover:bg-white/5 focus-ring"
             aria-label="Cancel"
           >
             <XIcon className="w-4 h-4" />
@@ -175,7 +175,7 @@ const EditableField = ({ label, value, onSave, type = 'text' }) => {
         <button
           type="button"
           onClick={() => setEditing(true)}
-          className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-3 hover:text-ink focus-ring rounded-sharp px-2 py-1 flex-shrink-0"
+          className="touch-target font-mono text-[10px] uppercase tracking-[0.18em] text-ink-3 hover:text-ink focus-ring rounded-sharp px-2 py-1 flex-shrink-0"
         >
           Edit
         </button>
@@ -241,7 +241,7 @@ const SettingsPage = () => {
   };
 
   return (
-    <div className="p-5 md:p-10 max-w-3xl mx-auto pb-12">
+    <div className="page-shell-content-narrow pt-5 md:pt-8 pb-12">
       {/* Editorial masthead */}
       <div
         aria-hidden="true"
@@ -319,7 +319,7 @@ const SettingsPage = () => {
               }
               description="Overlap adjacent tracks for smoother transitions."
             >
-              <div className="w-32 flex-shrink-0">
+              <div className="w-24 sm:w-32 flex-shrink-0">
                 <Slider
                   value={[settings.crossfadeSeconds]}
                   max={12}

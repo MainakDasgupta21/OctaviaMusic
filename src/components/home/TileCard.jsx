@@ -40,7 +40,7 @@ const TileCard = ({ track, onPlay, isCurrent, index }) => {
   <button
     type="button"
     onClick={handleClick}
-    className="relative group flex-shrink-0 w-44 snap-start text-left focus-ring rounded-sharp lift press"
+    className="relative group flex-shrink-0 w-36 xs:w-40 sm:w-44 lg:w-48 snap-start text-left focus-ring rounded-sharp lift press"
   >
     <div
       className="relative aspect-square rounded-sharp overflow-hidden card-magnetic"
@@ -72,7 +72,7 @@ const TileCard = ({ track, onPlay, isCurrent, index }) => {
     </div>
     <span
       aria-hidden="true"
-      className="btn-juicy absolute bottom-[58px] right-3 w-10 h-10 rounded-full gradient-accent text-track-fg flex items-center justify-center shadow-accent ring-1 ring-white/20 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-short ease-emphasis"
+      className="btn-juicy touch-target absolute bottom-[58px] right-3 w-11 h-11 rounded-full gradient-accent text-track-fg flex items-center justify-center shadow-accent ring-1 ring-white/20 opacity-100 md:translate-y-2 md:opacity-0 md:group-hover:translate-y-0 md:group-hover:opacity-100 transition-all duration-short ease-emphasis touch-action-visible"
       style={{
         backgroundImage:
           'radial-gradient(circle at 30% 25%, hsl(var(--ink-primary) / 0.22), transparent 55%), linear-gradient(135deg, hsl(var(--track-accent)), hsl(var(--track-accent-strong)))',
@@ -98,7 +98,7 @@ const TileCard = ({ track, onPlay, isCurrent, index }) => {
 };
 
 export const TileSkeleton = () => (
-  <div className="flex-shrink-0 w-44">
+  <div className="flex-shrink-0 w-36 xs:w-40 sm:w-44 lg:w-48">
     <Skeleton className="aspect-square rounded-sharp" />
     <Skeleton className="h-4 w-3/4 mt-3" />
     <Skeleton className="h-3 w-1/2 mt-2" />
