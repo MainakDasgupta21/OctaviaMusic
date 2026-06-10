@@ -9,6 +9,7 @@ const SurpriseMeButton = ({
 }) => (
   <div
     className="rounded-soft border border-white/[0.08] p-5 md:p-7 mb-12"
+    aria-busy={isLoading || undefined}
     style={{
       background:
         'radial-gradient(ellipse 50% 80% at 20% 0%, hsl(var(--track-accent) / 0.26), transparent 60%), radial-gradient(ellipse 45% 65% at 100% 100%, hsl(var(--iris) / 0.22), transparent 65%), hsl(var(--surface-2) / 0.58)',
@@ -27,7 +28,11 @@ const SurpriseMeButton = ({
           Every tap launches a random but taste-matched song you probably have not heard yet.
         </p>
         {lastPickedTitle ? (
-          <p className="mt-2 text-[12px] font-mono uppercase tracking-[0.16em] text-ink-4 truncate">
+          <p
+            role="status"
+            aria-live="polite"
+            className="mt-2 text-[12px] font-mono uppercase tracking-[0.16em] text-ink-4 truncate"
+          >
             Last drop: {lastPickedTitle}
           </p>
         ) : null}

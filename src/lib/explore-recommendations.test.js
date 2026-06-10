@@ -91,6 +91,77 @@ describe('explore-recommendations', () => {
     ).toBe(true);
   });
 
+  it('buildMoodQueue is deterministic per seed and varies across seeds', () => {
+    const mood = EXPLORE_MOODS.find((entry) => entry.id === 'focus');
+    const pool = buildCandidatePool({
+      trending: Array.from({ length: 20 }, (_, idx) =>
+        track(300 + idx, `Focus Current ${idx}`, `Trend Artist ${idx % 10}`)),
+      chartsFresh: Array.from({ length: 10 }, (_, idx) =>
+        track(400 + idx, `Focus Fresh ${idx}`, `Fresh Artist ${idx % 6}`)),
+      chartsClassic: Array.from({ length: 10 }, (_, idx) =>
+        track(500 + idx, `Focus Archive ${idx}`, `Classic Artist ${idx % 5}`)),
+      history: [],
+      favorites: [],
+    });
+
+    const first = buildMoodQueue({
+      mood,
+      pool,
+      history: [],
+      favorites: [],
+      followedArtists: [],
+      count: 8,
+      seed: 'seed-a',
+    });
+    const repeat = buildMoodQueue({
+      mood,
+      pool,
+      history: [],
+      favorites: [],
+      followedArtists: [],
+      count: 8,
+      seed: 'seed-a',
+    });
+    const secondSeed = buildMoodQueue({
+      mood,
+      pool,
+      history: [],
+      favorites: [],
+      followedArtists: [],
+      count: 8,
+      seed: 'seed-b',
+    });
+
+    expect(first.map((row) => row.id)).toEqual(repeat.map((row) => row.id));
+    expect(first.slice(0, 3).map((row) => row.id)).not.toEqual(secondSeed.slice(0, 3).map((row) => row.id));
+  });
+
+  it('buildMoodQueue excludes already-seen ids when excludeIds is provided', () => {
+    const mood = EXPLORE_MOODS.find((entry) => entry.id === 'focus');
+    const pool = buildCandidatePool({
+      trending: Array.from({ length: 16 }, (_, idx) =>
+        track(600 + idx, `Focus Lane ${idx}`, `Seen Artist ${idx % 8}`)),
+      chartsFresh: [],
+      chartsClassic: [],
+      history: [],
+      favorites: [],
+    });
+    const blockedIds = new Set([pool[0]?.id, pool[1]?.id].filter(Boolean));
+
+    const queue = buildMoodQueue({
+      mood,
+      pool,
+      history: [],
+      favorites: [],
+      followedArtists: [],
+      count: 8,
+      seed: 'exclude-case',
+      excludeIds: blockedIds,
+    });
+
+    expect(queue.some((row) => blockedIds.has(row.id))).toBe(false);
+  });
+
   it('prioritizes artist affinity in because-you-liked recommendations', () => {
     const lastLiked = track(40, 'Golden Hour', 'Neon Fox', { genre: ['synthpop'] });
     const pool = buildCandidatePool({

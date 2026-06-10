@@ -7,10 +7,11 @@ import { cn } from '@/lib/utils';
 const CuratedJourneys = ({
   journeys = [],
   onPlayJourney,
+  ordinal = 3,
 }) => (
   <section className="mb-14">
     <SectionHeader
-      ordinal={5}
+      ordinal={ordinal}
       eyebrow="Guided routes"
       title="Discovery journeys"
       subtitle="Editorial routes built to feel hand-curated, emotional, and cinematic."

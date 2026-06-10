@@ -1,5 +1,7 @@
 export const SURPRISE_SEEN_SESSION_KEY = 'octavia.surprise.seen.v1';
 export const SURPRISE_SEEN_MAX = 1200;
+export const DECK_SEEN_SESSION_KEY = 'octavia.deck.seen.v1';
+export const DECK_SEEN_MAX = 240;
 export const SURPRISE_SEED_WORDS = [
   'midnight',
   'sunrise',
@@ -97,6 +99,11 @@ export const writeSurpriseSeenIds = (
 export const getSurpriseSeenSet = (options = {}) =>
   new Set(readSurpriseSeenIds(options));
 
+export const getDeckSeenSet = ({
+  key = DECK_SEEN_SESSION_KEY,
+  max = DECK_SEEN_MAX,
+} = {}) => getSurpriseSeenSet({ key, max });
+
 export const addSurpriseSeenId = (
   id,
   {
@@ -116,6 +123,14 @@ export const addSurpriseSeenTrack = (track, options = {}) => {
   const id = surpriseTrackId(track);
   return addSurpriseSeenId(id, options);
 };
+
+export const addDeckSeenTrack = (
+  track,
+  {
+    key = DECK_SEEN_SESSION_KEY,
+    max = DECK_SEEN_MAX,
+  } = {},
+) => addSurpriseSeenTrack(track, { key, max });
 
 export const filterUnseenSurpriseTracks = (tracks = [], {
   seenSet = null,
@@ -138,9 +153,13 @@ export const buildSurpriseSeed = (
   return `${token}-${nonce}`;
 };
 
+export const buildDeckSeed = () => `${Date.now()}-${secureRandomInt(1_000_000_000)}`;
+
 export default {
   SURPRISE_SEEN_SESSION_KEY,
   SURPRISE_SEEN_MAX,
+  DECK_SEEN_SESSION_KEY,
+  DECK_SEEN_MAX,
   SURPRISE_SEED_WORDS,
   surpriseTrackId,
   secureRandomInt,
@@ -149,8 +168,11 @@ export default {
   readSurpriseSeenIds,
   writeSurpriseSeenIds,
   getSurpriseSeenSet,
+  getDeckSeenSet,
   addSurpriseSeenId,
   addSurpriseSeenTrack,
+  addDeckSeenTrack,
   filterUnseenSurpriseTracks,
   buildSurpriseSeed,
+  buildDeckSeed,
 };

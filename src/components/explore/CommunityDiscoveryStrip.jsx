@@ -10,10 +10,11 @@ const CommunityDiscoveryStrip = ({
   onPlayHighlight,
   onPlayJourney,
   onShareJourney,
+  ordinal = 4,
 }) => (
   <section className="mb-14">
     <SectionHeader
-      ordinal={7}
+      ordinal={ordinal}
       eyebrow="Community layer"
       title="Discover with the world"
       subtitle="Real-time momentum and shareable journey snapshots from listeners like you."

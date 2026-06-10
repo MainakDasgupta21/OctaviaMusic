@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowRight, Heart, Music2, X } from 'lucide-react';
 import Button from '@/components/ui-v2/Button';
@@ -12,17 +12,32 @@ const SwipeDeck = ({
   onTrackEnter,
   onSave,
   onSkip,
+  onShuffle,
+  onDeckExhausted,
 }) => {
   const [index, setIndex] = useState(0);
   const [audioReady, setAudioReady] = useState(false);
+  const playedTrackIdRef = useRef(null);
+  const exhaustedSignatureRef = useRef('');
+  const onTrackEnterRef = useRef(onTrackEnter);
+
+  useEffect(() => {
+    onTrackEnterRef.current = onTrackEnter;
+  }, [onTrackEnter]);
 
   const listSignature = useMemo(
-    () => tracks.slice(0, 12).map((track) => track?.id).join('|'),
+    () => {
+      const firstId = tracks[0]?.id || '';
+      const lastId = tracks[tracks.length - 1]?.id || '';
+      return `${tracks.length}:${firstId}:${lastId}`;
+    },
     [tracks],
   );
 
   useEffect(() => {
     setIndex(0);
+    playedTrackIdRef.current = null;
+    exhaustedSignatureRef.current = '';
   }, [listSignature]);
 
   const current = tracks[index] || null;
@@ -30,9 +45,23 @@ const SwipeDeck = ({
   const remaining = Math.max(0, tracks.length - index);
 
   useEffect(() => {
-    if (!audioReady || !current) return;
-    onTrackEnter?.(current);
-  }, [audioReady, current, onTrackEnter]);
+    const currentId = current?.id || null;
+    if (!audioReady || !current || !currentId) return;
+    if (playedTrackIdRef.current === currentId) return;
+    playedTrackIdRef.current = currentId;
+    onTrackEnterRef.current?.(current);
+  }, [audioReady, current]);
+
+  useEffect(() => {
+    if (current || tracks.length === 0) return;
+    const exhaustedKey = `${listSignature}:${index}`;
+    if (exhaustedSignatureRef.current === exhaustedKey) return;
+    exhaustedSignatureRef.current = exhaustedKey;
+    const timer = window.setTimeout(() => {
+      onDeckExhausted?.();
+    }, 320);
+    return () => window.clearTimeout(timer);
+  }, [current, tracks.length, listSignature, index, onDeckExhausted]);
 
   const advance = (direction) => {
     if (!current) return;
@@ -54,10 +83,21 @@ const SwipeDeck = ({
   if (!current) {
     return (
       <div className="rounded-soft border border-white/[0.08] bg-surface-2/55 p-6 text-center">
-        <p className="font-display text-2xl text-ink">That stack was delicious.</p>
+        <p className="font-display text-2xl text-ink">That stack is done.</p>
         <p className="font-editorial text-[13px] text-ink-3 mt-2">
-          Pick another mood and we will deal a fresh crate.
+          Deal a fresh crate or pick another mood.
         </p>
+        {onShuffle ? (
+          <Button
+            variant="premium"
+            size="lg"
+            onClick={onShuffle}
+            rightIcon={<ArrowRight className="w-4 h-4" />}
+            className="mt-4"
+          >
+            Deal a fresh crate
+          </Button>
+        ) : null}
       </div>
     );
   }
@@ -66,7 +106,18 @@ const SwipeDeck = ({
     <div className="rounded-soft border border-white/[0.08] bg-surface-2/55 p-4 md:p-5">
       <div className="flex items-center justify-between mb-4 text-[11px] font-mono uppercase tracking-[0.18em] text-ink-4">
         <span>Play and decide</span>
-        <span>{remaining} cards left</span>
+        <div className="flex items-center gap-3">
+          <span>{remaining} cards left</span>
+          {onShuffle ? (
+            <button
+              type="button"
+              onClick={onShuffle}
+              className="rounded-full border border-white/[0.14] px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-ink-3 hover:text-ink hover:border-white/30"
+            >
+              Shuffle
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <div className="relative h-[460px] md:h-[520px]">

@@ -48,9 +48,12 @@ import {
 } from '@/lib/feature-flags';
 import { buildSharedJourneyArtifact } from '@/lib/explore-social';
 import {
+  addDeckSeenTrack,
   addSurpriseSeenTrack,
+  buildDeckSeed,
   buildSurpriseSeed,
   filterUnseenSurpriseTracks,
+  getDeckSeenSet,
   getSurpriseSeenSet,
   pickRandomItem,
   shuffleRandomItems,
@@ -62,6 +65,8 @@ import { fadeUp } from '@/design/motion';
 
 const SURPRISE_FETCH_LIMIT = 60;
 const SURPRISE_FETCH_ATTEMPTS = 3;
+const SWIPE_DECK_COUNT = 24;
+const SWIPE_DECK_SPARSE_THRESHOLD = SWIPE_DECK_COUNT * 2;
 const handleCardKeyboardActivation = (event, action) => {
   if (event.target !== event.currentTarget) return;
   if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -82,6 +87,8 @@ const ExplorePageV2 = () => {
   const [sharePayload, setSharePayload] = useState(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [loopWin, setLoopWin] = useState(null);
+  const [deckSeed, setDeckSeed] = useState(() => buildDeckSeed());
+  const [swipeDeckTracks, setSwipeDeckTracks] = useState([]);
   const lastWinRef = useRef(null);
   const moodSectionRef = useRef(null);
   const genresSectionRef = useRef(null);
@@ -184,6 +191,10 @@ const ExplorePageV2 = () => {
 
   const playMood = useCallback(
     (mood, fromParam = false) => {
+      if (!candidatePool.length) {
+        if (!fromParam) notify.info('Tuning recommendations...');
+        return false;
+      }
       const queue = buildMoodQueue({
         mood,
         pool: candidatePool,
@@ -227,6 +238,10 @@ const ExplorePageV2 = () => {
 
   const playGenre = useCallback(
     (genre, fromParam = false) => {
+      if (!candidatePool.length) {
+        if (!fromParam) notify.info('Tuning recommendations...');
+        return false;
+      }
       const queue = buildGenreQueue({
         genre,
         pool: candidatePool,
@@ -296,20 +311,46 @@ const ExplorePageV2 = () => {
     enabled: EXPLORE_SOCIAL_ENABLED && EXPLORE_V2_ENABLED,
   });
 
-  const swipeDeckTracks = useMemo(
-    () =>
-      buildMoodQueue({
-        mood: activeMood,
+  const buildSwipeDeckTracks = useCallback(
+    (mood) => {
+      const seenSet = getDeckSeenSet();
+      let queue = buildMoodQueue({
+        mood,
         pool: candidatePool,
         history,
         favorites,
         followedArtists,
         tasteSeed,
         tasteProfile,
-        count: 24,
-      }),
-    [activeMood, candidatePool, history, favorites, followedArtists, tasteSeed, tasteProfile],
+        count: SWIPE_DECK_COUNT,
+        seed: deckSeed,
+        excludeIds: seenSet,
+      });
+      if (!queue.length && seenSet.size > 0) {
+        queue = buildMoodQueue({
+          mood,
+          pool: candidatePool,
+          history,
+          favorites,
+          followedArtists,
+          tasteSeed,
+          tasteProfile,
+          count: SWIPE_DECK_COUNT,
+          seed: `${deckSeed}:fallback-all`,
+        });
+      }
+      if (candidatePool.length < SWIPE_DECK_SPARSE_THRESHOLD) {
+        return shuffleRandomItems(queue).slice(0, SWIPE_DECK_COUNT);
+      }
+      return queue;
+    },
+    [candidatePool, history, favorites, followedArtists, tasteSeed, tasteProfile, deckSeed],
   );
+
+  useEffect(() => {
+    if (!activeMood?.id || candidatePool.length === 0) return;
+    setSwipeDeckTracks(buildSwipeDeckTracks(activeMood));
+  }, [activeMood, buildSwipeDeckTracks, candidatePool.length]);
 
   useEffect(() => {
     if (!recentWins.length) return;
@@ -456,6 +497,119 @@ const ExplorePageV2 = () => {
     recordTasteAndProgress,
   ]);
 
+  const handleShuffleDeck = useCallback(() => {
+    if (!candidatePool.length) {
+      notify.info('Tuning recommendations...');
+      return;
+    }
+    setDeckSeed(buildDeckSeed());
+  }, [candidatePool.length]);
+
+  const handleSwipeTrackEnter = useCallback(
+    (track) => {
+      addDeckSeenTrack(track);
+      playTrack(track);
+      recordTasteAndProgress({
+        type: 'play',
+        track,
+        moodId: activeMood?.id || null,
+      });
+    },
+    [activeMood?.id, playTrack, recordTasteAndProgress],
+  );
+
+  const handleSwipeSave = useCallback(
+    (track) => {
+      addDeckSeenTrack(track);
+      if (!isFavorite(track.id)) toggleFavorite(track);
+      recordTasteAndProgress({
+        type: 'save',
+        track,
+        moodId: activeMood?.id || null,
+      });
+    },
+    [activeMood?.id, isFavorite, recordTasteAndProgress, toggleFavorite],
+  );
+
+  const handleSwipeSkip = useCallback(
+    (track) => {
+      addDeckSeenTrack(track);
+      recordTasteAndProgress({
+        type: 'skip',
+        track,
+        moodId: activeMood?.id || null,
+      });
+    },
+    [activeMood?.id, recordTasteAndProgress],
+  );
+
+  const handleDailyMixPlay = useCallback(
+    (mix) => {
+      const seedTracks = Array.isArray(mix?.seedTracks) ? mix.seedTracks : [];
+      if (!seedTracks.length) return;
+      playTracksInOrder(seedTracks, {
+        replaceQueue: true,
+        forceSequential: false,
+      });
+    },
+    [playTracksInOrder],
+  );
+
+  const handleHiddenGemPlay = useCallback(
+    (track) => {
+      playTrack(track);
+    },
+    [playTrack],
+  );
+
+  const handleBecausePlaySet = useCallback(() => {
+    if (!becauseList.length) return;
+    playTracksInOrder(becauseList, {
+      replaceQueue: true,
+      startIndex: 0,
+      forceSequential: false,
+    });
+  }, [becauseList, playTracksInOrder]);
+
+  const handleBecauseTrackPlay = useCallback(
+    (track) => {
+      playTrack(track);
+    },
+    [playTrack],
+  );
+
+  const recommendationsBootstrapping = recommendationLoading && candidatePool.length === 0;
+
+  const handleRecommendationsPendingNotice = useCallback(() => {
+    notify.info('Tuning recommendations...');
+  }, []);
+
+  const handleMoodSelect = useCallback(
+    (mood) => {
+      if (recommendationsBootstrapping) {
+        handleRecommendationsPendingNotice();
+        return;
+      }
+      setDeckSeed(buildDeckSeed());
+      updateParams({ mood: mood.id, genre: null, onboarding: null });
+      playMood(mood);
+    },
+    [handleRecommendationsPendingNotice, playMood, recommendationsBootstrapping, updateParams],
+  );
+
+  const handleGenreSelect = useCallback(
+    (genre) => {
+      if (recommendationsBootstrapping) {
+        handleRecommendationsPendingNotice();
+        return;
+      }
+      handledGenreRef.current = genre.id;
+      updateParams({ genre: genre.id, mood: null });
+      playGenre(genre);
+    },
+    [handleRecommendationsPendingNotice, playGenre, recommendationsBootstrapping, updateParams],
+  );
+
   return (
     <div className="page-shell-content-wide pt-5 md:pt-8 pb-12">
       {EXPLORE_V2_ENABLED && isColdStart ? (
@@ -528,10 +682,9 @@ const ExplorePageV2 = () => {
         <MoodBoard
           moods={EXPLORE_MOODS}
           activeMoodId={activeMood?.id || null}
-          onMoodSelect={(mood) => {
-            updateParams({ mood: mood.id, genre: null, onboarding: null });
-            playMood(mood);
-          }}
+          disabled={recommendationsBootstrapping}
+          onDisabledSelect={handleRecommendationsPendingNotice}
+          onMoodSelect={handleMoodSelect}
         />
       </section>
 
@@ -546,28 +699,11 @@ const ExplorePageV2 = () => {
           <SwipeDeck
             tracks={swipeDeckTracks}
             moodLabel={activeMood?.label || 'your vibe'}
-            onTrackEnter={(track) => {
-              playTrack(track);
-              recordTasteAndProgress({
-                type: 'play',
-                track,
-                moodId: activeMood?.id || null,
-              });
-            }}
-            onSave={(track) => {
-              if (!isFavorite(track.id)) toggleFavorite(track);
-              recordTasteAndProgress({
-                type: 'save',
-                track,
-                moodId: activeMood?.id || null,
-              });
-            }}
-            onSkip={(track) =>
-              recordTasteAndProgress({
-                type: 'skip',
-                track,
-                moodId: activeMood?.id || null,
-              })}
+            onTrackEnter={handleSwipeTrackEnter}
+            onSave={handleSwipeSave}
+            onSkip={handleSwipeSkip}
+            onShuffle={handleShuffleDeck}
+            onDeckExhausted={handleShuffleDeck}
           />
         </section>
       ) : null}
@@ -581,7 +717,11 @@ const ExplorePageV2 = () => {
 
       {EXPLORE_V2_ENABLED ? (
         <section ref={journeysSectionRef}>
-          <CuratedJourneys journeys={EXPLORE_CURATED_JOURNEYS} onPlayJourney={(journey) => playJourney(journey)} />
+          <CuratedJourneys
+            journeys={EXPLORE_CURATED_JOURNEYS}
+            ordinal={3}
+            onPlayJourney={(journey) => playJourney(journey)}
+          />
         </section>
       ) : null}
 
@@ -595,6 +735,7 @@ const ExplorePageV2 = () => {
 
       {EXPLORE_V2_ENABLED && EXPLORE_SOCIAL_ENABLED ? (
         <CommunityDiscoveryStrip
+          ordinal={4}
           highlights={social.highlights}
           journeys={social.snapshots}
           onPlayHighlight={(item) => {
@@ -612,7 +753,7 @@ const ExplorePageV2 = () => {
       ) : null}
 
       {EXPLORE_V2_ENABLED && EXPLORE_INFINITE_ENABLED ? (
-        <section ref={infiniteSectionRef}>
+        <section ref={infiniteSectionRef} className="scroll-mt-24">
           <ExploreFlowEntryCard
             mood={activeMood?.id || ''}
             genre={genreParam || tasteSeed?.genreId || ''}
@@ -622,34 +763,42 @@ const ExplorePageV2 = () => {
       ) : null}
 
       <section className="mb-14">
-        <SectionHeader ordinal={3} eyebrow="Daily rotation" title="Your mixes" />
+        <SectionHeader ordinal={5} eyebrow="Daily rotation" title="Your mixes" />
         {dailyMixes.length ? (
           <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-4 gap-3">
-            {dailyMixes.slice(0, 4).map((mix) => (
-              <button
-                key={mix.id}
-                type="button"
-                onClick={() =>
-                  playTracksInOrder(mix.seedTracks || [], {
-                    replaceQueue: true,
-                    forceSequential: false,
-                  })}
-                className="relative aspect-square rounded-sharp overflow-hidden border border-white/[0.08] hover:border-white/25 focus-ring text-left"
-              >
-                <SmartImage
-                  src={mix.thumbnail}
-                  alt=""
-                  kind="mix"
-                  rounded="rounded-none"
-                  className="absolute inset-0 w-full h-full"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/85 to-transparent" />
-                <div className="absolute inset-x-0 bottom-0 p-3">
-                  <p className="font-display text-lg text-white">{mix.label}</p>
-                  <p className="text-[12px] text-white/70">{mix.artist}</p>
-                </div>
-              </button>
-            ))}
+            {dailyMixes.slice(0, 4).map((mix) => {
+              const hasSeedTracks = Array.isArray(mix.seedTracks) && mix.seedTracks.length > 0;
+              return (
+                <button
+                  key={mix.id}
+                  type="button"
+                  disabled={!hasSeedTracks}
+                  onClick={() => handleDailyMixPlay(mix)}
+                  className={cn(
+                    'relative aspect-square rounded-sharp overflow-hidden border border-white/[0.08] hover:border-white/25 focus-ring text-left',
+                    !hasSeedTracks && 'opacity-70 cursor-not-allowed hover:border-white/[0.08]',
+                  )}
+                >
+                  <SmartImage
+                    src={mix.thumbnail}
+                    alt=""
+                    kind="mix"
+                    rounded="rounded-none"
+                    className="absolute inset-0 w-full h-full"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 to-transparent" />
+                  <div className="absolute inset-x-0 bottom-0 p-3">
+                    <p className="font-display text-lg text-white">{mix.label}</p>
+                    <p className="text-[12px] text-white/70">{mix.artist}</p>
+                    {!hasSeedTracks ? (
+                      <p className="text-[10px] font-mono uppercase tracking-[0.16em] text-white/65 mt-1">
+                        Building mix...
+                      </p>
+                    ) : null}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         ) : (
           <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-4 gap-3">
@@ -661,7 +810,7 @@ const ExplorePageV2 = () => {
       </section>
 
       <section ref={genresSectionRef} className="mb-14 scroll-mt-24">
-        <SectionHeader ordinal={4} eyebrow="Atlas" title="Browse genres" />
+        <SectionHeader ordinal={6} eyebrow="Atlas" title="Browse genres" />
         {genresLoading ? (
           <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
             {Array.from({ length: 6 }).map((_, index) => (
@@ -675,19 +824,23 @@ const ExplorePageV2 = () => {
             description="Could not load genres right now."
             action={<Button onClick={() => refetchGenres()}>Try again</Button>}
           />
+        ) : genres.length === 0 ? (
+          <EmptyState
+            icon={Sparkles}
+            title="Genres are still loading in"
+            description="Try again in a moment for fresh genre lanes."
+          />
         ) : (
           <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
             {genres.slice(0, 6).map((genre) => (
               <button
                 key={genre.id}
                 type="button"
-                onClick={() => {
-                  handledGenreRef.current = genre.id;
-                  updateParams({ genre: genre.id, mood: null });
-                  playGenre(genre);
-                }}
+                aria-disabled={recommendationsBootstrapping}
+                onClick={() => handleGenreSelect(genre)}
                 className={cn(
                   'relative aspect-[5/3] rounded-sharp overflow-hidden border border-white/[0.08] hover:border-white/25 p-3 text-left focus-ring',
+                  recommendationsBootstrapping && 'opacity-70 cursor-wait',
                   genreParam === genre.id && 'border-track/70 ring-1 ring-track/40',
                 )}
               >
@@ -708,7 +861,7 @@ const ExplorePageV2 = () => {
 
       {EXPLORE_V2_ENABLED ? (
         <section className="mb-14">
-          <SectionHeader ordinal={5} eyebrow="Rare finds" title="Hidden gems" />
+          <SectionHeader ordinal={7} eyebrow="Rare finds" title="Hidden gems" />
           {hiddenGems.length ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               {hiddenGems.slice(0, 8).map((track) => (
@@ -716,8 +869,9 @@ const ExplorePageV2 = () => {
                   key={track.id}
                   role="button"
                   tabIndex={0}
-                  onClick={() => playTrack(track)}
-                  onKeyDown={(event) => handleCardKeyboardActivation(event, () => playTrack(track))}
+                  onClick={() => handleHiddenGemPlay(track)}
+                  onKeyDown={(event) =>
+                    handleCardKeyboardActivation(event, () => handleHiddenGemPlay(track))}
                   className="group border border-white/[0.08] hover:border-white/25 rounded-sharp overflow-hidden text-left focus-ring cursor-pointer"
                 >
                   <div className="relative aspect-[4/3]">
@@ -729,7 +883,10 @@ const ExplorePageV2 = () => {
                       className="absolute inset-0 w-full h-full"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
-                    <div className="absolute top-2 right-2">
+                    <div
+                      className="absolute top-2 right-2"
+                      onClick={(event) => event.stopPropagation()}
+                    >
                       <div className="flex items-center gap-1">
                         <AddToPlaylistButton
                           track={track}
@@ -757,64 +914,67 @@ const ExplorePageV2 = () => {
         </section>
       ) : null}
 
-      {lastLiked && becauseList.length ? (
+      {lastLiked ? (
         <section className="mb-12">
           <SectionHeader
-            ordinal={6}
+            ordinal={8}
             eyebrow="Adjacent"
             title={`Because you liked ${lastLiked.title}`}
-            action={(
+            action={becauseList.length ? (
               <button
                 type="button"
-                onClick={() => {
-                  playTracksInOrder(becauseList, {
-                    replaceQueue: true,
-                    startIndex: 0,
-                    forceSequential: false,
-                  });
-                }}
+                onClick={handleBecausePlaySet}
                 className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.16em] text-ink-3 hover:text-ink"
               >
                 <Play className="w-3.5 h-3.5 fill-current" />
                 Play set
               </button>
-            )}
+            ) : null}
           />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {becauseList.map((track) => (
-              <div
-                key={track.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => playTrack(track)}
-                onKeyDown={(event) => handleCardKeyboardActivation(event, () => playTrack(track))}
-                className="group flex items-center gap-3 p-2.5 rounded-sharp border border-white/[0.08] bg-surface-2/45 focus-ring text-left min-w-0 cursor-pointer"
-              >
-                <SmartImage
-                  src={track.thumbnail}
-                  alt=""
-                  kind="track"
-                  rounded="rounded-sharp"
-                  className="w-12 h-12"
-                />
-                <div className="min-w-0">
-                  <p className="text-[14px] text-ink truncate">{track.title}</p>
-                  <p className="text-[12px] text-ink-3 truncate">{track.artist}</p>
-                </div>
+          {becauseList.length ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {becauseList.map((track) => (
                 <div
-                  className="touch-action-visible ml-auto opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex items-center gap-1"
-                  onClick={(event) => event.stopPropagation()}
+                  key={track.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => handleBecauseTrackPlay(track)}
+                  onKeyDown={(event) =>
+                    handleCardKeyboardActivation(event, () => handleBecauseTrackPlay(track))}
+                  className="group flex items-center gap-3 p-2.5 rounded-sharp border border-white/[0.08] bg-surface-2/45 focus-ring text-left min-w-0 cursor-pointer"
                 >
-                  <AddToPlaylistButton
-                    track={track}
-                    className="p-1.5"
-                    buttonLabel={`Add ${track.title || 'track'} to playlist`}
+                  <SmartImage
+                    src={track.thumbnail}
+                    alt=""
+                    kind="track"
+                    rounded="rounded-sharp"
+                    className="w-12 h-12"
                   />
-                  <HeartButton track={track} size="sm" />
+                  <div className="min-w-0">
+                    <p className="text-[14px] text-ink truncate">{track.title}</p>
+                    <p className="text-[12px] text-ink-3 truncate">{track.artist}</p>
+                  </div>
+                  <div
+                    className="touch-action-visible ml-auto opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex items-center gap-1"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <AddToPlaylistButton
+                      track={track}
+                      className="p-1.5"
+                      buttonLabel={`Add ${track.title || 'track'} to playlist`}
+                    />
+                    <HeartButton track={track} size="sm" />
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              icon={Sparkles}
+              title="Building adjacent picks"
+              description="Keep listening and this lane will populate shortly."
+            />
+          )}
         </section>
       ) : (
         <EmptyState

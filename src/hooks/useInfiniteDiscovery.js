@@ -95,10 +95,6 @@ export const useInfiniteDiscovery = ({
       }),
     [basePool, similarItems],
   );
-  const basePoolSignature = useMemo(
-    () => basePool.slice(0, 24).map((track) => idOf(track)).join('|'),
-    [basePool],
-  );
 
   const appendBatch = useCallback(
     (minimumDeck = 10) => {
@@ -126,7 +122,7 @@ export const useInfiniteDiscovery = ({
     consumedRef.current = new Set();
     setDeck([]);
     setStats({ plays: 0, saves: 0, skips: 0, swipes: 0 });
-  }, [normalizedSeed.mood, normalizedSeed.genre, normalizedSeed.seed, basePoolSignature]);
+  }, [normalizedSeed.mood, normalizedSeed.genre, normalizedSeed.seed]);
 
   useEffect(() => {
     appendBatch(14);

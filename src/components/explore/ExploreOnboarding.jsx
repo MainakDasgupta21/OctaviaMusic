@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronRight, Sparkles } from 'lucide-react';
 import Button from '@/components/ui-v2/Button';
@@ -18,6 +18,7 @@ const ExploreOnboarding = ({
     energyId: null,
     activityId: null,
   });
+  const continueButtonRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
@@ -28,6 +29,12 @@ const ExploreOnboarding = ({
       activityId: null,
     });
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const timer = window.setTimeout(() => continueButtonRef.current?.focus(), 0);
+    return () => window.clearTimeout(timer);
+  }, [open, stepIndex]);
 
   const step = EXPLORE_ONBOARDING_STEPS[stepIndex] || EXPLORE_ONBOARDING_STEPS[0];
   const selected = answers[step.id];
@@ -61,6 +68,10 @@ const ExploreOnboarding = ({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-[70] p-4 md:p-8"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Explore onboarding"
+        onClick={() => onSkip?.()}
       >
         <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" />
         <motion.div
@@ -69,6 +80,7 @@ const ExploreOnboarding = ({
           exit={{ opacity: 0, y: 10, scale: 0.98 }}
           transition={{ duration: 0.22, ease: 'easeOut' }}
           className="relative max-w-3xl mx-auto mt-[6vh] rounded-soft border border-white/10 bg-surface-2/80 backdrop-blur-xl p-5 md:p-8 shadow-elev-3"
+          onClick={(event) => event.stopPropagation()}
         >
           <div className="flex items-center justify-between gap-3 mb-5">
             <div className="flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.2em] text-ink-3">
@@ -135,6 +147,7 @@ const ExploreOnboarding = ({
               Back
             </Button>
             <Button
+              ref={continueButtonRef}
               variant="premium"
               onClick={handleContinue}
               disabled={!canContinue}

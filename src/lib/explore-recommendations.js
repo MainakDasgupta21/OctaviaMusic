@@ -215,6 +215,24 @@ const stableHash = (value) => {
   return Math.abs(hash >>> 0);
 };
 
+const mulberry32 = (seed) => {
+  let t = seed >>> 0;
+  return () => {
+    t = (t + 0x6D2B79F5) >>> 0;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r;
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+};
+
+const seededTrackRandom = (seed) => {
+  const root = stableHash(seed);
+  return (track) => {
+    const perTrackSeed = stableHash(`${root}:${idOf(track)}`);
+    return mulberry32(perTrackSeed)();
+  };
+};
+
 const sourceSetOf = (track) => new Set(track?._sources || []);
 
 const isFreshTrack = (track) => {
@@ -247,6 +265,52 @@ const buildConsumedIdSet = ({ history = [], favorites = [] } = {}) =>
   new Set([...history, ...favorites].map((track) => idOf(track)));
 
 const fallbackNoise = (track, salt = '') => (stableHash(`${idOf(track)}:${salt}`) % 100) / 100;
+const INTENT_RANDOM_WEIGHT = 14;
+const MOOD_SAMPLE_TEMPERATURE = 6;
+
+const weightedSampleWithoutReplacement = (
+  rows = [],
+  {
+    count = 0,
+    temperature = MOOD_SAMPLE_TEMPERATURE,
+    random = Math.random,
+  } = {},
+) => {
+  if (!Array.isArray(rows) || rows.length === 0 || count <= 0) return [];
+  const temp = Number.isFinite(temperature) && temperature > 0 ? temperature : MOOD_SAMPLE_TEMPERATURE;
+  const rng = typeof random === 'function' ? random : Math.random;
+  const pool = rows.filter((row) => Number.isFinite(row?.score));
+  const out = [];
+
+  while (pool.length > 0 && out.length < count) {
+    let maxScore = -Infinity;
+    for (const row of pool) {
+      if (row.score > maxScore) maxScore = row.score;
+    }
+
+    let totalWeight = 0;
+    const weights = pool.map((row) => {
+      const weight = Math.exp((row.score - maxScore) / temp);
+      totalWeight += weight;
+      return weight;
+    });
+    if (totalWeight <= 0) break;
+
+    let cursor = rng() * totalWeight;
+    let selectedIndex = weights.length - 1;
+    for (let index = 0; index < weights.length; index += 1) {
+      cursor -= weights[index];
+      if (cursor <= 0) {
+        selectedIndex = index;
+        break;
+      }
+    }
+    out.push(pool[selectedIndex]);
+    pool.splice(selectedIndex, 1);
+  }
+
+  return out;
+};
 
 const pushUnique = (out, rows, limit, seen) => {
   for (const row of rows) {
@@ -716,6 +780,8 @@ const scoreForIntent = ({
   skippedIds = new Set(),
   salt = '',
   extraScore = 0,
+  randomFn = null,
+  randomWeight = INTENT_RANDOM_WEIGHT,
 }) => {
   const id = idOf(track);
   const artistAffinity = affinity.get(artistKeyOf(track)) || 0;
@@ -726,6 +792,9 @@ const scoreForIntent = ({
   const freshness = (track._freshness || 0.5) * 18;
   const classicBonus = isClassicTrack(track) ? 4 : 0;
   const freshBonus = isFreshTrack(track) ? 7 : 0;
+  const randomNoise = typeof randomFn === 'function'
+    ? (Math.max(0, Number(randomFn(track)) || 0) * randomWeight)
+    : fallbackNoise(track, salt);
   return (
     matches * 26
     + artistAffinity * 1.65
@@ -736,7 +805,7 @@ const scoreForIntent = ({
     + classicBonus
     + freshBonus
     + extraScore
-    + fallbackNoise(track, salt)
+    + randomNoise
   );
 };
 
@@ -749,23 +818,42 @@ export const buildMoodQueue = ({
   tasteSeed = null,
   tasteProfile = null,
   count = 12,
+  seed = null,
+  excludeIds = null,
+  sampleTopK = null,
 } = {}) => {
   if (!mood || !Array.isArray(pool) || pool.length === 0) return [];
+  const excludeSet = new Set(
+    Array.from(excludeIds || []).map((value) => String(value || '').trim()).filter(Boolean),
+  );
+  const filteredPool = excludeSet.size
+    ? pool.filter((track) => !excludeSet.has(idOf(track)))
+    : pool;
+  if (!filteredPool.length) return [];
+
   const affinity = buildArtistAffinity({ history, favorites, followedArtists });
   const consumedIds = buildConsumedIdSet({ history, favorites });
   const likedIds = new Set(tasteProfile?.likedTrackIds || []);
   const skippedIds = new Set(tasteProfile?.skippedTrackIds || []);
   const seedArtist = normalize(tasteSeed?.anchorArtist || '');
   const moodBoost = tasteSeed?.moodId === mood.id ? 6 : 0;
+  const queueSeed = seed == null ? '' : String(seed);
+  const hasCustomSeed = Boolean(queueSeed);
+  const trackRandomFn = hasCustomSeed ? seededTrackRandom(`${mood.id}:${queueSeed}`) : null;
+  const shouldUseSampledTopK =
+    hasCustomSeed
+    || excludeSet.size > 0
+    || (Number.isFinite(sampleTopK) && sampleTopK > 0);
   const keywords = dedupeStrings([
     ...mood.keywords,
     ...tokenize(mood.label),
     ...profileKeywords(tasteProfile),
   ]);
 
-  const ranked = [...pool].sort((a, b) => {
-    const scoreA = scoreForIntent({
-      track: a,
+  const rankedWithScores = filteredPool.map((track) => ({
+    track,
+    score: scoreForIntent({
+      track,
       keywords,
       affinity,
       consumedIds,
@@ -774,22 +862,25 @@ export const buildMoodQueue = ({
       salt: mood.id,
       extraScore:
         moodBoost
-        + (seedArtist && artistKeyOf(a) === seedArtist ? 10 : 0),
+        + (seedArtist && artistKeyOf(track) === seedArtist ? 10 : 0),
+      randomFn: trackRandomFn,
+    }),
+  })).sort((a, b) => b.score - a.score);
+
+  let ranked = rankedWithScores.map((row) => row.track);
+  if (shouldUseSampledTopK) {
+    const topK = Math.max(
+      count,
+      Number.isFinite(sampleTopK) && sampleTopK > 0 ? Math.floor(sampleTopK) : Math.max(count * 3, 48),
+    );
+    const topRows = rankedWithScores.slice(0, topK);
+    const sampledRows = weightedSampleWithoutReplacement(topRows, {
+      count: Math.min(topRows.length, Math.max(count, Math.ceil(count * 1.5))),
+      temperature: MOOD_SAMPLE_TEMPERATURE,
+      random: mulberry32(stableHash(`${mood.id}:${queueSeed || 'default'}:sample`)),
     });
-    const scoreB = scoreForIntent({
-      track: b,
-      keywords,
-      affinity,
-      consumedIds,
-      likedIds,
-      skippedIds,
-      salt: mood.id,
-      extraScore:
-        moodBoost
-        + (seedArtist && artistKeyOf(b) === seedArtist ? 10 : 0),
-    });
-    return scoreB - scoreA;
-  });
+    if (sampledRows.length) ranked = sampledRows.map((row) => row.track);
+  }
 
   const blended = pickBlended(ranked, {
     count,

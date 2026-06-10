@@ -83,6 +83,11 @@ vi.mock('@/components/HeartButton', () => ({
   default: () => null,
 }));
 
+vi.mock('@/components/playlist/AddToPlaylistButton', () => ({
+  __esModule: true,
+  default: () => null,
+}));
+
 const makeTrack = (id, title, artist) => ({
   id,
   videoId: id.padEnd(11, 'x').slice(0, 11),
@@ -249,6 +254,51 @@ describe('ExplorePage', () => {
     const skipCall = mocks.recordFeedback.mock.calls.find((call) => call[0]?.type === 'skip');
     expect(saveCall).toBeTruthy();
     expect(skipCall).toBeTruthy();
+  });
+
+  it('plays each swipe card exactly once on entry', async () => {
+    renderPage('/explore');
+
+    fireEvent.click(await screen.findByRole('button', { name: /start play and decide/i }));
+    await waitFor(() => {
+      expect(mocks.playTrack).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /swipe right/i }));
+    await waitFor(() => {
+      expect(mocks.playTrack).toHaveBeenCalledTimes(2);
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    expect(mocks.playTrack).toHaveBeenCalledTimes(2);
+  });
+
+  it('deals a fresh crate after the swipe stack is exhausted', async () => {
+    renderPage('/explore');
+
+    fireEvent.click(await screen.findByRole('button', { name: /start play and decide/i }));
+    await waitFor(() => {
+      expect(mocks.playTrack).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /swipe left/i }));
+    await waitFor(() => {
+      expect(mocks.playTrack).toHaveBeenCalledTimes(2);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /swipe left/i }));
+    await waitFor(() => {
+      expect(mocks.playTrack).toHaveBeenCalledTimes(3);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /swipe left/i }));
+    const dealFreshCrateBtn = await screen.findByRole('button', { name: /deal a fresh crate/i });
+    const playsBeforeDeal = mocks.playTrack.mock.calls.length;
+
+    fireEvent.click(dealFreshCrateBtn);
+    await waitFor(() => {
+      expect(mocks.playTrack.mock.calls.length).toBeGreaterThan(playsBeforeDeal);
+    });
   });
 
   it('retargets recommendations when a mood tile is selected', async () => {

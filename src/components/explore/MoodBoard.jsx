@@ -24,6 +24,8 @@ const MoodBoard = ({
   moods = [],
   activeMoodId = null,
   onMoodSelect,
+  disabled = false,
+  onDisabledSelect,
 }) => (
   <motion.div
     variants={staggerChildren(0.04)}
@@ -41,9 +43,18 @@ const MoodBoard = ({
           type="button"
           aria-label={`Set mood ${mood.label}`}
           aria-pressed={isActive}
-          onClick={() => onMoodSelect?.(mood)}
+          aria-disabled={disabled}
+          onClick={() => {
+            if (disabled) {
+              onDisabledSelect?.();
+              return;
+            }
+            onMoodSelect?.(mood);
+          }}
           className={cn(
-            'relative aspect-[5/3] rounded-sharp overflow-hidden text-left p-4 focus-ring border border-white/[0.08] hover:border-white/25 transition-colors group',
+            'relative aspect-[5/3] rounded-sharp overflow-hidden text-left p-4 focus-ring border border-white/[0.08] transition-colors group',
+            !disabled && 'hover:border-white/25',
+            disabled && 'cursor-wait opacity-70',
             isActive && 'border-track/60 ring-1 ring-track/40',
           )}
           style={{ background: 'hsl(var(--surface-2))' }}

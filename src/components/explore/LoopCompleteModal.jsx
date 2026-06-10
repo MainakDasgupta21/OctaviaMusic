@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { PartyPopper, Sparkles, X } from 'lucide-react';
 import Button from '@/components/ui-v2/Button';
 
@@ -7,6 +7,8 @@ const LoopCompleteModal = ({
   win = null,
   onClose,
 }) => {
+  const continueButtonRef = useRef(null);
+
   useEffect(() => {
     if (!open) return undefined;
     const handleEsc = (event) => {
@@ -16,11 +18,26 @@ const LoopCompleteModal = ({
     return () => window.removeEventListener('keydown', handleEsc);
   }, [open, onClose]);
 
+  useEffect(() => {
+    if (!open) return;
+    const timer = window.setTimeout(() => continueButtonRef.current?.focus(), 0);
+    return () => window.clearTimeout(timer);
+  }, [open]);
+
   if (!open || !win) return null;
 
   return (
-    <div className="fixed inset-0 z-[70] bg-black/65 backdrop-blur-sm p-4 flex items-center justify-center">
-      <div className="w-full max-w-lg rounded-soft border border-white/[0.12] bg-surface-1 p-6 relative">
+    <div
+      className="fixed inset-0 z-[70] bg-black/65 backdrop-blur-sm p-4 flex items-center justify-center"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Discovery reward unlocked"
+      onClick={() => onClose?.()}
+    >
+      <div
+        className="w-full max-w-lg rounded-soft border border-white/[0.12] bg-surface-1 p-6 relative"
+        onClick={(event) => event.stopPropagation()}
+      >
         <button
           type="button"
           aria-label="Close reward modal"
@@ -51,7 +68,7 @@ const LoopCompleteModal = ({
         </div>
 
         <div className="mt-6 flex justify-end">
-          <Button type="button" size="sm" onClick={onClose}>
+          <Button ref={continueButtonRef} type="button" size="sm" onClick={onClose}>
             Continue exploring
           </Button>
         </div>
