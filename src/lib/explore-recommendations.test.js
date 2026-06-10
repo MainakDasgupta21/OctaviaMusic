@@ -52,6 +52,22 @@ describe('explore-recommendations', () => {
     expect(merged?._sources).toContain('chartsFresh');
   });
 
+  it('adds discovery feed rows into candidate pool metadata', () => {
+    const shared = track(7, 'Shared Discovery', 'Luma');
+    const pool = buildCandidatePool({
+      freshPool: [shared, track(8, 'Fresh Find', 'Nova')],
+      trending: [shared],
+      chartsFresh: [],
+      chartsClassic: [],
+      history: [],
+      favorites: [],
+    });
+
+    const merged = pool.find((row) => row.id === shared.id);
+    expect(merged?._sources).toContain('discovery');
+    expect(merged?._sources).toContain('trending');
+  });
+
   it('builds mood queues that blend fresh and classic selections', () => {
     const mood = EXPLORE_MOODS.find((entry) => entry.id === 'focus');
     const pool = buildCandidatePool({
@@ -254,6 +270,99 @@ describe('explore-recommendations', () => {
     expect(queue.length).toBeGreaterThan(0);
     expect(queue[0].id).toBe(genre.sampleTrack.id);
     expect(queue.slice(0, 3).some((row) => row.id === vid(72))).toBe(false);
+  });
+
+  it('filters excluded ids across genre, journey, because, hidden and daily mixes', () => {
+    const sharedPool = buildCandidatePool({
+      trending: [
+        track(171, 'Lane One', 'Alpha'),
+        track(172, 'Lane Two', 'Beta'),
+        track(173, 'Lane Three', 'Gamma'),
+      ],
+      chartsFresh: [track(174, 'Lane Four', 'Delta')],
+      chartsClassic: [track(175, 'Lane Five', 'Echo')],
+      history: [],
+      favorites: [track(176, 'Liked Seed', 'Alpha', { genre: ['indie'] })],
+    });
+    const blockedIds = new Set([vid(171), vid(174)]);
+    const genre = { id: 'indie', label: 'Indie', sampleTrack: track(177, 'Sample', 'Sample Artist') };
+
+    const genreQueue = buildGenreQueue({
+      genre,
+      pool: sharedPool,
+      excludeIds: blockedIds,
+      count: 6,
+    });
+    const journeyQueue = buildJourneyQueue({
+      journey: { id: 'journey-a', title: 'Journey A', keywords: ['lane'] },
+      pool: sharedPool,
+      excludeIds: blockedIds,
+      count: 6,
+    });
+    const becauseQueue = buildBecauseList({
+      lastLiked: track(176, 'Liked Seed', 'Alpha', { genre: ['indie'] }),
+      pool: sharedPool,
+      favorites: [track(176, 'Liked Seed', 'Alpha', { genre: ['indie'] })],
+      excludeIds: blockedIds,
+      max: 4,
+    });
+    const gems = buildHiddenGems({
+      pool: sharedPool,
+      excludeIds: blockedIds,
+      count: 6,
+    });
+    const mixes = buildDailyMixes({
+      history: [],
+      favorites: [track(176, 'Liked Seed', 'Alpha', { genre: ['indie'] })],
+      followedArtists: [],
+      genres: [genre],
+      pool: sharedPool,
+      excludeIds: blockedIds,
+      max: 1,
+    });
+
+    const flattenedMixTracks = mixes.flatMap((mix) => mix.seedTracks || []);
+    const allRows = [
+      ...genreQueue,
+      ...journeyQueue,
+      ...becauseQueue,
+      ...gems,
+      ...flattenedMixTracks,
+    ];
+    expect(allRows.some((row) => blockedIds.has(row.id))).toBe(false);
+  });
+
+  it('applies artist fatigue penalties to ranking', () => {
+    const mood = EXPLORE_MOODS.find((entry) => entry.id === 'focus');
+    const pool = buildCandidatePool({
+      trending: [
+        track(181, 'Focus Pulse', 'Heavy Artist'),
+        track(182, 'Focus Current', 'Heavy Artist'),
+        track(183, 'Focus Drift', 'Light Artist'),
+        track(184, 'Focus Bloom', 'Light Artist'),
+      ],
+      chartsFresh: [],
+      chartsClassic: [],
+      history: [],
+      favorites: [],
+    });
+
+    const withoutFatigue = buildMoodQueue({
+      mood,
+      pool,
+      count: 4,
+      seed: 'fatigue-check',
+    });
+    const withFatigue = buildMoodQueue({
+      mood,
+      pool,
+      count: 4,
+      seed: 'fatigue-check',
+      artistFatigue: new Map([['heavy artist', 1]]),
+    });
+
+    expect(withoutFatigue[0]?.artist).toBe('Heavy Artist');
+    expect(withFatigue[0]?.artist).toBe('Light Artist');
   });
 
   it('diversifyTracks caps duplicate artists before filling deferred tracks', () => {

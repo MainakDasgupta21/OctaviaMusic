@@ -152,6 +152,51 @@ describe('explore-service', () => {
     expect(searchQueries.some((query) => query.includes('new songs'))).toBe(true);
   });
 
+  it('supports strategy-based radio generation', async () => {
+    const strategies = [
+      'artist',
+      'keyword',
+      'alphabet',
+      'trending',
+      'fresh',
+      'classic',
+      'genre',
+      'mood',
+      'hidden',
+      'personalized',
+      'mixed',
+    ];
+
+    for (const strategy of strategies) {
+      const payload = await fetchExploreRadio({
+        mood: 'focus',
+        genre: 'ambient',
+        seed: 'night drive',
+        strategy,
+        seedArtists: ['Boards of Canada', 'Bonobo'],
+        limit: 12,
+      });
+
+      expect(payload.items.length).toBeGreaterThan(0);
+      expect(payload.seed.strategy).toBe(strategy);
+      expect(payload.meta.strategy).toBe(strategy);
+    }
+  });
+
+  it('falls back to default strategy for unknown values', async () => {
+    const payload = await fetchExploreRadio({
+      mood: 'focus',
+      genre: 'ambient',
+      seed: 'unknown-mode',
+      strategy: 'not-real',
+      limit: 8,
+    });
+
+    expect(payload.items.length).toBeGreaterThan(0);
+    expect(payload.seed.strategy).toBe('default');
+    expect(payload.meta.strategy).toBe('default');
+  });
+
   it('returns empty similar payload for missing track id', async () => {
     const payload = await fetchExploreSimilar({ trackId: '', limit: 10 });
     expect(payload.items).toEqual([]);

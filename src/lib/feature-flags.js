@@ -23,10 +23,15 @@ export const EXPLORE_INFINITE_ENABLED = (() => {
   if (typeof import.meta === 'undefined') return true;
   return parseFlag(import.meta.env?.VITE_EXPLORE_INFINITE_ENABLED, true);
 })();
+export const EXPLORE_DISCOVERY_V3_ENABLED = (() => {
+  if (typeof import.meta === 'undefined') return true;
+  return parseFlag(import.meta.env?.VITE_EXPLORE_DISCOVERY_V3_ENABLED, true);
+})();
 
 export default {
   EXPLORE_V2_ENABLED,
   EXPLORE_LOOPS_ENABLED,
   EXPLORE_SOCIAL_ENABLED,
   EXPLORE_INFINITE_ENABLED,
+  EXPLORE_DISCOVERY_V3_ENABLED,
 };

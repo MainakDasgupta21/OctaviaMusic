@@ -211,15 +211,28 @@ export const getExploreRadio = async ({
   genre = '',
   seed = '',
   diversity = '',
+  strategy = '',
+  seedArtists = '',
   limit = 24,
   signal,
 } = {}) => {
+  const seedArtistsParam = Array.isArray(seedArtists)
+    ? Array.from(
+        new Set(
+          seedArtists
+            .map((entry) => String(entry || '').trim())
+            .filter(Boolean),
+        ),
+      ).slice(0, 5).join(',')
+    : String(seedArtists || '').trim();
   const response = await api.get('/explore/radio', {
     params: {
       mood,
       genre,
       seed,
       limit,
+      ...(strategy ? { strategy } : {}),
+      ...(seedArtistsParam ? { seedArtists: seedArtistsParam } : {}),
       ...(diversity ? { diversity } : {}),
     },
     signal,

@@ -151,6 +151,7 @@ const SOURCE_FRESHNESS = {
   trending: 1,
   chartsFresh: 0.85,
   chartsClassic: 0.45,
+  discovery: 0.95,
   favorite: 0.55,
   history: 0.5,
 };
@@ -159,6 +160,7 @@ const SOURCE_WEIGHT = {
   trending: 1,
   chartsFresh: 0.9,
   chartsClassic: 0.7,
+  discovery: 0.92,
   favorite: 0.78,
   history: 0.68,
 };
@@ -263,6 +265,26 @@ const overlapCount = (a = [], b = []) => {
 
 const buildConsumedIdSet = ({ history = [], favorites = [] } = {}) =>
   new Set([...history, ...favorites].map((track) => idOf(track)));
+
+const normalizeExcludeSet = (excludeIds = null) =>
+  new Set(
+    Array.from(excludeIds || [])
+      .map((value) => String(value || '').trim())
+      .filter(Boolean),
+  );
+
+const resolveArtistFatigue = (artistFatigue, track) => {
+  if (!artistFatigue) return 0;
+  const key = artistKeyOf(track);
+  if (!key) return 0;
+  if (artistFatigue instanceof Map) {
+    return Math.max(0, Math.min(1, Number(artistFatigue.get(key)) || 0));
+  }
+  if (typeof artistFatigue === 'object') {
+    return Math.max(0, Math.min(1, Number(artistFatigue[key]) || 0));
+  }
+  return 0;
+};
 
 const fallbackNoise = (track, salt = '') => (stableHash(`${idOf(track)}:${salt}`) % 100) / 100;
 const INTENT_RANDOM_WEIGHT = 14;
@@ -706,10 +728,12 @@ export const buildCandidatePool = ({
   trending = [],
   chartsFresh = [],
   chartsClassic = [],
+  freshPool = [],
   history = [],
   favorites = [],
 } = {}) => {
   const taggedSources = [
+    ['discovery', sanitizeTrackList(freshPool, { requirePlayable: true })],
     ['trending', sanitizeTrackList(trending, { requirePlayable: true })],
     ['chartsFresh', sanitizeTrackList(chartsFresh, { requirePlayable: true })],
     ['chartsClassic', sanitizeTrackList(chartsClassic, { requirePlayable: true })],
@@ -782,9 +806,11 @@ const scoreForIntent = ({
   extraScore = 0,
   randomFn = null,
   randomWeight = INTENT_RANDOM_WEIGHT,
+  artistFatigue = null,
 }) => {
   const id = idOf(track);
   const artistAffinity = affinity.get(artistKeyOf(track)) || 0;
+  const fatiguePenalty = resolveArtistFatigue(artistFatigue, track) * 12;
   const novelty = consumedIds.has(id) ? -8 : 9;
   const likedBonus = likedIds.has(id) ? 11 : 0;
   const skippedPenalty = skippedIds.has(id) ? -18 : 0;
@@ -806,6 +832,7 @@ const scoreForIntent = ({
     + freshBonus
     + extraScore
     + randomNoise
+    - fatiguePenalty
   );
 };
 
@@ -821,11 +848,10 @@ export const buildMoodQueue = ({
   seed = null,
   excludeIds = null,
   sampleTopK = null,
+  artistFatigue = null,
 } = {}) => {
   if (!mood || !Array.isArray(pool) || pool.length === 0) return [];
-  const excludeSet = new Set(
-    Array.from(excludeIds || []).map((value) => String(value || '').trim()).filter(Boolean),
-  );
+  const excludeSet = normalizeExcludeSet(excludeIds);
   const filteredPool = excludeSet.size
     ? pool.filter((track) => !excludeSet.has(idOf(track)))
     : pool;
@@ -864,6 +890,7 @@ export const buildMoodQueue = ({
         moodBoost
         + (seedArtist && artistKeyOf(track) === seedArtist ? 10 : 0),
       randomFn: trackRandomFn,
+      artistFatigue,
     }),
   })).sort((a, b) => b.score - a.score);
 
@@ -899,12 +926,22 @@ export const buildGenreQueue = ({
   tasteSeed = null,
   tasteProfile = null,
   count = 12,
+  seed = null,
+  excludeIds = null,
+  artistFatigue = null,
 } = {}) => {
   if (!genre || !Array.isArray(pool) || pool.length === 0) return [];
+  const excludeSet = normalizeExcludeSet(excludeIds);
+  const filteredPool = excludeSet.size
+    ? pool.filter((track) => !excludeSet.has(idOf(track)))
+    : pool;
+  if (!filteredPool.length) return [];
   const affinity = buildArtistAffinity({ history, favorites, followedArtists });
   const consumedIds = buildConsumedIdSet({ history, favorites });
   const likedIds = new Set(tasteProfile?.likedTrackIds || []);
   const skippedIds = new Set(tasteProfile?.skippedTrackIds || []);
+  const queueSeed = seed == null ? '' : String(seed);
+  const trackRandomFn = queueSeed ? seededTrackRandom(`${genre.id}:${queueSeed}`) : null;
   const genreTokens = dedupeStrings([
     genre.label,
     ...tokenize(genre.label),
@@ -914,7 +951,7 @@ export const buildGenreQueue = ({
   ]);
   const boost = tasteSeed?.genreId === genre.id ? 7 : 0;
 
-  const ranked = [...pool].sort((a, b) => {
+  const ranked = [...filteredPool].sort((a, b) => {
     const scoreA = scoreForIntent({
       track: a,
       keywords: genreTokens,
@@ -924,6 +961,8 @@ export const buildGenreQueue = ({
       skippedIds,
       salt: genre.id,
       extraScore: boost,
+      randomFn: trackRandomFn,
+      artistFatigue,
     });
     const scoreB = scoreForIntent({
       track: b,
@@ -934,6 +973,8 @@ export const buildGenreQueue = ({
       skippedIds,
       salt: genre.id,
       extraScore: boost,
+      randomFn: trackRandomFn,
+      artistFatigue,
     });
     return scoreB - scoreA;
   });
@@ -958,8 +999,16 @@ export const buildBecauseList = ({
   followedArtists = [],
   tasteProfile = null,
   max = 4,
+  seed = null,
+  excludeIds = null,
+  artistFatigue = null,
 } = {}) => {
   if (!lastLiked || !Array.isArray(pool) || pool.length === 0) return [];
+  const excludeSet = normalizeExcludeSet(excludeIds);
+  const filteredPool = excludeSet.size
+    ? pool.filter((track) => !excludeSet.has(idOf(track)))
+    : pool;
+  if (!filteredPool.length) return [];
 
   const affinity = buildArtistAffinity({ history, favorites, followedArtists });
   const consumedIds = buildConsumedIdSet({ history, favorites });
@@ -969,8 +1018,10 @@ export const buildBecauseList = ({
   const likedArtist = normalize(lastLiked.artist);
   const likedTitleTokens = tokenize(lastLiked.title);
   const likedGenres = Array.isArray(lastLiked.genre) ? lastLiked.genre : [];
+  const queueSeed = seed == null ? '' : String(seed);
+  const trackRandomFn = queueSeed ? seededTrackRandom(`because:${likedId}:${queueSeed}`) : null;
 
-  const ranked = pool
+  const ranked = filteredPool
     .filter((track) => idOf(track) !== likedId)
     .sort((a, b) => {
       const artistA = normalize(a.artist);
@@ -986,6 +1037,8 @@ export const buildBecauseList = ({
         likedIds,
         skippedIds,
         salt: likedId,
+        randomFn: trackRandomFn,
+        artistFatigue,
         extraScore:
           (artistA && artistA === likedArtist ? 120 : 0)
           + overlapCount(tagsA, likedGenres) * 22,
@@ -998,6 +1051,8 @@ export const buildBecauseList = ({
         likedIds,
         skippedIds,
         salt: likedId,
+        randomFn: trackRandomFn,
+        artistFatigue,
         extraScore:
           (artistB && artistB === likedArtist ? 120 : 0)
           + overlapCount(tagsB, likedGenres) * 22,
@@ -1029,15 +1084,25 @@ export const buildHiddenGems = ({
   followedArtists = [],
   tasteProfile = null,
   count = 12,
+  seed = null,
+  excludeIds = null,
+  artistFatigue = null,
 } = {}) => {
   if (!Array.isArray(pool) || pool.length === 0) return [];
+  const excludeSet = normalizeExcludeSet(excludeIds);
+  const filteredPool = excludeSet.size
+    ? pool.filter((track) => !excludeSet.has(idOf(track)))
+    : pool;
+  if (!filteredPool.length) return [];
   const affinity = buildArtistAffinity({ history, favorites, followedArtists });
   const consumedIds = buildConsumedIdSet({ history, favorites });
   const likedIds = new Set(tasteProfile?.likedTrackIds || []);
   const skippedIds = new Set(tasteProfile?.skippedTrackIds || []);
   const keywords = profileKeywords(tasteProfile);
+  const queueSeed = seed == null ? '' : String(seed);
+  const trackRandomFn = queueSeed ? seededTrackRandom(`hidden:${queueSeed}`) : null;
 
-  const ranked = [...pool]
+  const ranked = [...filteredPool]
     .filter((track) => !skippedIds.has(idOf(track)))
     .sort((a, b) => {
       const scoreA = scoreForIntent({
@@ -1048,6 +1113,8 @@ export const buildHiddenGems = ({
         likedIds,
         skippedIds,
         salt: 'hidden-gems',
+        randomFn: trackRandomFn,
+        artistFatigue,
         extraScore:
           (isFreshTrack(a) ? -11 : 6)
           + (isClassicTrack(a) ? 4 : 0)
@@ -1061,6 +1128,8 @@ export const buildHiddenGems = ({
         likedIds,
         skippedIds,
         salt: 'hidden-gems',
+        randomFn: trackRandomFn,
+        artistFatigue,
         extraScore:
           (isFreshTrack(b) ? -11 : 6)
           + (isClassicTrack(b) ? 4 : 0)
@@ -1079,8 +1148,16 @@ export const pickSurpriseTrack = ({
   tasteSeed = null,
   tasteProfile = null,
   mood = null,
+  seed = null,
+  excludeIds = null,
+  artistFatigue = null,
 } = {}) => {
   if (!Array.isArray(pool) || pool.length === 0) return null;
+  const excludeSet = normalizeExcludeSet(excludeIds);
+  const filteredPool = excludeSet.size
+    ? pool.filter((track) => !excludeSet.has(idOf(track)))
+    : pool;
+  if (!filteredPool.length) return null;
   const activeMood = mood || moodById(tasteSeed?.moodId) || moodById(tasteProfile?.moodId);
   const affinity = buildArtistAffinity({ history, favorites, followedArtists });
   const consumedIds = buildConsumedIdSet({ history, favorites });
@@ -1091,8 +1168,10 @@ export const pickSurpriseTrack = ({
     ...(activeMood?.keywords || []),
     ...profileKeywords(tasteProfile),
   ]);
+  const queueSeed = seed == null ? '' : String(seed);
+  const trackRandomFn = queueSeed ? seededTrackRandom(`surprise:${queueSeed}`) : null;
 
-  const ranked = [...pool]
+  const ranked = [...filteredPool]
     .filter((track) => !skippedIds.has(idOf(track)))
     .sort((a, b) => {
       const scoreA = scoreForIntent({
@@ -1103,6 +1182,8 @@ export const pickSurpriseTrack = ({
         likedIds,
         skippedIds,
         salt: 'surprise',
+        randomFn: trackRandomFn,
+        artistFatigue,
         extraScore:
           (seedArtist && artistKeyOf(a) === seedArtist ? 8 : 0)
           + (consumedIds.has(idOf(a)) ? -18 : 12),
@@ -1115,6 +1196,8 @@ export const pickSurpriseTrack = ({
         likedIds,
         skippedIds,
         salt: 'surprise',
+        randomFn: trackRandomFn,
+        artistFatigue,
         extraScore:
           (seedArtist && artistKeyOf(b) === seedArtist ? 8 : 0)
           + (consumedIds.has(idOf(b)) ? -18 : 12),
@@ -1138,8 +1221,16 @@ export const buildJourneyQueue = ({
   tasteSeed = null,
   tasteProfile = null,
   count = 12,
+  seed = null,
+  excludeIds = null,
+  artistFatigue = null,
 } = {}) => {
   if (!journey || !Array.isArray(pool) || pool.length === 0) return [];
+  const excludeSet = normalizeExcludeSet(excludeIds);
+  const filteredPool = excludeSet.size
+    ? pool.filter((track) => !excludeSet.has(idOf(track)))
+    : pool;
+  if (!filteredPool.length) return [];
   const affinity = buildArtistAffinity({ history, favorites, followedArtists });
   const consumedIds = buildConsumedIdSet({ history, favorites });
   const likedIds = new Set(tasteProfile?.likedTrackIds || []);
@@ -1150,8 +1241,10 @@ export const buildJourneyQueue = ({
     ...profileKeywords(tasteProfile),
   ]);
   const moodBoost = journey.moodId && journey.moodId === tasteSeed?.moodId ? 7 : 0;
+  const queueSeed = seed == null ? '' : String(seed);
+  const trackRandomFn = queueSeed ? seededTrackRandom(`journey:${journey.id || 'x'}:${queueSeed}`) : null;
 
-  const ranked = [...pool]
+  const ranked = [...filteredPool]
     .filter((track) => !skippedIds.has(idOf(track)))
     .sort((a, b) => {
       const scoreA = scoreForIntent({
@@ -1162,6 +1255,8 @@ export const buildJourneyQueue = ({
         likedIds,
         skippedIds,
         salt: `journey:${journey.id || 'x'}`,
+        randomFn: trackRandomFn,
+        artistFatigue,
         extraScore:
           moodBoost
           + (journey.preferHidden && isFreshTrack(a) ? -7 : 0)
@@ -1175,6 +1270,8 @@ export const buildJourneyQueue = ({
         likedIds,
         skippedIds,
         salt: `journey:${journey.id || 'x'}`,
+        randomFn: trackRandomFn,
+        artistFatigue,
         extraScore:
           moodBoost
           + (journey.preferHidden && isFreshTrack(b) ? -7 : 0)
@@ -1217,15 +1314,26 @@ export const buildDailyMixes = ({
   tasteSeed = null,
   tasteProfile = null,
   max = 6,
+  seed = null,
+  excludeIds = null,
+  artistFatigue = null,
 } = {}) => {
   const fallbackThumbnail = pickPlaceholder('daily-mix');
+  const excludeSet = normalizeExcludeSet(excludeIds);
+  const filteredPool = excludeSet.size
+    ? pool.filter((track) => !excludeSet.has(idOf(track)))
+    : pool;
+  const queueSeed = seed == null ? '' : String(seed);
   const seededArtists = topArtistsFromSignals({ history, favorites, followedArtists });
   const localPlayable = sanitizeTrackList([...favorites, ...history], { requirePlayable: true });
+  const localEligible = excludeSet.size
+    ? localPlayable.filter((track) => !excludeSet.has(idOf(track)))
+    : localPlayable;
 
   if (seededArtists.length > 0) {
     return seededArtists.slice(0, max).map((entry, index) => {
-      const local = localPlayable.filter((track) => normalize(track.artist) === entry.key);
-      const candidate = pool.filter((track) => normalize(track.artist) === entry.key);
+      const local = localEligible.filter((track) => normalize(track.artist) === entry.key);
+      const candidate = filteredPool.filter((track) => normalize(track.artist) === entry.key);
       const seedTracks = diversifyTracks(
         dedupeTracks([...local, ...candidate]),
         { count: 18, maxPerArtist: 3 },
@@ -1262,6 +1370,9 @@ export const buildDailyMixes = ({
       tasteSeed,
       tasteProfile,
       count: 18,
+      seed: queueSeed ? `${queueSeed}:${genre.id}` : null,
+      excludeIds: excludeSet,
+      artistFatigue,
     });
     const sample = seedTracks[0] || sanitizeTrackList([genre.sampleTrack], { requirePlayable: true })[0];
     return {
@@ -1279,7 +1390,7 @@ export const buildDailyMixes = ({
 
   if (genreMixes.length > 0) return genreMixes;
 
-  const fallback = diversifyTracks(pool, { count: max * 3, maxPerArtist: 2 });
+  const fallback = diversifyTracks(filteredPool, { count: max * 3, maxPerArtist: 2 });
   const byArtist = new Map();
   for (const track of fallback) {
     const key = artistKeyOf(track);

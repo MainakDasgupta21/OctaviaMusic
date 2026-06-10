@@ -21,8 +21,10 @@ const isBrowser = () =>
   typeof window !== 'undefined' && typeof window.sessionStorage !== 'undefined';
 
 export const surpriseTrackId = (track) => {
-  const id = track?.id || track?.videoId || null;
-  return id ? String(id) : null;
+  const primaryId = track?.id || track?.videoId || null;
+  if (primaryId) return String(primaryId);
+  const fallbackId = `${track?.title || ''}::${track?.artist || ''}`;
+  return fallbackId === '::' ? null : fallbackId;
 };
 
 export const secureRandomInt = (max) => {

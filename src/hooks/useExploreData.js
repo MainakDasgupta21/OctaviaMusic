@@ -20,6 +20,10 @@ export const useExploreData = ({
   followedArtists = [],
   tasteSeed = null,
   tasteProfile = null,
+  freshPool = [],
+  excludeIds = null,
+  discoverySeed = null,
+  artistFatigue = null,
 } = {}) => {
   const queryClient = useQueryClient();
   const [chartsEnabled, setChartsEnabled] = useState(false);
@@ -95,13 +99,14 @@ export const useExploreData = ({
   const candidatePool = useMemo(
     () =>
       buildCandidatePool({
+        freshPool,
         trending,
         chartsFresh,
         chartsClassic,
         history,
         favorites,
       }),
-    [trending, chartsFresh, chartsClassic, history, favorites],
+    [freshPool, trending, chartsFresh, chartsClassic, history, favorites],
   );
 
   const isColdStart = useMemo(
@@ -119,8 +124,22 @@ export const useExploreData = ({
         pool: candidatePool,
         tasteSeed,
         tasteProfile,
+        seed: discoverySeed,
+        excludeIds,
+        artistFatigue,
       }),
-    [history, favorites, followedArtists, genres, candidatePool, tasteSeed, tasteProfile],
+    [
+      history,
+      favorites,
+      followedArtists,
+      genres,
+      candidatePool,
+      tasteSeed,
+      tasteProfile,
+      discoverySeed,
+      excludeIds,
+      artistFatigue,
+    ],
   );
 
   const lastLiked = favorites[0] || null;
@@ -134,8 +153,21 @@ export const useExploreData = ({
         followedArtists,
         tasteProfile,
         max: 4,
+        seed: discoverySeed,
+        excludeIds,
+        artistFatigue,
       }),
-    [lastLiked, candidatePool, history, favorites, followedArtists, tasteProfile],
+    [
+      lastLiked,
+      candidatePool,
+      history,
+      favorites,
+      followedArtists,
+      tasteProfile,
+      discoverySeed,
+      excludeIds,
+      artistFatigue,
+    ],
   );
 
   const hiddenGems = useMemo(
@@ -147,8 +179,20 @@ export const useExploreData = ({
         followedArtists,
         tasteProfile,
         count: 12,
+        seed: discoverySeed,
+        excludeIds,
+        artistFatigue,
       }),
-    [candidatePool, history, favorites, followedArtists, tasteProfile],
+    [
+      candidatePool,
+      history,
+      favorites,
+      followedArtists,
+      tasteProfile,
+      discoverySeed,
+      excludeIds,
+      artistFatigue,
+    ],
   );
 
   return {

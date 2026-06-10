@@ -38,3 +38,35 @@ describe('queryKeys.charts', () => {
     );
   });
 });
+
+describe('queryKeys.exploreRadio', () => {
+  it('scopes cache keys by strategy and seed artists', () => {
+    const base = queryKeys.exploreRadio({
+      mood: 'focus',
+      genre: 'ambient',
+      seed: 'night',
+      limit: 24,
+      strategy: 'artist',
+      seedArtists: 'Bonobo,Tycho',
+    });
+    const sameNormalized = queryKeys.exploreRadio({
+      mood: ' Focus ',
+      genre: 'Ambient',
+      seed: 'Night',
+      limit: 24.4,
+      strategy: 'ARTIST',
+      seedArtists: ['bonobo', 'tycho'],
+    });
+    const differentStrategy = queryKeys.exploreRadio({
+      mood: 'focus',
+      genre: 'ambient',
+      seed: 'night',
+      limit: 24,
+      strategy: 'keyword',
+      seedArtists: 'Bonobo,Tycho',
+    });
+
+    expect(base).toEqual(sameNormalized);
+    expect(base).not.toEqual(differentStrategy);
+  });
+});

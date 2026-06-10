@@ -5,20 +5,20 @@ import Button from '@/components/ui-v2/Button';
 import SmartImage from '@/components/SmartImage';
 
 const SWIPE_THRESHOLD = 120;
+const trackKeyOf = (track) => String(track?.id || track?.videoId || '');
 
 const SwipeDeck = ({
   tracks = [],
+  deckSignature = '',
   moodLabel = 'your vibe',
   onTrackEnter,
   onSave,
   onSkip,
   onShuffle,
-  onDeckExhausted,
 }) => {
   const [index, setIndex] = useState(0);
   const [audioReady, setAudioReady] = useState(false);
   const playedTrackIdRef = useRef(null);
-  const exhaustedSignatureRef = useRef('');
   const onTrackEnterRef = useRef(onTrackEnter);
 
   useEffect(() => {
@@ -26,18 +26,13 @@ const SwipeDeck = ({
   }, [onTrackEnter]);
 
   const listSignature = useMemo(
-    () => {
-      const firstId = tracks[0]?.id || '';
-      const lastId = tracks[tracks.length - 1]?.id || '';
-      return `${tracks.length}:${firstId}:${lastId}`;
-    },
-    [tracks],
+    () => `${deckSignature}:${tracks.map((track) => trackKeyOf(track)).join('|')}`,
+    [deckSignature, tracks],
   );
 
   useEffect(() => {
     setIndex(0);
     playedTrackIdRef.current = null;
-    exhaustedSignatureRef.current = '';
   }, [listSignature]);
 
   const current = tracks[index] || null;
@@ -45,23 +40,12 @@ const SwipeDeck = ({
   const remaining = Math.max(0, tracks.length - index);
 
   useEffect(() => {
-    const currentId = current?.id || null;
+    const currentId = trackKeyOf(current);
     if (!audioReady || !current || !currentId) return;
     if (playedTrackIdRef.current === currentId) return;
     playedTrackIdRef.current = currentId;
     onTrackEnterRef.current?.(current);
   }, [audioReady, current]);
-
-  useEffect(() => {
-    if (current || tracks.length === 0) return;
-    const exhaustedKey = `${listSignature}:${index}`;
-    if (exhaustedSignatureRef.current === exhaustedKey) return;
-    exhaustedSignatureRef.current = exhaustedKey;
-    const timer = window.setTimeout(() => {
-      onDeckExhausted?.();
-    }, 320);
-    return () => window.clearTimeout(timer);
-  }, [current, tracks.length, listSignature, index, onDeckExhausted]);
 
   const advance = (direction) => {
     if (!current) return;

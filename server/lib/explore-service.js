@@ -23,7 +23,59 @@ const SIMILAR_TTL_MS = toPositiveInt(process.env.EXPLORE_SIMILAR_TTL_MS, 5 * 60_
 const JOURNEY_TTL_MS = toPositiveInt(process.env.EXPLORE_JOURNEY_TTL_MS, 3 * 60_000);
 const RADIO_DIVERSITY_DEFAULT = 'default';
 const RADIO_DIVERSITY_HIGH = 'high';
+const RADIO_STRATEGY_DEFAULT = 'default';
+const RADIO_STRATEGY_ARTIST = 'artist';
+const RADIO_STRATEGY_KEYWORD = 'keyword';
+const RADIO_STRATEGY_ALPHABET = 'alphabet';
+const RADIO_STRATEGY_TRENDING = 'trending';
+const RADIO_STRATEGY_FRESH = 'fresh';
+const RADIO_STRATEGY_CLASSIC = 'classic';
+const RADIO_STRATEGY_GENRE = 'genre';
+const RADIO_STRATEGY_MOOD = 'mood';
+const RADIO_STRATEGY_HIDDEN = 'hidden';
+const RADIO_STRATEGY_PERSONALIZED = 'personalized';
+const RADIO_STRATEGY_MIXED = 'mixed';
+const RADIO_STRATEGY_VALUES = [
+  RADIO_STRATEGY_ARTIST,
+  RADIO_STRATEGY_KEYWORD,
+  RADIO_STRATEGY_ALPHABET,
+  RADIO_STRATEGY_TRENDING,
+  RADIO_STRATEGY_FRESH,
+  RADIO_STRATEGY_CLASSIC,
+  RADIO_STRATEGY_GENRE,
+  RADIO_STRATEGY_MOOD,
+  RADIO_STRATEGY_HIDDEN,
+  RADIO_STRATEGY_PERSONALIZED,
+  RADIO_STRATEGY_MIXED,
+  RADIO_STRATEGY_DEFAULT,
+];
+const RADIO_STRATEGIES = new Set(RADIO_STRATEGY_VALUES);
 const DIVERSITY_DECADE_HINTS = ['70s', '80s', '90s', '2000s', '2010s', '2020s'];
+const STRATEGY_ALPHABET = 'abcdefghijklmnopqrstuvwxyz'.split('');
+const STRATEGY_ALPHABET_SUFFIXES = [
+  'songs',
+  'music',
+  'official music video',
+  'acoustic songs',
+  'live performance',
+  'indie songs',
+];
+const STRATEGY_KEYWORD_LEXICON = [
+  'midnight',
+  'sunrise',
+  'neon',
+  'retro',
+  'cinematic',
+  'groove',
+  'acoustic',
+  'underground',
+  'dreamy',
+  'horizon',
+  'aurora',
+  'rainy',
+  'afterglow',
+  'electric',
+];
 
 const cache = new Map();
 const inflight = new Map();
@@ -68,6 +120,35 @@ const memo = async (key, ttlMs, producer) => {
 };
 
 const normalize = (value) => String(value || '').trim().toLowerCase();
+const tokenize = (value) =>
+  normalize(value)
+    .split(/[^a-z0-9]+/g)
+    .filter((token) => token.length >= 2);
+const dedupeStrings = (rows = []) => {
+  const seen = new Set();
+  const out = [];
+  for (const row of rows || []) {
+    const value = String(row || '').trim();
+    const key = normalize(value);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+  }
+  return out;
+};
+const normalizeStrategy = (value) => {
+  const key = normalize(value);
+  return RADIO_STRATEGIES.has(key) ? key : RADIO_STRATEGY_DEFAULT;
+};
+const sanitizeSeedArtists = (value, max = 5) => {
+  const rows = Array.isArray(value)
+    ? value
+    : String(value || '')
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  return dedupeStrings(rows).slice(0, Math.max(0, Number(max) || 5));
+};
 const normalizeDiversity = (value) =>
   normalize(value) === RADIO_DIVERSITY_HIGH ? RADIO_DIVERSITY_HIGH : RADIO_DIVERSITY_DEFAULT;
 const secureRandomInt = (max) => {
@@ -112,6 +193,36 @@ const idOf = (track) => String(track?.id || track?.videoId || '');
 const titleOf = (track) => String(track?.name || track?.title || '').trim();
 const artistOf = (track) =>
   String(track?.artist || track?.artists?.[0]?.name || track?.author || '').trim();
+const clampRadioLimit = (value, fallback = 24) =>
+  Math.max(6, Math.min(60, Number(value) || fallback));
+const normalizeSeedArtistKey = (rows = []) =>
+  sanitizeSeedArtists(rows)
+    .map((entry) => normalize(entry))
+    .join(',');
+const extractArtistsFromTracks = (rows = []) => {
+  const out = [];
+  const seen = new Set();
+  for (const row of rows || []) {
+    const artist = artistOf(row);
+    const key = normalize(artist);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(artist);
+  }
+  return out;
+};
+const extractArtistsFromChartRows = (rows = []) => {
+  const out = [];
+  const seen = new Set();
+  for (const row of rows || []) {
+    const artist = String(row?.name || row?.artist || row?.title || '').trim();
+    const key = normalize(artist);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(artist);
+  }
+  return out;
+};
 const hasDisplayShape = (track) =>
   Boolean(
     track
@@ -352,6 +463,371 @@ const fetchRadioItems = async ({
   };
 };
 
+const fetchChartSongRows = async ({ window = 'this_month', limit = 24, region = 'global' } = {}) => {
+  const payload = await deps.fetchRealChartData({
+    mode: 'songs',
+    region,
+    window,
+    limit: Math.max(clampRadioLimit(limit) * 2, 40),
+  }).catch(() => ({ items: [] }));
+  return dedupeTracks(payload?.items || []);
+};
+
+const runTrendingStrategy = async ({ limit = 24 } = {}) => {
+  const safeLimit = clampRadioLimit(limit);
+  const rows = await deps.ytm.getTrendingLive(Math.max(safeLimit * 2, 20)).catch(() => []);
+  return {
+    strategy: RADIO_STRATEGY_TRENDING,
+    items: dedupeTracks(rows).slice(0, safeLimit),
+    buckets: null,
+    strategyMeta: {},
+  };
+};
+
+const runFreshStrategy = async ({ limit = 24, region = 'global' } = {}) => {
+  const safeLimit = clampRadioLimit(limit);
+  const [monthlyRows, todayRows] = await Promise.all([
+    fetchChartSongRows({ window: 'this_month', limit: safeLimit, region }),
+    fetchChartSongRows({ window: 'today', limit: safeLimit, region }),
+  ]);
+  return {
+    strategy: RADIO_STRATEGY_FRESH,
+    items: dedupeTracks(interleaveGroups([monthlyRows, todayRows])).slice(0, safeLimit),
+    buckets: null,
+    strategyMeta: {},
+  };
+};
+
+const runClassicStrategy = async ({ limit = 24, region = 'global' } = {}) => {
+  const safeLimit = clampRadioLimit(limit);
+  const classicRows = await fetchChartSongRows({ window: 'all_time', limit: safeLimit, region });
+  const trendingRows = await deps.ytm.getTrendingLive(Math.max(10, Math.ceil(safeLimit / 2))).catch(() => []);
+  return {
+    strategy: RADIO_STRATEGY_CLASSIC,
+    items: dedupeTracks([...classicRows, ...trendingRows]).slice(0, safeLimit),
+    buckets: null,
+    strategyMeta: {},
+  };
+};
+
+const runArtistStrategy = async ({
+  mood = '',
+  genre = '',
+  seed = '',
+  seedArtists = [],
+  limit = 24,
+  region = 'global',
+} = {}) => {
+  const safeLimit = clampRadioLimit(limit);
+  const safeSeedArtists = sanitizeSeedArtists(seedArtists);
+  const [artistChartPayload, trendingRows] = await Promise.all([
+    deps.fetchRealChartData({
+      mode: 'artists',
+      region,
+      window: 'this_month',
+      limit: 40,
+    }).catch(() => ({ items: [] })),
+    deps.ytm.getTrendingLive(24).catch(() => []),
+  ]);
+  const artistPool = dedupeStrings([
+    ...safeSeedArtists,
+    ...extractArtistsFromChartRows(artistChartPayload?.items || []),
+    ...extractArtistsFromTracks(trendingRows),
+  ]);
+  const pickedArtists = takeShuffled(
+    artistPool,
+    Math.min(5, Math.max(2, Math.ceil(safeLimit / 12))),
+  );
+  const perArtist = Math.max(6, Math.ceil((safeLimit * 2) / Math.max(1, pickedArtists.length)));
+  const groups = await Promise.all(
+    pickedArtists.map((artist) => {
+      const query = joinQueryParts(artist, genre || mood, seed, 'songs') || `${artist} songs`;
+      return deps.ytm.searchSongs(query, perArtist).catch(() => []);
+    }),
+  );
+  const rows = dedupeTracks(interleaveGroups(groups.map((group) => takeShuffled(group, perArtist))));
+  const fallbackRows = await fetchDiversitySearchRows({ mood, genre, seed, limit: safeLimit });
+  return {
+    strategy: RADIO_STRATEGY_ARTIST,
+    items: dedupeTracks([...rows, ...fallbackRows]).slice(0, safeLimit),
+    buckets: null,
+    strategyMeta: { artists: pickedArtists },
+  };
+};
+
+const runKeywordStrategy = async ({
+  mood = '',
+  genre = '',
+  seed = '',
+  limit = 24,
+} = {}) => {
+  const safeLimit = clampRadioLimit(limit);
+  const lexicon = dedupeStrings([
+    ...STRATEGY_KEYWORD_LEXICON,
+    ...tokenize(mood),
+    ...tokenize(genre),
+    ...tokenize(seed),
+  ]);
+  const pickedKeywords = takeShuffled(
+    lexicon,
+    Math.min(6, Math.max(3, Math.ceil(safeLimit / 10))),
+  );
+  const perQuery = Math.max(6, Math.ceil((safeLimit * 2) / Math.max(1, pickedKeywords.length)));
+  const groups = await Promise.all(
+    pickedKeywords.map((keyword) => {
+      const query = joinQueryParts(keyword, genre || mood, 'songs') || `${keyword} songs`;
+      return deps.ytm.searchSongs(query, perQuery).catch(() => []);
+    }),
+  );
+  const rows = dedupeTracks(interleaveGroups(groups.map((group) => takeShuffled(group, perQuery))));
+  const trendingRows = await deps.ytm.getTrendingLive(Math.max(10, Math.ceil(safeLimit / 2))).catch(() => []);
+  return {
+    strategy: RADIO_STRATEGY_KEYWORD,
+    items: dedupeTracks([...rows, ...trendingRows]).slice(0, safeLimit),
+    buckets: null,
+    strategyMeta: { keywords: pickedKeywords },
+  };
+};
+
+const runAlphabetStrategy = async ({
+  mood = '',
+  genre = '',
+  seed = '',
+  limit = 24,
+} = {}) => {
+  const safeLimit = clampRadioLimit(limit);
+  const letters = takeShuffled(
+    STRATEGY_ALPHABET,
+    Math.min(6, Math.max(3, Math.ceil(safeLimit / 10))),
+  );
+  const perQuery = Math.max(6, Math.ceil((safeLimit * 2) / Math.max(1, letters.length)));
+  const groups = await Promise.all(
+    letters.map((letter, index) => {
+      const suffix = STRATEGY_ALPHABET_SUFFIXES[index % STRATEGY_ALPHABET_SUFFIXES.length];
+      const query = joinQueryParts(letter, suffix, genre || mood, seed);
+      return deps.ytm.searchSongs(query, perQuery).catch(() => []);
+    }),
+  );
+  const rows = dedupeTracks(interleaveGroups(groups.map((group) => takeShuffled(group, perQuery))));
+  const fallbackRows = await fetchDiversitySearchRows({ mood, genre, seed, limit: safeLimit });
+  return {
+    strategy: RADIO_STRATEGY_ALPHABET,
+    items: dedupeTracks([...rows, ...fallbackRows]).slice(0, safeLimit),
+    buckets: null,
+    strategyMeta: { letters },
+  };
+};
+
+const runGenreStrategy = async ({
+  mood = '',
+  genre = '',
+  seed = '',
+  limit = 24,
+} = {}) => {
+  const safeLimit = clampRadioLimit(limit);
+  if (!normalize(genre)) {
+    return runKeywordStrategy({ mood, genre, seed, limit: safeLimit });
+  }
+  const query = joinQueryParts(genre, mood, seed, 'songs');
+  const [searchRows, radio] = await Promise.all([
+    deps.ytm.searchSongs(query, Math.max(safeLimit * 2, 30)).catch(() => []),
+    fetchRadioItems({
+      mood,
+      genre,
+      seed,
+      diversity: RADIO_DIVERSITY_DEFAULT,
+      limit: safeLimit,
+    }),
+  ]);
+  return {
+    strategy: RADIO_STRATEGY_GENRE,
+    items: dedupeTracks([...searchRows, ...(radio?.items || [])]).slice(0, safeLimit),
+    buckets: radio?.buckets || null,
+    strategyMeta: { genre: normalize(genre) },
+  };
+};
+
+const runMoodStrategy = async ({
+  mood = '',
+  genre = '',
+  seed = '',
+  limit = 24,
+} = {}) => {
+  const safeLimit = clampRadioLimit(limit);
+  if (!normalize(mood)) {
+    return runKeywordStrategy({ mood, genre, seed, limit: safeLimit });
+  }
+  const query = joinQueryParts(mood, genre, seed, 'songs');
+  const [searchRows, radio] = await Promise.all([
+    deps.ytm.searchSongs(query, Math.max(safeLimit * 2, 30)).catch(() => []),
+    fetchRadioItems({
+      mood,
+      genre,
+      seed,
+      diversity: RADIO_DIVERSITY_DEFAULT,
+      limit: safeLimit,
+    }),
+  ]);
+  return {
+    strategy: RADIO_STRATEGY_MOOD,
+    items: dedupeTracks([...searchRows, ...(radio?.items || [])]).slice(0, safeLimit),
+    buckets: radio?.buckets || null,
+    strategyMeta: { mood: normalize(mood) },
+  };
+};
+
+const runHiddenStrategy = async ({
+  mood = '',
+  genre = '',
+  seed = '',
+  limit = 24,
+} = {}) => {
+  const safeLimit = clampRadioLimit(limit);
+  const payload = await fetchHighDiversityRadioItems({
+    mood,
+    genre,
+    seed,
+    limit: safeLimit,
+  });
+  return {
+    strategy: RADIO_STRATEGY_HIDDEN,
+    items: payload.items || [],
+    buckets: payload.buckets || null,
+    strategyMeta: {},
+  };
+};
+
+const runPersonalizedStrategy = async ({
+  mood = '',
+  genre = '',
+  seed = '',
+  seedArtists = [],
+  limit = 24,
+} = {}) => {
+  const safeLimit = clampRadioLimit(limit);
+  const anchors = sanitizeSeedArtists(seedArtists, 5);
+  if (!anchors.length) {
+    return runArtistStrategy({ mood, genre, seed, seedArtists, limit: safeLimit });
+  }
+  const perAnchor = Math.max(5, Math.ceil((safeLimit * 2) / Math.max(1, anchors.length)));
+  const groups = await Promise.all(
+    anchors.map(async (artist) => {
+      const anchorQuery = joinQueryParts(artist, mood, genre, 'songs');
+      const anchorRows = await deps.ytm.searchSongs(anchorQuery, perAnchor).catch(() => []);
+      const topAnchor = anchorRows[0] || null;
+      const topAnchorTitle = titleOf(topAnchor);
+      if (!topAnchorTitle) return anchorRows;
+      const similarRows = await deps.lastfm
+        .getSimilarTracks(artist, topAnchorTitle, perAnchor * 2)
+        .catch(() => []);
+      const resolvedRows = await Promise.all(
+        similarRows.slice(0, perAnchor).map(async (row) => {
+          const query = `${row?.name || ''} ${row?.artist || ''}`.trim();
+          if (!query) return null;
+          const matches = await deps.ytm.searchSongs(query, 1).catch(() => []);
+          return matches[0] || null;
+        }),
+      );
+      return [...anchorRows, ...resolvedRows.filter(Boolean)];
+    }),
+  );
+  const rows = dedupeTracks(interleaveGroups(groups));
+  const fallbackRows = await fetchDiversitySearchRows({ mood, genre, seed, limit: safeLimit });
+  return {
+    strategy: RADIO_STRATEGY_PERSONALIZED,
+    items: dedupeTracks([...rows, ...fallbackRows]).slice(0, safeLimit),
+    buckets: null,
+    strategyMeta: { anchors },
+  };
+};
+
+const runMixedStrategy = async ({
+  mood = '',
+  genre = '',
+  seed = '',
+  seedArtists = [],
+  limit = 24,
+  region = 'global',
+} = {}) => {
+  const safeLimit = clampRadioLimit(limit);
+  const available = [
+    RADIO_STRATEGY_ARTIST,
+    RADIO_STRATEGY_KEYWORD,
+    RADIO_STRATEGY_ALPHABET,
+    RADIO_STRATEGY_TRENDING,
+    RADIO_STRATEGY_FRESH,
+    RADIO_STRATEGY_CLASSIC,
+    RADIO_STRATEGY_GENRE,
+    RADIO_STRATEGY_MOOD,
+    RADIO_STRATEGY_HIDDEN,
+  ];
+  if (sanitizeSeedArtists(seedArtists).length) {
+    available.push(RADIO_STRATEGY_PERSONALIZED);
+  }
+  const chosen = takeShuffled(available, Math.min(3, available.length));
+  const perStrategy = Math.max(6, Math.ceil((safeLimit * 2) / Math.max(1, chosen.length)));
+  const rowsByStrategy = await Promise.all(
+    chosen.map(async (strategyId) => {
+      const payload = await runStrategyById({
+        strategy: strategyId,
+        mood,
+        genre,
+        seed,
+        seedArtists,
+        limit: perStrategy,
+        region,
+      }).catch(() => null);
+      return payload?.items || [];
+    }),
+  );
+  const rows = dedupeTracks(interleaveGroups(rowsByStrategy));
+  const fallbackRows = await fetchDiversitySearchRows({ mood, genre, seed, limit: safeLimit });
+  return {
+    strategy: RADIO_STRATEGY_MIXED,
+    items: dedupeTracks([...rows, ...fallbackRows]).slice(0, safeLimit),
+    buckets: null,
+    strategyMeta: { strategies: chosen },
+  };
+};
+
+async function runStrategyById({
+  strategy = RADIO_STRATEGY_DEFAULT,
+  mood = '',
+  genre = '',
+  seed = '',
+  seedArtists = [],
+  limit = 24,
+  region = 'global',
+} = {}) {
+  const safeStrategy = normalizeStrategy(strategy);
+  switch (safeStrategy) {
+    case RADIO_STRATEGY_ARTIST:
+      return runArtistStrategy({ mood, genre, seed, seedArtists, limit, region });
+    case RADIO_STRATEGY_KEYWORD:
+      return runKeywordStrategy({ mood, genre, seed, limit });
+    case RADIO_STRATEGY_ALPHABET:
+      return runAlphabetStrategy({ mood, genre, seed, limit });
+    case RADIO_STRATEGY_TRENDING:
+      return runTrendingStrategy({ limit });
+    case RADIO_STRATEGY_FRESH:
+      return runFreshStrategy({ limit, region });
+    case RADIO_STRATEGY_CLASSIC:
+      return runClassicStrategy({ limit, region });
+    case RADIO_STRATEGY_GENRE:
+      return runGenreStrategy({ mood, genre, seed, limit });
+    case RADIO_STRATEGY_MOOD:
+      return runMoodStrategy({ mood, genre, seed, limit });
+    case RADIO_STRATEGY_HIDDEN:
+      return runHiddenStrategy({ mood, genre, seed, limit });
+    case RADIO_STRATEGY_PERSONALIZED:
+      return runPersonalizedStrategy({ mood, genre, seed, seedArtists, limit });
+    case RADIO_STRATEGY_MIXED:
+      return runMixedStrategy({ mood, genre, seed, seedArtists, limit, region });
+    default:
+      return null;
+  }
+}
+
 const fetchExplorePulse = async ({ region = 'global' } = {}) =>
   memo(`pulse:${normalize(region)}`, PULSE_TTL_MS, async () => {
     const [trendingRows, chartToday, chartWeek] = await Promise.all([
@@ -395,19 +871,44 @@ const fetchExploreRadio = async ({
   genre = '',
   seed = '',
   diversity = RADIO_DIVERSITY_DEFAULT,
+  strategy = RADIO_STRATEGY_DEFAULT,
+  seedArtists = [],
   limit = 24,
+  region = 'global',
 } = {}) =>
   memo(
-    `radio:${normalize(mood)}|${normalize(genre)}|${normalize(seed)}|${normalizeDiversity(diversity)}|${Math.round(limit)}`,
+    [
+      `radio:${normalize(mood)}|${normalize(genre)}|${normalize(seed)}`,
+      `diversity:${normalizeDiversity(diversity)}`,
+      `strategy:${normalizeStrategy(strategy)}`,
+      `seedArtists:${normalizeSeedArtistKey(seedArtists)}`,
+      `region:${normalize(region) || 'global'}`,
+      `limit:${Math.round(limit)}`,
+    ].join('|'),
     RADIO_TTL_MS,
     async () => {
       const safeDiversity = normalizeDiversity(diversity);
-      const radio = await fetchRadioItems({
+      const safeStrategy = normalizeStrategy(strategy);
+      const safeLimit = clampRadioLimit(limit);
+      const safeSeedArtists = sanitizeSeedArtists(seedArtists, 5);
+      const strategyRadio =
+        safeStrategy !== RADIO_STRATEGY_DEFAULT
+          ? await runStrategyById({
+              strategy: safeStrategy,
+              mood,
+              genre,
+              seed,
+              seedArtists: safeSeedArtists,
+              limit: safeLimit,
+              region,
+            })
+          : null;
+      const radio = strategyRadio || await fetchRadioItems({
         mood,
         genre,
         seed,
         diversity: safeDiversity,
-        limit: Math.max(6, Math.min(60, Number(limit) || 24)),
+        limit: safeLimit,
       });
       return {
         items: radio.items,
@@ -416,10 +917,14 @@ const fetchExploreRadio = async ({
           genre: normalize(genre),
           seed: normalize(seed),
           diversity: safeDiversity,
+          strategy: strategyRadio ? safeStrategy : RADIO_STRATEGY_DEFAULT,
+          seedArtists: safeSeedArtists,
         },
         meta: {
           source: 'live',
           diversity: safeDiversity,
+          strategy: strategyRadio ? safeStrategy : RADIO_STRATEGY_DEFAULT,
+          strategyMeta: strategyRadio?.strategyMeta || undefined,
           buckets: radio.buckets || undefined,
           generatedAt: new Date().toISOString(),
         },
@@ -508,6 +1013,7 @@ module.exports = {
   fetchExploreRadio,
   fetchExploreSimilar,
   fetchExploreJourney,
+  EXPLORE_RADIO_STRATEGIES: RADIO_STRATEGY_VALUES,
   __testing: {
     clearCaches: () => {
       cache.clear();

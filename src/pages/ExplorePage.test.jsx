@@ -18,10 +18,12 @@ const mocks = vi.hoisted(() => ({
   reopenOnboarding: vi.fn(),
   applyEvent: vi.fn(),
   useExploreData: vi.fn(),
+  useDiscoveryFeed: vi.fn(),
   useExploreTaste: vi.fn(),
   useExploreProgress: vi.fn(),
   useExploreSocial: vi.fn(),
   getExploreRadio: vi.fn(),
+  smoothScrollIntoView: vi.fn(),
 }));
 
 vi.mock('@/contexts/PlayerContext', () => ({
@@ -58,6 +60,11 @@ vi.mock('@/hooks/useExploreData', () => ({
   default: (...args) => mocks.useExploreData(...args),
 }));
 
+vi.mock('@/hooks/useDiscoveryFeed', () => ({
+  __esModule: true,
+  default: (...args) => mocks.useDiscoveryFeed(...args),
+}));
+
 vi.mock('@/hooks/useExploreTaste', () => ({
   __esModule: true,
   default: (...args) => mocks.useExploreTaste(...args),
@@ -76,6 +83,19 @@ vi.mock('@/hooks/useExploreSocial', () => ({
 vi.mock('@/lib/api', () => ({
   __esModule: true,
   getExploreRadio: (...args) => mocks.getExploreRadio(...args),
+}));
+
+vi.mock('@/lib/discovery-memory', () => ({
+  __esModule: true,
+  getSeenTrackSet: () => new Set(),
+  getArtistFatigueMap: () => new Map(),
+  markTrackSeen: vi.fn(),
+  subscribeDiscoveryMemory: () => () => {},
+}));
+
+vi.mock('@/lib/scroll', () => ({
+  __esModule: true,
+  smoothScrollIntoView: (...args) => mocks.smoothScrollIntoView(...args),
 }));
 
 vi.mock('@/components/HeartButton', () => ({
@@ -211,11 +231,22 @@ describe('ExplorePage', () => {
     mocks.recordFeedback.mockReset();
     mocks.applyEvent.mockReset();
     mocks.isFavorite.mockReset();
+    mocks.getExploreRadio.mockReset();
     mocks.isFavorite.mockReturnValue(false);
     mocks.useExploreData.mockReturnValue({ ...baseData });
+    mocks.useDiscoveryFeed.mockReturnValue({
+      freshPool: [],
+      byStrategy: [],
+      isLoading: false,
+      isRefreshing: false,
+      error: null,
+      refresh: vi.fn(),
+      usedStrategies: [],
+    });
     mocks.useExploreTaste.mockReturnValue({ ...baseTaste });
     mocks.useExploreProgress.mockReturnValue({ ...baseProgress });
     mocks.useExploreSocial.mockReturnValue({ ...baseSocial });
+    mocks.smoothScrollIntoView.mockReset();
     mocks.getExploreRadio.mockResolvedValue({
       items: [
         makeTrack('radio000001', 'Random One', 'Neon'),
@@ -224,22 +255,49 @@ describe('ExplorePage', () => {
     });
   });
 
-  it('shows first-visit onboarding when cold-start onboarding is open', async () => {
+  it('shows onboarding dialog when onboarding is open', async () => {
     mocks.useExploreTaste.mockReturnValue({
       ...baseTaste,
       onboardingOpen: true,
     });
 
     renderPage('/explore');
-    const headings = await screen.findAllByText(/how are you feeling today/i);
-    expect(headings.length).toBeGreaterThan(0);
+    expect(await screen.findByRole('dialog', { name: /explore onboarding/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /skip for now/i })).toBeInTheDocument();
+  });
+
+  it('allows retaking quiz for non-cold-start users', async () => {
+    mocks.useExploreData.mockReturnValue({
+      ...baseData,
+      isColdStart: false,
+    });
+
+    renderPage('/explore');
+    fireEvent.click(await screen.findByRole('button', { name: /retake quiz/i }));
+    expect(mocks.reopenOnboarding).toHaveBeenCalledTimes(1);
   });
 
   it('auto-plays mood queue when mood deep-link is present', async () => {
     renderPage('/explore?mood=focus');
     await waitFor(() => {
-      expect(mocks.playTracksInOrder).toHaveBeenCalled();
+      expect(mocks.playTracksInOrder).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it('does not repeatedly scroll mood section while swiping cards', async () => {
+    renderPage('/explore?mood=focus');
+    await waitFor(() => {
+      expect(mocks.playTracksInOrder).toHaveBeenCalledTimes(1);
+    });
+    expect(mocks.smoothScrollIntoView).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(await screen.findByRole('button', { name: /start play and decide/i }));
+    fireEvent.click(screen.getByRole('button', { name: /swipe right/i }));
+    fireEvent.click(screen.getByRole('button', { name: /swipe left/i }));
+    await waitFor(() => {
+      expect(mocks.playTrack).toHaveBeenCalledTimes(3);
+    });
+    expect(mocks.smoothScrollIntoView).toHaveBeenCalledTimes(1);
   });
 
   it('captures save and skip feedback in play-and-decide flow', async () => {
@@ -301,10 +359,34 @@ describe('ExplorePage', () => {
     });
   });
 
-  it('retargets recommendations when a mood tile is selected', async () => {
+  it('plays mood queue exactly once when a mood tile is selected', async () => {
     renderPage('/explore');
     fireEvent.click(await screen.findByRole('button', { name: /set mood workout/i }));
-    expect(mocks.playTracksInOrder).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mocks.playTracksInOrder).toHaveBeenCalledTimes(1);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    expect(mocks.playTracksInOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores invalid journey deep-links without playing fallback journeys', async () => {
+    renderPage('/explore?journey=not-real');
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    expect(mocks.playTracksInOrder).not.toHaveBeenCalled();
+  });
+
+  it('handles valid journey deep-link gracefully when recommendations are unavailable', async () => {
+    mocks.useExploreData.mockReturnValue({
+      ...baseData,
+      candidatePool: [],
+      recommendationLoading: false,
+    });
+
+    renderPage('/explore?journey=cry-2am');
+    await new Promise((resolve) => setTimeout(resolve, 80));
+
+    expect(mocks.playTracksInOrder).not.toHaveBeenCalled();
+    expect(mocks.smoothScrollIntoView).toHaveBeenCalledTimes(1);
   });
 
   it('mounts additive social and infinite sections without replacing existing sections', async () => {
@@ -314,29 +396,32 @@ describe('ExplorePage', () => {
     expect(screen.getByRole('link', { name: /enter explore flow/i })).toBeInTheDocument();
   });
 
-  it('fetches fresh random radio songs on repeated surprise clicks', async () => {
+  it('plays surprise immediately from local unseen pool even when remote fetch is slow', async () => {
+    let resolveRadio = null;
+    mocks.getExploreRadio.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRadio = resolve;
+        }),
+    );
+
     renderPage('/explore');
-
     const surpriseBtn = await screen.findByRole('button', { name: /surprise me/i });
-    fireEvent.click(surpriseBtn);
-    await waitFor(() => expect(mocks.playTrack).toHaveBeenCalledTimes(1));
 
     fireEvent.click(surpriseBtn);
-    await waitFor(() => expect(mocks.playTrack).toHaveBeenCalledTimes(2));
+    await waitFor(() => {
+      expect(mocks.playTrack).toHaveBeenCalledTimes(1);
+    });
+    expect(mocks.getExploreRadio).toHaveBeenCalledTimes(1);
 
-    expect(mocks.getExploreRadio).toHaveBeenCalledTimes(2);
-    const firstCall = mocks.getExploreRadio.mock.calls[0]?.[0] || {};
-    const secondCall = mocks.getExploreRadio.mock.calls[1]?.[0] || {};
-    expect(firstCall.diversity).toBe('high');
-    expect(secondCall.diversity).toBe('high');
-    expect(firstCall.seed).toEqual(expect.any(String));
-    expect(secondCall.seed).toEqual(expect.any(String));
-    expect(secondCall.seed).not.toBe(firstCall.seed);
+    resolveRadio?.({
+      items: [makeTrack('radio-slow001', 'Slow Radio Pick', 'Pulse')],
+    });
   });
 
-  it('avoids replaying the same surprise track within a session', async () => {
+  it('consumes prefetched remote surprise candidates on the next tap', async () => {
     mocks.getExploreRadio.mockResolvedValue({
-      items: [makeTrack('radio-repeat01', 'Loop Song', 'Pulse')],
+      items: [makeTrack('radio-pref001', 'Prefetched Pick', 'Pulse')],
     });
 
     renderPage('/explore');
@@ -346,7 +431,30 @@ describe('ExplorePage', () => {
     await waitFor(() => {
       expect(mocks.playTrack).toHaveBeenCalledTimes(1);
     });
-    expect(mocks.getExploreRadio.mock.calls[0]?.[0]?.diversity).toBe('high');
+    await waitFor(() => {
+      expect(mocks.getExploreRadio).toHaveBeenCalledTimes(1);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    fireEvent.click(surpriseBtn);
+    await waitFor(() => {
+      expect(mocks.playTrack).toHaveBeenCalledTimes(2);
+    });
+
+    const secondPicked = mocks.playTrack.mock.calls[1]?.[0];
+    expect(secondPicked?.id || secondPicked?.videoId).toBe('radio-pref001');
+  });
+
+  it('keeps local surprise picks non-repeating when remote refresh returns empty', async () => {
+    mocks.getExploreRadio.mockResolvedValue({ items: [] });
+
+    renderPage('/explore');
+    const surpriseBtn = await screen.findByRole('button', { name: /surprise me/i });
+
+    fireEvent.click(surpriseBtn);
+    await waitFor(() => {
+      expect(mocks.playTrack).toHaveBeenCalledTimes(1);
+    });
 
     fireEvent.click(surpriseBtn);
     await waitFor(() => {
@@ -355,8 +463,36 @@ describe('ExplorePage', () => {
 
     const firstPicked = mocks.playTrack.mock.calls[0]?.[0];
     const secondPicked = mocks.playTrack.mock.calls[1]?.[0];
-    expect(firstPicked?.id).toBeTruthy();
-    expect(secondPicked?.id).toBeTruthy();
-    expect(secondPicked?.id).not.toBe(firstPicked?.id);
+    expect(firstPicked?.id || firstPicked?.videoId).toBeTruthy();
+    expect(secondPicked?.id || secondPicked?.videoId).toBeTruthy();
+    expect(secondPicked?.id || secondPicked?.videoId).not.toBe(firstPicked?.id || firstPicked?.videoId);
+  });
+
+  it('ignores rapid duplicate surprise clicks while a request is in flight', async () => {
+    mocks.useExploreData.mockReturnValue({
+      ...baseData,
+      candidatePool: [],
+    });
+    let resolveRadio = null;
+    mocks.getExploreRadio.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRadio = resolve;
+        }),
+    );
+
+    renderPage('/explore');
+    const surpriseBtn = await screen.findByRole('button', { name: /surprise me/i });
+    fireEvent.click(surpriseBtn);
+    fireEvent.click(surpriseBtn);
+
+    expect(mocks.getExploreRadio).toHaveBeenCalledTimes(1);
+    resolveRadio?.({
+      items: [makeTrack('radio-race01', 'Race Song', 'Pulse')],
+    });
+
+    await waitFor(() => {
+      expect(mocks.playTrack).toHaveBeenCalledTimes(1);
+    });
   });
 });

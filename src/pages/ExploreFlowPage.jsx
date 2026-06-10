@@ -1,15 +1,26 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import Button from '@/components/ui-v2/Button';
 import ExploreFlowShell from '@/components/explore/ExploreFlowShell';
 import { usePlayer } from '@/contexts/PlayerContext';
 import { useFavorites } from '@/contexts/FavoritesContext';
 import { useFollowedArtists } from '@/contexts/FollowedArtistsContext';
+import useDiscoveryFeed from '@/hooks/useDiscoveryFeed';
 import useExploreData from '@/hooks/useExploreData';
 import useExploreTaste from '@/hooks/useExploreTaste';
 import useExploreProgress from '@/hooks/useExploreProgress';
 import useInfiniteDiscovery from '@/hooks/useInfiniteDiscovery';
-import { EXPLORE_INFINITE_ENABLED } from '@/lib/feature-flags';
+import {
+  getArtistFatigueMap,
+  getSeenTrackSet,
+  subscribeDiscoveryMemory,
+} from '@/lib/discovery-memory';
+import {
+  EXPLORE_DISCOVERY_V3_ENABLED,
+  EXPLORE_INFINITE_ENABLED,
+} from '@/lib/feature-flags';
+
+const DISCOVERY_SEEN_HORIZON_MS = 30 * 24 * 60 * 60 * 1000;
 
 const ExploreFlowEnabledPage = () => {
   const [searchParams] = useSearchParams();
@@ -22,6 +33,39 @@ const ExploreFlowEnabledPage = () => {
   const mood = searchParams.get('mood') || tasteSeed?.moodId || tasteProfile?.moodId || '';
   const genre = searchParams.get('genre') || tasteSeed?.genreId || '';
   const seed = searchParams.get('seed') || '';
+  const flowSeed = useMemo(
+    () => `${seed || 'flow'}:${mood || ''}:${genre || ''}`,
+    [seed, mood, genre],
+  );
+  const [memoryRevision, setMemoryRevision] = useState(0);
+
+  useEffect(
+    () =>
+      subscribeDiscoveryMemory(() => {
+        setMemoryRevision((prev) => prev + 1);
+      }),
+    [],
+  );
+
+  const seenTrackSet = useMemo(
+    () => getSeenTrackSet({ horizonMs: DISCOVERY_SEEN_HORIZON_MS }),
+    [memoryRevision],
+  );
+  const artistFatigueMap = useMemo(
+    () => getArtistFatigueMap(),
+    [memoryRevision],
+  );
+
+  const discovery = useDiscoveryFeed({
+    mood,
+    genre,
+    tasteSeed,
+    tasteProfile,
+    followedArtists,
+    history,
+    favorites,
+    enabled: EXPLORE_INFINITE_ENABLED && EXPLORE_DISCOVERY_V3_ENABLED,
+  });
 
   const { candidatePool } = useExploreData({
     history,
@@ -29,13 +73,17 @@ const ExploreFlowEnabledPage = () => {
     followedArtists,
     tasteSeed,
     tasteProfile,
+    freshPool: EXPLORE_DISCOVERY_V3_ENABLED ? discovery.freshPool : [],
+    excludeIds: EXPLORE_DISCOVERY_V3_ENABLED ? seenTrackSet : null,
+    discoverySeed: EXPLORE_DISCOVERY_V3_ENABLED ? flowSeed : null,
+    artistFatigue: EXPLORE_DISCOVERY_V3_ENABLED ? artistFatigueMap : null,
   });
 
   const flow = useInfiniteDiscovery({
     localPool: candidatePool,
     mood,
     genre,
-    seed,
+    seed: flowSeed,
     enabled: EXPLORE_INFINITE_ENABLED,
   });
 
@@ -51,7 +99,13 @@ const ExploreFlowEnabledPage = () => {
   const handleSave = useCallback(() => {
     const track = flow.currentTrack;
     if (!track) return;
-    if (!isFavorite(track.id)) toggleFavorite(track);
+    const trackId = track?.id || track?.videoId || '';
+    if (trackId && !isFavorite(trackId)) {
+      toggleFavorite({
+        ...track,
+        id: track?.id || trackId,
+      });
+    }
     recordFeedback({ type: 'save', track, moodId: mood || null, genreId: genre || null });
     applyEvent({ type: 'save', moodId: mood || null });
     flow.saveTop();

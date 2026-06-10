@@ -3,6 +3,7 @@ const {
   fetchExploreRadio,
   fetchExploreSimilar,
   fetchExploreJourney,
+  EXPLORE_RADIO_STRATEGIES,
 } = require('../clients/explore.client');
 
 const getExplorePulsePayload = ({ region }) =>
@@ -13,14 +14,20 @@ const getExploreRadioPayload = ({
   genre,
   seed,
   diversity,
+  strategy,
+  seedArtists,
   limit,
+  region,
 }) =>
   fetchExploreRadio({
     mood,
     genre,
     seed,
     diversity,
+    strategy,
+    seedArtists,
     limit,
+    region,
   });
 
 const getExploreSimilarPayload = ({ trackId, limit }) =>
@@ -34,4 +41,5 @@ module.exports = {
   getExploreRadioPayload,
   getExploreSimilarPayload,
   getExploreJourneyPayload,
+  EXPLORE_RADIO_STRATEGIES,
 };

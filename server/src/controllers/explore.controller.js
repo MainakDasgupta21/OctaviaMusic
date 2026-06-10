@@ -4,7 +4,30 @@ const {
   getExploreRadioPayload,
   getExploreSimilarPayload,
   getExploreJourneyPayload,
+  EXPLORE_RADIO_STRATEGIES,
 } = require('../services/explore.service');
+
+const ALLOWED_EXPLORE_RADIO_STRATEGIES = new Set(EXPLORE_RADIO_STRATEGIES || []);
+const normalizeRadioStrategy = (value) => {
+  const safe = String(value || 'default').trim().toLowerCase();
+  return ALLOWED_EXPLORE_RADIO_STRATEGIES.has(safe) ? safe : 'default';
+};
+const parseSeedArtists = (value, max = 5) => {
+  const rows = String(value || '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  const seen = new Set();
+  const out = [];
+  for (const row of rows) {
+    const key = row.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(row);
+    if (out.length >= max) break;
+  }
+  return out;
+};
 
 const explorePulse = async (req, res) => {
   const region = String(req.query.region || 'global');
@@ -25,9 +48,12 @@ const exploreRadio = async (req, res) => {
   const mood = String(req.query.mood || '');
   const genre = String(req.query.genre || '');
   const seed = String(req.query.seed || '');
+  const region = String(req.query.region || 'global');
   const diversity = String(req.query.diversity || 'default').trim().toLowerCase() === 'high'
     ? 'high'
     : 'default';
+  const strategy = normalizeRadioStrategy(req.query.strategy);
+  const seedArtists = parseSeedArtists(req.query.seedArtists);
   const limit = Math.max(6, Math.min(60, Number(req.query.limit) || 24));
 
   try {
@@ -36,7 +62,10 @@ const exploreRadio = async (req, res) => {
       genre,
       seed,
       diversity,
+      strategy,
+      seedArtists,
       limit,
+      region,
     });
     setCacheHeaders(res, 90);
     res.json(payload);

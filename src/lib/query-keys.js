@@ -7,6 +7,21 @@
 const normalizeQuery = (q) => String(q ?? '').trim().toLowerCase();
 const normalizeType = (type) => String(type ?? 'all').trim().toLowerCase();
 const normalizeToken = (value) => String(value ?? '').trim().toLowerCase();
+const normalizeSeedArtists = (value) => {
+  const rows = Array.isArray(value)
+    ? value
+    : String(value ?? '')
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  return Array.from(
+    new Set(
+      rows
+        .map((entry) => normalizeToken(entry))
+        .filter(Boolean),
+    ),
+  ).join(',');
+};
 const normalizeLimit = (limit) => {
   if (!Number.isFinite(limit) || limit <= 0) return null;
   return Math.round(limit);
@@ -81,6 +96,8 @@ export const queryKeys = {
     mood = '',
     genre = '',
     seed = '',
+    strategy = '',
+    seedArtists = '',
     limit = 24,
   } = {}) => [
     'explore',
@@ -89,6 +106,8 @@ export const queryKeys = {
       mood: normalizeToken(mood),
       genre: normalizeToken(genre),
       seed: normalizeToken(seed),
+      strategy: normalizeToken(strategy),
+      seedArtists: normalizeSeedArtists(seedArtists),
       limit: normalizeLimit(limit) ?? 24,
     },
   ],
