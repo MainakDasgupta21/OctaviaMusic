@@ -115,6 +115,16 @@ hands the client a `videoId`.
 - **Hooks** use the `use-*` `kebab-case` convention (`use-keyboard-shortcuts.js`).
 - The `@` alias maps to `src/` (configured in `vite.config.ts` / `tsconfig`).
 
+## Documentation
+
+Comprehensive project documentation now lives in [`docs/`](docs/).
+
+- Start here: [`docs/README.md`](docs/README.md)
+- Setup: [`docs/getting-started.md`](docs/getting-started.md)
+- Architecture: [`docs/architecture.md`](docs/architecture.md)
+- API contract: [`docs/api-reference.md`](docs/api-reference.md)
+- Contribution workflow: [`docs/contributing.md`](docs/contributing.md)
+
 ## License
 
 MIT

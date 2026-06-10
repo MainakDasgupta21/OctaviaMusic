@@ -675,7 +675,7 @@ const FooterPlayer = () => {
                 step={1}
                 onValueChange={(value) => setVolume(value[0] / 100)}
                 // Same delicate-then-tactile treatment as the seek bar.
-                className="hidden flex-1 [&_.slider-track]:h-[2px] [&_.slider-track]:transition-[height] [&_.slider-track]:duration-med [&_.slider-track]:ease-emphasis hover:[&_.slider-track]:h-[4px] focus-within:[&_.slider-track]:h-[4px] lg:block"
+                className="min-w-[72px] flex-1 [&_.slider-track]:h-[2px] [&_.slider-track]:transition-[height] [&_.slider-track]:duration-med [&_.slider-track]:ease-emphasis hover:[&_.slider-track]:h-[4px] focus-within:[&_.slider-track]:h-[4px]"
                 aria-label="Volume"
               />
               <Popover>
