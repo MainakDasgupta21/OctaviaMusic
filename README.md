@@ -25,24 +25,23 @@ A modern, glass-themed music streaming web app built with React, Vite, Tailwind 
 ## Getting started
 
 ```bash
-# 1. Install frontend dependencies
+# 1) Install frontend + backend dependencies
 npm install
+npm --prefix server install
 
-# 2. Configure the API base URL
+# 2) Configure environment values
 cp .env.example .env
 
-# 3. Start the frontend
+# 3) Start backend API (http://localhost:5000)
+npm --prefix server run dev
+
+# 4) Start frontend (http://localhost:8080)
 npm run dev
 ```
 
-The dev server runs at <http://localhost:8080>. A companion Express server in
-`server/` serves the catalog/search endpoints the frontend calls:
-
-```bash
-cd server
-npm install
-npm run dev   # starts the API on http://localhost:5000
-```
+The frontend talks to the Express API under `server/` for both live catalog
+data and authenticated `/api/auth`, `/api/me`, `/api/users`, and `/api/admin`
+routes.
 
 ### Environment variables
 
@@ -54,15 +53,44 @@ for the full list.
 
 - `VITE_API_BASE` — base URL of the backend API (defaults to `http://localhost:5000/api`)
 
-**Backend** (all optional, sensible defaults baked in)
+**Backend required for auth + data persistence**
+
+- `MONGODB_URI` — MongoDB Atlas connection string
+- `JWT_ACCESS_SECRET` — access-token signing secret (32+ random bytes)
+- `JWT_REFRESH_SECRET` — refresh-token signing secret (32+ random bytes)
+- `JWT_ACCESS_TTL` — access token lifetime (default `15m`)
+- `JWT_REFRESH_TTL` — refresh token lifetime (default `30d`)
+- `BCRYPT_ROUNDS` — password-hash cost (default `12`, minimum `12`)
+- `CORS_ORIGIN` — allowlisted frontend origin for cookie auth
+- `COOKIE_SECURE` — `true` in production
+- `COOKIE_DOMAIN` — optional cookie domain override
+- `AUTH_RATE_LIMIT_WINDOW_MS` / `AUTH_RATE_LIMIT_MAX` — auth route limiter
+
+**Backend optional catalog tuning**
 
 - `YTM_CHARTS_PLAYLIST` / `YTM_TRENDING_PLAYLIST` — YouTube Music playlist IDs
-  to drive `/api/charts` and `/api/trending`. When unset, the server falls back
-  to a broad search query.
+  used by `/api/charts` and `/api/trending`
 - `YTM_CACHE_SEARCH_MIN`, `YTM_CACHE_DETAIL_MIN`, `YTM_CACHE_CHARTS_MIN`,
-  `YTM_CACHE_GENRES_MIN` — in-memory TTL (minutes) per endpoint family.
+  `YTM_CACHE_GENRES_MIN` — cache TTL minutes per endpoint family
+- `ADMIN_BOOTSTRAP_EMAIL` / `ADMIN_BOOTSTRAP_PASSWORD` — used by
+  `npm --prefix server run seed:admin`
 
 Never commit a real `.env`; only `.env.example` is tracked.
+
+### MongoDB Atlas + admin bootstrap
+
+1. Create a free Atlas cluster and database user.
+2. Add your connection string to `MONGODB_URI`.
+3. Set `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` to strong random values.
+4. Seed an admin account:
+
+```bash
+set ADMIN_BOOTSTRAP_EMAIL=admin@example.com
+set ADMIN_BOOTSTRAP_PASSWORD=replace-with-strong-password
+npm --prefix server run seed:admin
+```
+
+Use `export ...` on macOS/Linux shells instead of `set`.
 
 ### Live YouTube Music fetching
 
@@ -81,7 +109,11 @@ hands the client a `videoId`.
 - `npm run build` — production build
 - `npm run build:dev` — development-mode build
 - `npm run preview` — preview the production build
+- `npm run test:run` — run frontend Vitest tests
 - `npm run lint` — run ESLint
+- `npm --prefix server run dev` — start backend API
+- `npm --prefix server run test:run` — run backend Vitest tests
+- `npm --prefix server run seed:admin` — create/update admin user
 
 ## Project layout
 
@@ -89,8 +121,9 @@ hands the client a `videoId`.
 .
 ├── public/             Static assets (robots.txt, sitemap.xml, og-image.svg)
 ├── server/             Companion Express API
-│   ├── data/           In-memory music catalog + query helpers
-│   └── server.js       REST endpoints (search, album, artist, charts, …)
+│   ├── index.js        Backend entrypoint
+│   ├── scripts/        Utility scripts (e.g. seed-admin)
+│   └── src/            App, routes, middleware, services, models, validators
 ├── src/
 │   ├── components/     Feature components (CommandPalette, player surfaces, …)
 │   │   ├── brand/      Logo / brand marks

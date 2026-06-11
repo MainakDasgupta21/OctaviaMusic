@@ -41,10 +41,10 @@ describe('upgradeImageQuality', () => {
     ).toBe('https://i.ytimg.com/vi/abc/hqdefault.jpg');
   });
 
-  it('upgrades googleusercontent size hints to s544', () => {
+  it('preserves googleusercontent avatar params', () => {
     expect(
       upgradeImageQuality('https://lh3.googleusercontent.com/x=w120-h120-l90'),
-    ).toBe('https://lh3.googleusercontent.com/x=w544-h544-l90');
+    ).toBe('https://lh3.googleusercontent.com/x=w120-h120-l90');
   });
 
   it('passes non-string input through unchanged', () => {

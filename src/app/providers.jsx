@@ -1,6 +1,7 @@
 import { HelmetProvider } from 'react-helmet-async';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { AuthProvider } from '@/contexts/AuthContext';
 import { SettingsProvider } from '@/contexts/SettingsContext';
 import { PlayerProvider } from '@/contexts/PlayerContext';
 import { FavoritesProvider } from '@/contexts/FavoritesContext';
@@ -16,7 +17,7 @@ const queryClient = new QueryClient({
     queries: {
       retry: 1,
       refetchOnWindowFocus: false,
-      staleTime: 60_000,
+      staleTime: 60000,
       gcTime: 60 * 60 * 1000,
     },
   },
@@ -25,25 +26,27 @@ const queryClient = new QueryClient({
 const AppProviders = ({ children }) => (
   <HelmetProvider>
     <QueryClientProvider client={queryClient}>
-      <SettingsProvider>
-        <PlayerProvider>
-          <FavoritesProvider>
-            <LikedAlbumsProvider>
-              <FollowedArtistsProvider>
-                <PlaylistProvider>
-                  <NotificationsProvider>
-                    <UIProvider>
-                      <SoundProvider>
-                        <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
-                      </SoundProvider>
-                    </UIProvider>
-                  </NotificationsProvider>
-                </PlaylistProvider>
-              </FollowedArtistsProvider>
-            </LikedAlbumsProvider>
-          </FavoritesProvider>
-        </PlayerProvider>
-      </SettingsProvider>
+      <AuthProvider>
+        <SettingsProvider>
+          <PlayerProvider>
+            <FavoritesProvider>
+              <LikedAlbumsProvider>
+                <FollowedArtistsProvider>
+                  <PlaylistProvider>
+                    <NotificationsProvider>
+                      <UIProvider>
+                        <SoundProvider>
+                          <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
+                        </SoundProvider>
+                      </UIProvider>
+                    </NotificationsProvider>
+                  </PlaylistProvider>
+                </FollowedArtistsProvider>
+              </LikedAlbumsProvider>
+            </FavoritesProvider>
+          </PlayerProvider>
+        </SettingsProvider>
+      </AuthProvider>
     </QueryClientProvider>
   </HelmetProvider>
 );

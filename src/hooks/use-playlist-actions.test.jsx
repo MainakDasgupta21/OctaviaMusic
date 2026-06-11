@@ -1,12 +1,26 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PlaylistProvider } from '@/contexts/PlaylistContext';
 import usePlaylistActions from '@/hooks/use-playlist-actions';
 
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => ({ user: null }),
+}));
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { retry: false },
+    mutations: { retry: false },
+  },
+});
+
 const wrapper = ({ children }) => (
   <MemoryRouter>
-    <PlaylistProvider>{children}</PlaylistProvider>
+    <QueryClientProvider client={queryClient}>
+      <PlaylistProvider>{children}</PlaylistProvider>
+    </QueryClientProvider>
   </MemoryRouter>
 );
 
@@ -21,6 +35,7 @@ const sampleTrack = {
 
 describe('usePlaylistActions', () => {
   beforeEach(() => {
+    queryClient.clear();
     window.localStorage.removeItem('octavia.playlists.v1');
   });
 

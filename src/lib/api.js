@@ -20,12 +20,107 @@ if (typeof import.meta !== 'undefined' && !import.meta.env?.DEV && !import.meta.
 
 const api = axios.create({
   baseURL: API_BASE,
+  withCredentials: true,
   // The backend talks to YouTube Music live; a cold cache (first hit after the
   // server starts, or after a TTL expiry) can take a few seconds, especially
   // when several queries fire on initial page load. 10s was too tight and led
   // to spurious failures that only cleared on refresh — give it real headroom.
   timeout: 25000,
 });
+
+const isMutatingMethod = (method) =>
+  ['post', 'put', 'patch', 'delete'].includes(String(method || '').toLowerCase());
+
+const normalizePath = (url = '') => {
+  const raw = String(url || '');
+  if (!raw) return '';
+  if (raw.startsWith('http://') || raw.startsWith('https://')) {
+    try {
+      return new URL(raw).pathname || raw;
+    } catch {
+      return raw;
+    }
+  }
+  return raw;
+};
+
+const isAuthPath = (url) => normalizePath(url).includes('/auth/');
+
+let authFailureHandler = () => {
+  if (typeof window !== 'undefined') {
+    window.location.assign('/login');
+  }
+};
+let csrfTokenProvider = () => null;
+let refreshPromise = null;
+let refreshFailureHandled = false;
+
+export const configureApiAuth = ({ onAuthFailure, getCsrfToken } = {}) => {
+  if (typeof onAuthFailure === 'function') authFailureHandler = onAuthFailure;
+  if (typeof getCsrfToken === 'function') csrfTokenProvider = getCsrfToken;
+};
+
+const queueRefresh = async () => {
+  if (!refreshPromise) {
+    refreshPromise = api
+      .post('/auth/refresh', {}, { skipAuthRefresh: true })
+      .then((response) => {
+        refreshFailureHandled = false;
+        return response;
+      })
+      .catch((error) => {
+        if (!refreshFailureHandled) {
+          refreshFailureHandled = true;
+          authFailureHandler(error);
+        }
+        throw error;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+
+  return refreshPromise;
+};
+
+api.interceptors.request.use((config) => {
+  if (isMutatingMethod(config?.method)) {
+    const csrfToken = csrfTokenProvider();
+    if (csrfToken) {
+      const nextHeaders = config.headers || {};
+      nextHeaders['x-csrf-token'] = csrfToken;
+      config.headers = nextHeaders;
+    }
+  }
+  return config;
+});
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const status = error?.response?.status;
+    const originalRequest = error?.config;
+    if (!originalRequest || status !== 401) {
+      throw error;
+    }
+
+    if (
+      originalRequest._retry
+      || originalRequest.skipAuthRefresh
+      || isAuthPath(originalRequest.url)
+    ) {
+      throw error;
+    }
+
+    originalRequest._retry = true;
+    try {
+      await queueRefresh();
+      return api.request(originalRequest);
+    } catch (_refreshError) {
+      throw error;
+    }
+  },
+);
 
 // =============================================================================
 // Image helpers — YouTube thumbnails ship at varying resolutions. We rewrite
@@ -302,5 +397,37 @@ export const isProviderError = (error) =>
 
 export const isNetworkError = (error) =>
   Boolean(error?.code === 'ERR_NETWORK' || (error && !error.response));
+
+// =============================================================================
+// Auth endpoints
+// =============================================================================
+
+export const registerAccount = async (payload) => {
+  const response = await api.post('/auth/register', payload, { skipAuthRefresh: true });
+  return response.data;
+};
+
+export const loginAccount = async (payload) => {
+  const response = await api.post('/auth/login', payload, { skipAuthRefresh: true });
+  return response.data;
+};
+
+export const refreshSession = async () => {
+  const response = await api.post('/auth/refresh', {}, { skipAuthRefresh: true });
+  return response.data;
+};
+
+export const logoutSession = async () => {
+  await api.post('/auth/logout', {}, { skipAuthRefresh: true });
+};
+
+export const logoutAllSessions = async () => {
+  await api.post('/auth/logout-all', {}, { skipAuthRefresh: true });
+};
+
+export const getCurrentUser = async () => {
+  const response = await api.get('/auth/me', { skipAuthRefresh: true });
+  return response.data;
+};
 
 export default api;

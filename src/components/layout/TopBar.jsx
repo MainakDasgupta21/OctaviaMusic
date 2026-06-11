@@ -40,6 +40,7 @@ import { useSearchSuggestions } from '@/hooks/use-search-suggestions';
 import { useTrendingSearches } from '@/hooks/use-trending-searches';
 import { useHoverPrefetch } from '@/hooks/use-route-prefetch';
 import { useNotifications } from '@/contexts/NotificationsContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { normalize } from '@/lib/search-rank';
 import { artistSlugFromName, artistSlugOf, isUsableArtistSlug } from '@/lib/slug';
 import SmartImage from '@/components/SmartImage';
@@ -85,6 +86,8 @@ const ROUTE_TITLES = {
   '/favorites': 'Favorites',
   '/player': 'Now playing',
   '/settings': 'Settings',
+  '/account': 'Account',
+  '/admin': 'Admin',
   '/trending': 'Trending',
 };
 
@@ -168,6 +171,7 @@ const TopBar = () => {
   const { searchInputRef, openPalette, openMobileDrawer } = useUI();
   const { settings } = useSettings();
   const { isPlaying, currentTrack, playTrack, addToQueue } = usePlayer();
+  const { user, logout: logoutUser } = useAuth();
   const { play: playSfx } = useSounds();
   const [searchValue, setSearchValue] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -378,8 +382,16 @@ const TopBar = () => {
     [openPalette, isSearchPopoverOpen, move, selected, addToQueue, pick],
   );
 
-  const displayName = settings.displayName || 'Music Lover';
-  const email = settings.email || 'user@example.com';
+  const isAuthenticated = Boolean(user);
+  const displayName = user?.displayName || settings.displayName || 'Music Lover';
+  const email = user?.email || settings.email || 'user@example.com';
+  const isAdmin = user?.role === 'admin';
+
+  const handleLogout = useCallback(async () => {
+    await logoutUser();
+    playSfx('click');
+    navigate('/login');
+  }, [logoutUser, playSfx, navigate]);
 
   return (
     <TooltipProvider delayDuration={250}>
@@ -1014,61 +1026,96 @@ const TopBar = () => {
           {/* Hairline divider between the action cluster and the avatar pill. */}
           <span aria-hidden="true" className="hidden sm:inline-block mx-2 h-5 w-px bg-white/[0.06]" />
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+          {isAuthenticated ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="flex items-center gap-2 pl-1 pr-2 py-1.5 rounded-full hover:bg-white/[0.06] transition-colors focus-ring press"
+                  aria-label="Account menu"
+                >
+                  <span
+                    className="relative w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-[11px] font-semibold text-track-fg ring-1 ring-white/15"
+                    style={{
+                      background:
+                        'linear-gradient(135deg, hsl(var(--track-accent)), hsl(var(--track-accent-strong)))',
+                    }}
+                  >
+                    {user?.avatarUrl ? (
+                      <img
+                        src={user.avatarUrl}
+                        alt=""
+                        className="h-full w-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      initialsOf(displayName)
+                    )}
+                  </span>
+                  <span className="hidden xl:inline text-[13px] font-medium truncate max-w-[140px]">
+                    {displayName}
+                  </span>
+                  <ChevronDown className="hidden xl:inline w-3.5 h-3.5 text-ink-3" aria-hidden="true" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="w-56 bg-surface-3/95 backdrop-blur-xl border-white/10"
+              >
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col">
+                    <span className="font-semibold truncate">{displayName}</span>
+                    <span className="text-xs text-ink-3 truncate">{email}</span>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate('/account')}>
+                  <User className="w-4 h-4 mr-2" />
+                  Account
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('/library')}>
+                  <User className="w-4 h-4 mr-2" />
+                  Your library
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('/favorites')}>
+                  <Heart className="w-4 h-4 mr-2" />
+                  Favorites
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('/settings')}>
+                  <Settings className="w-4 h-4 mr-2" />
+                  Settings
+                </DropdownMenuItem>
+                {isAdmin ? (
+                  <DropdownMenuItem onClick={() => navigate('/admin')}>
+                    <User className="w-4 h-4 mr-2" />
+                    Admin
+                  </DropdownMenuItem>
+                ) : null}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="text-danger focus:text-danger" onClick={handleLogout}>
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <div className="flex items-center gap-2">
               <button
                 type="button"
-                className="flex items-center gap-2 pl-1 pr-2 py-1.5 rounded-full hover:bg-white/[0.06] transition-colors focus-ring press"
-                aria-label="Account menu"
+                onClick={() => navigate('/login')}
+                className="h-9 px-3 rounded-full border border-white/[0.12] text-[12px] text-ink-2 hover:text-ink hover:bg-white/[0.05] transition-colors focus-ring"
               >
-                <span
-                  className="relative w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-[11px] font-semibold text-track-fg ring-1 ring-white/15"
-                  style={{
-                    background:
-                      'linear-gradient(135deg, hsl(var(--track-accent)), hsl(var(--track-accent-strong)))',
-                  }}
-                >
-                  {initialsOf(displayName)}
-                </span>
-                <span className="hidden xl:inline text-[13px] font-medium truncate max-w-[140px]">
-                  {displayName}
-                </span>
-                <ChevronDown className="hidden xl:inline w-3.5 h-3.5 text-ink-3" aria-hidden="true" />
+                Sign in
               </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className="w-52 bg-surface-3/95 backdrop-blur-xl border-white/10"
-            >
-              <DropdownMenuLabel className="font-normal">
-                <div className="flex flex-col">
-                  <span className="font-semibold truncate">{displayName}</span>
-                  <span className="text-xs text-ink-3 truncate">{email}</span>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => navigate('/library')}>
-                <User className="w-4 h-4 mr-2" />
-                Your library
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate('/favorites')}>
-                <Heart className="w-4 h-4 mr-2" />
-                Favorites
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate('/settings')}>
-                <Settings className="w-4 h-4 mr-2" />
-                Settings
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-danger focus:text-danger"
-                onClick={() => navigate('/settings')}
+              <button
+                type="button"
+                onClick={() => navigate('/register')}
+                className="h-9 px-3 rounded-full text-[12px] text-track-fg bg-[radial-gradient(circle_at_30%_25%,hsl(var(--ink-primary)/0.22),transparent_55%),linear-gradient(135deg,hsl(var(--track-accent)),hsl(var(--track-accent-strong)))] ring-1 ring-white/20 hover:brightness-[1.06] transition-colors focus-ring"
               >
-                <LogOut className="w-4 h-4 mr-2" />
-                Sign out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                Create account
+              </button>
+            </div>
+          )}
         </div>
       </header>
     </TooltipProvider>

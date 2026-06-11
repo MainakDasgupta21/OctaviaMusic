@@ -5,13 +5,25 @@
   "scripts": {
     "start": "node --env-file=../.env index.js",
     "start:no-env": "node index.js",
-    "dev": "node --env-file=../.env --watch index.js"
+    "dev": "node --env-file=../.env --watch index.js",
+    "seed:admin": "node --env-file=../.env scripts/seed-admin.js",
+    "test": "vitest",
+    "test:run": "vitest run"
   },
   "dependencies": {
+    "bcrypt": "^6.0.0",
     "compression": "^1.8.1",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "express-rate-limit": "^7.4.1",
-    "ytmusic-api": "^5.3.1"
+    "helmet": "^8.2.0",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.7.0",
+    "ytmusic-api": "^5.3.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.8"
   }
 }

@@ -10,6 +10,7 @@ const createCorsMiddleware = () => {
     origin: (origin, cb) => {
       cb(null, isCorsOriginAllowed(origin));
     },
+    credentials: true,
   });
 };
 

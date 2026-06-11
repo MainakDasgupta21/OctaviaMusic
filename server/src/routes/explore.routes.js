@@ -6,12 +6,13 @@ const {
   exploreSimilar,
   exploreJourney,
 } = require('../controllers/explore.controller');
+const { asyncHandler } = require('../utils/async-handler');
 
 const router = express.Router();
 
-router.get('/explore/pulse', homeLimiter, explorePulse);
-router.get('/explore/radio', searchLimiter, exploreRadio);
-router.get('/explore/similar', searchLimiter, exploreSimilar);
-router.get('/explore/journeys/:id', homeLimiter, exploreJourney);
+router.get('/explore/pulse', homeLimiter, asyncHandler(explorePulse));
+router.get('/explore/radio', searchLimiter, asyncHandler(exploreRadio));
+router.get('/explore/similar', searchLimiter, asyncHandler(exploreSimilar));
+router.get('/explore/journeys/:id', homeLimiter, asyncHandler(exploreJourney));
 
 module.exports = router;

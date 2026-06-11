@@ -1,108 +1,142 @@
 # Backend Setup Guide
 
-This music player frontend talks to a small Node/Express server in
-[`server/`](server/) running on `http://localhost:5000`. The server is a thin
-adapter around the unofficial [`ytmusic-api`](https://www.npmjs.com/package/ytmusic-api)
-package — no API key, no Google project, no quotas to manage.
+The frontend talks to an Express 4 API in [`server/`](server/) (`http://localhost:5000` in
+dev). The backend now includes:
+
+- live YouTube Music catalog/search endpoints
+- JWT auth with refresh-token rotation
+- MongoDB Atlas persistence for user accounts and per-user library data
+- role-based admin routes
 
 ## Quick start
 
 ```bash
 cd server
 npm install
-npm run dev   # http://localhost:5000
+npm run dev
 ```
 
-That's it. The first request triggers a one-time InnerTube handshake; results
-are then cached in memory so repeat requests are instant.
+The backend reads `../.env` automatically (`node --env-file=../.env ...`).
 
-## Architecture
+## MongoDB Atlas setup
 
+1. Create a free Atlas cluster.
+2. Create a database user with read/write permissions.
+3. Add your connection URI to `MONGODB_URI` in `.env`.
+4. Add strong JWT secrets (32+ random bytes each).
+5. Start the server and confirm `GET /health` returns `200`.
+
+## Required environment variables
+
+Add these to `.env` (see `.env.example`):
+
+| Env var | Example/default | Purpose |
+| --- | --- | --- |
+| `MONGODB_URI` | `mongodb+srv://...` | Atlas connection string |
+| `JWT_ACCESS_SECRET` | random 32+ bytes | Sign access tokens |
+| `JWT_REFRESH_SECRET` | random 32+ bytes | Sign refresh tokens |
+| `JWT_ACCESS_TTL` | `15m` | Access token lifetime |
+| `JWT_REFRESH_TTL` | `30d` | Refresh token lifetime |
+| `BCRYPT_ROUNDS` | `12` | Password hash cost (minimum 12) |
+| `CORS_ORIGIN` | `http://localhost:8080` | Allowed frontend origin (cookie auth) |
+| `COOKIE_SECURE` | `true` in production | Secure cookie flag |
+| `COOKIE_DOMAIN` | empty unless needed | Optional cookie domain |
+| `AUTH_RATE_LIMIT_WINDOW_MS` | `60000` | Auth rate limit window |
+| `AUTH_RATE_LIMIT_MAX` | `10` | Max auth attempts per window |
+
+Production startup fails fast when required auth secrets are missing.
+
+## Auth token strategy
+
+- Access token cookie: `accessToken`, `httpOnly`, `SameSite=Lax`, `Secure` in prod
+- Refresh token cookie: `refreshToken`, same flags, `Path=/api/auth`
+- CSRF cookie: `csrfToken` (double-submit with `x-csrf-token` on mutating requests)
+- Access payload: `{ sub, role, jti }`
+- Refresh payload: `{ sub, jti }`
+- Refresh rotation on every `/api/auth/refresh`
+- Refresh reuse detection revokes all refresh sessions for that user
+
+## Auth and user routes
+
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `POST /api/auth/refresh`
+- `POST /api/auth/logout`
+- `POST /api/auth/logout-all`
+- `POST /api/auth/change-password`
+- `GET /api/auth/me`
+- `PATCH /api/users/me`
+- `GET/POST/DELETE /api/me/favorites[/:trackId]`
+- `GET/POST/DELETE /api/me/liked-albums[/:albumId]`
+- `GET/POST/DELETE /api/me/followed-artists[/:artistId]`
+- `GET/POST/PATCH/DELETE /api/me/playlists[/:id]`
+- `POST /api/me/playlists/:id/tracks`
+- `DELETE /api/me/playlists/:id/tracks/:trackId`
+- `PATCH /api/me/playlists/:id/tracks/reorder`
+- `GET/POST /api/me/history`
+- `GET/PATCH /api/me/settings`
+- `GET /api/admin/users`
+- `PATCH /api/admin/users/:id/role`
+- `DELETE /api/admin/users/:id`
+
+All `/api/me/*` and `/api/admin/*` routes require auth; admin routes also require `role=admin`.
+
+## cURL examples (cookie flow)
+
+Use a cookie jar so refresh/access cookies persist between calls:
+
+```bash
+# register
+curl -i -c cookies.txt -X POST http://localhost:5000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"demo@example.com\",\"username\":\"demo\",\"displayName\":\"Demo\",\"password\":\"Password123!\"}"
+
+# login
+curl -i -c cookies.txt -X POST http://localhost:5000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"demo@example.com\",\"password\":\"Password123!\"}"
+
+# refresh
+curl -i -b cookies.txt -c cookies.txt -X POST http://localhost:5000/api/auth/refresh
 ```
-React (axios) ──► Express ──► server/lib/ytmusic.js ──► ytmusic-api
-                                       │
-                                       └─► TTL cache + mappers
-                                                  │
-                                                  └─► server/data/catalog.js (fallback)
+
+For mutating protected routes, include CSRF header:
+
+```bash
+curl -i -b cookies.txt -X PATCH http://localhost:5000/api/users/me \
+  -H "Content-Type: application/json" \
+  -H "x-csrf-token: <csrfToken cookie value>" \
+  -d "{\"displayName\":\"Updated Name\"}"
 ```
 
-Every route handler in [`server.js`](server/server.js) wraps its live call in
-`liveOrFallback(...)`. When the upstream errors (rate-limit, network blip,
-schema drift) the static curated catalog answers instead so the UI keeps
-working.
+## Seed an admin user
 
-## Required Endpoints
-
-All endpoints return JSON. Errors yield `{ error: 'Not found' }` with status
-404 — the frontend's `isNotFoundError` helper switches to an EmptyState on
-that signal.
-
-### `GET /api/search?q=<query>&type=<song|artist|album|all>`
-
-Flat array of mixed `{ type: 'song' | 'artist' | 'album', ... }` records.
-
-```json
-[
-  {
-    "id": "dQw4w9WgXcQ",
-    "type": "song",
-    "videoId": "dQw4w9WgXcQ",
-    "title": "Never Gonna Give You Up",
-    "artist": "Rick Astley",
-    "artistId": "UCuAXFkgsw1L7xaCfnd5JJOw",
-    "artistSlug": "UCuAXFkgsw1L7xaCfnd5JJOw",
-    "album": "Whenever You Need Somebody",
-    "albumId": "MPREb_...",
-    "duration": "3:33",
-    "thumbnail": "https://lh3.googleusercontent.com/...=w544-h544"
-  }
-]
+```bash
+# Windows PowerShell
+$env:ADMIN_BOOTSTRAP_EMAIL="admin@example.com"
+$env:ADMIN_BOOTSTRAP_PASSWORD="replace-with-strong-password"
+npm run seed:admin
 ```
 
-### `GET /api/album/:id`
+```bash
+# macOS/Linux
+ADMIN_BOOTSTRAP_EMAIL=admin@example.com \
+ADMIN_BOOTSTRAP_PASSWORD=replace-with-strong-password \
+npm run seed:admin
+```
 
-`id` is the YouTube Music album browse id (e.g. `MPREb_...`). Returns the
-album summary plus a `tracks: TrackDTO[]` array.
+The script creates the user if missing, or upgrades an existing user to admin.
 
-### `GET /api/artist/:slugOrId`
+## Testing
 
-`slugOrId` is the YouTube channel id (e.g. `UC...`). Returns the artist
-summary plus `topTracks: TrackDTO[]` and `albums: AlbumSummary[]`.
+```bash
+# backend unit tests
+npm run test:run
+```
 
-### `GET /api/charts?limit=50`
+From repo root:
 
-Top-N tracks with synthesized `rank` + `prev` fields for the UI's
-up/down arrows.
-
-### `GET /api/trending?limit=20`
-
-Recent / rising tracks. Same `TrackDTO` shape as charts (no rank fields).
-
-### `GET /api/home/featured`
-
-Three editorial picks built from the charts head, decorated with curated
-`eyebrow` / `title` / `description` copy.
-
-### `GET /api/genres`
-
-Static genre defs (gradients + labels) enriched with a live `sampleTrack`.
-
-## Configuration
-
-All optional — see [.env.example](.env.example) for the full list:
-
-| Env var                  | Default                       | What it does                                    |
-| ------------------------ | ----------------------------- | ----------------------------------------------- |
-| `PORT`                   | `5000`                        | Listen port                                     |
-| `YTM_CHARTS_PLAYLIST`    | built-in hits playlist        | YouTube playlist id used for `/api/charts`      |
-| `YTM_TRENDING_PLAYLIST`  | built-in hits playlist        | YouTube playlist id used for `/api/trending`    |
-| `YTM_CACHE_SEARCH_MIN`   | `5`                           | TTL (min) for `/api/search` responses           |
-| `YTM_CACHE_DETAIL_MIN`   | `30`                          | TTL (min) for album/artist responses            |
-| `YTM_CACHE_CHARTS_MIN`   | `60`                          | TTL (min) for charts/trending/home              |
-| `YTM_CACHE_GENRES_MIN`   | `60`                          | TTL (min) for genre sample tracks               |
-
-## Playback note
-
-`react-player` (in `src/components/layout/FooterPlayer.jsx`) is fed the
-`videoId` from each `TrackDTO` and streams directly from YouTube. The server
-never proxies media — it only resolves metadata.
+```bash
+npm run test:run
+npm --prefix server run test:run
+```

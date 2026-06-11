@@ -8,7 +8,9 @@ import React, {
   useState,
 } from 'react';
 import { useSettings } from '@/contexts/SettingsContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { getExploreRadio, getExploreSimilar } from '@/lib/api';
+import api from '@/lib/api';
 import { sanitizeTrack, sanitizeTrackList } from '@/lib/media-sanitize';
 import { buildSmartQueueFromSeed } from '@/lib/smart-queue';
 
@@ -132,6 +134,8 @@ const resolveNextIndex = ({ queueLength, currentIndex, shuffle, repeat }) => {
 
 export const PlayerProvider = ({ children }) => {
   const { settings } = useSettings();
+  const { user } = useAuth();
+  const isAuthenticated = Boolean(user);
 
   const [currentTrack, setCurrentTrack] = useState(persisted?.currentTrack ?? null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -160,6 +164,8 @@ export const PlayerProvider = ({ children }) => {
   const currentTrackRef = useRef(currentTrack);
   const queueStateRef = useRef(queueState);
   const smartQueueRequestRef = useRef(0);
+  const historySyncUserRef = useRef(null);
+  const historyRef = useRef(history);
 
   useEffect(() => {
     currentTrackRef.current = currentTrack;
@@ -168,6 +174,52 @@ export const PlayerProvider = ({ children }) => {
   useEffect(() => {
     queueStateRef.current = queueState;
   }, [queueState]);
+
+  useEffect(() => {
+    historyRef.current = history;
+  }, [history]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      historySyncUserRef.current = null;
+      return;
+    }
+
+    const userId = user?.id || user?._id;
+    if (!userId || historySyncUserRef.current === userId) return;
+
+    let active = true;
+    const syncHistoryFromServer = async () => {
+      try {
+        const initial = await api.get('/me/history', { params: { limit: HISTORY_MAX } });
+        const serverRows = sanitizeTrackList(initial.data?.items || [], { requirePlayable: true });
+        const serverIds = new Set(serverRows.map((row) => row.id));
+        const localRows = sanitizeTrackList(historyRef.current, { requirePlayable: true });
+
+        for (const row of localRows) {
+          if (serverIds.has(row.id)) continue;
+          await api.post('/me/history', { track: row });
+        }
+
+        const fresh = await api.get('/me/history', { params: { limit: HISTORY_MAX } });
+        if (!active) return;
+        const merged = sanitizeTrackList(fresh.data?.items || [], {
+          requirePlayable: true,
+        }).slice(0, HISTORY_MAX);
+        setHistory(merged);
+      } catch {
+        // History sync is best-effort; playback should not fail if network is down.
+      } finally {
+        historySyncUserRef.current = userId;
+      }
+    };
+
+    void syncHistoryFromServer();
+
+    return () => {
+      active = false;
+    };
+  }, [isAuthenticated, user?.id, user?._id]);
 
   // Persist a slim snapshot whenever durable bits change.
   useEffect(() => {
@@ -200,7 +252,10 @@ export const PlayerProvider = ({ children }) => {
       const filtered = rows.filter((row) => row.id !== track.id);
       return [track, ...filtered].slice(0, HISTORY_MAX);
     });
-  }, []);
+    if (isAuthenticated) {
+      void api.post('/me/history', { track }).catch(() => {});
+    }
+  }, [isAuthenticated]);
 
   const startTrackPlayback = useCallback((trackInput) => {
     const track = sanitizeTrack(trackInput, { requirePlayable: true });

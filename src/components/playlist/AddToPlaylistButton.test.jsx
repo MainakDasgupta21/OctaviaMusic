@@ -1,8 +1,20 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PlaylistProvider, usePlaylists } from '@/contexts/PlaylistContext';
 import AddToPlaylistButton from '@/components/playlist/AddToPlaylistButton';
+
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => ({ user: null }),
+}));
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { retry: false },
+    mutations: { retry: false },
+  },
+});
 
 const sampleTrack = {
   id: 'song-1',
@@ -35,14 +47,17 @@ const Harness = () => {
 const renderHarness = () =>
   render(
     <MemoryRouter>
-      <PlaylistProvider>
-        <Harness />
-      </PlaylistProvider>
+      <QueryClientProvider client={queryClient}>
+        <PlaylistProvider>
+          <Harness />
+        </PlaylistProvider>
+      </QueryClientProvider>
     </MemoryRouter>,
   );
 
 describe('AddToPlaylistButton', () => {
   beforeEach(() => {
+    queryClient.clear();
     window.localStorage.removeItem('octavia.playlists.v1');
   });
 

@@ -9,6 +9,8 @@ import RouteHead from '@/components/common/RouteHead';
 import { Loader2 } from 'lucide-react';
 import { registerPrefetch } from '@/hooks/use-route-prefetch';
 import { useAccentRotator } from '@/hooks/use-accent-rotator';
+import ProtectedRoute from '@/components/auth/ProtectedRoute';
+import RoleRoute from '@/components/auth/RoleRoute';
 import AppProviders from './providers';
 
 const HomePageImport = () => import('@/features/home/pages/HomePage');
@@ -26,6 +28,11 @@ const ChartsArtistsPageImport = () => import('@/features/charts/pages/ChartsArti
 const ExplorePageImport = () => import('@/features/explore/pages/ExplorePage');
 const ExploreFlowPageImport = () => import('@/features/explore/pages/ExploreFlowPage');
 const GenresPageImport = () => import('@/features/genres/pages/GenresPage');
+const LoginPageImport = () => import('@/features/auth/pages/LoginPage');
+const RegisterPageImport = () => import('@/features/auth/pages/RegisterPage');
+const ForgotPasswordPageImport = () => import('@/features/auth/pages/ForgotPasswordPage');
+const AccountPageImport = () => import('@/features/auth/pages/AccountPage');
+const AdminPageImport = () => import('@/features/admin/pages/AdminPage');
 const NotFoundImport = () => import('@/app/pages/NotFoundPage');
 
 const HomePage = lazy(HomePageImport);
@@ -43,6 +50,11 @@ const ChartsArtistsPage = lazy(ChartsArtistsPageImport);
 const ExplorePage = lazy(ExplorePageImport);
 const ExploreFlowPage = lazy(ExploreFlowPageImport);
 const GenresPage = lazy(GenresPageImport);
+const LoginPage = lazy(LoginPageImport);
+const RegisterPage = lazy(RegisterPageImport);
+const ForgotPasswordPage = lazy(ForgotPasswordPageImport);
+const AccountPage = lazy(AccountPageImport);
+const AdminPage = lazy(AdminPageImport);
 const NotFound = lazy(NotFoundImport);
 
 registerPrefetch('/', HomePageImport);
@@ -60,6 +72,11 @@ registerPrefetch('/genres', GenresPageImport);
 registerPrefetch('/artist', ArtistPageImport);
 registerPrefetch('/album', AlbumPageImport);
 registerPrefetch('/playlist', PlaylistPageImport);
+registerPrefetch('/login', LoginPageImport);
+registerPrefetch('/register', RegisterPageImport);
+registerPrefetch('/forgot-password', ForgotPasswordPageImport);
+registerPrefetch('/account', AccountPageImport);
+registerPrefetch('/admin', AdminPageImport);
 
 const RouteFallback = () => (
   <div className="flex items-center justify-center min-h-[40vh]">
@@ -98,13 +115,22 @@ const App = () => (
             <Route path="/explore" element={wrap(ExplorePage)} />
             <Route path="/explore/flow" element={wrap(ExploreFlowPage)} />
             <Route path="/genres" element={wrap(GenresPage)} />
-            <Route path="/favorites" element={wrap(FavoritesPage)} />
-            <Route path="/library" element={wrap(LibraryPage)} />
             <Route path="/artist/:slug" element={wrap(ArtistPage)} />
             <Route path="/album/:id" element={wrap(AlbumPage)} />
-            <Route path="/playlist/:id" element={wrap(PlaylistPage)} />
-            <Route path="/settings" element={wrap(SettingsPage)} />
+            <Route element={<ProtectedRoute />}>
+              <Route path="/favorites" element={wrap(FavoritesPage)} />
+              <Route path="/library" element={wrap(LibraryPage)} />
+              <Route path="/playlist/:id" element={wrap(PlaylistPage)} />
+              <Route path="/settings" element={wrap(SettingsPage)} />
+              <Route path="/account" element={wrap(AccountPage)} />
+            </Route>
+            <Route element={<RoleRoute role="admin" />}>
+              <Route path="/admin" element={wrap(AdminPage)} />
+            </Route>
           </Route>
+          <Route path="/login" element={wrap(LoginPage)} />
+          <Route path="/register" element={wrap(RegisterPage)} />
+          <Route path="/forgot-password" element={wrap(ForgotPasswordPage)} />
           <Route path="*" element={wrap(NotFound)} />
         </Routes>
       </ErrorBoundary>

@@ -15,6 +15,14 @@ const STATIC_TITLES = {
   '/player': { title: 'Now playing', desc: 'Immersive Now Playing with visualizer and synced lyrics.' },
   '/trending': { title: 'Trending', desc: 'What\'s trending right now.' },
   '/settings': { title: 'Settings', desc: 'Customize your Octavia experience.' },
+  '/login': { title: 'Sign in', desc: 'Sign in to sync your library and settings.' },
+  '/register': { title: 'Create account', desc: 'Create an Octavia account.' },
+  '/forgot-password': {
+    title: 'Forgot password',
+    desc: 'Reset your Octavia account password.',
+  },
+  '/account': { title: 'Account', desc: 'Manage your Octavia account profile and security.' },
+  '/admin': { title: 'Admin', desc: 'Admin controls for Octavia users and roles.' },
 };
 
 const RouteHead = () => {
