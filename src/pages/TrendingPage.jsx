@@ -17,7 +17,7 @@ import { formatPlays } from '@/lib/player-format';
 import { cn } from '@/lib/utils';
 
 const TRENDING_SHARED_LIMIT = 40;
-const TRENDING_PAGE_LIMIT = 20;
+const TRENDING_PAGE_LIMIT = 40;
 const TRENDING_ROW_GRID =
   'grid-cols-[2.1rem_2.6rem_minmax(0,1fr)_auto] sm:grid-cols-[2.5rem_3rem_minmax(0,1fr)_auto_auto] lg:grid-cols-[2.5rem_3rem_minmax(0,1fr)_auto_auto_auto]';
 
@@ -101,7 +101,7 @@ const TrendingPage = () => {
             </span>
           </h1>
           <p className="font-editorial text-[15px] text-ink-3 mt-4 max-w-xl leading-snug">
-            Twenty tracks climbing the charts right now — refreshed every hour, from every corner.
+            Forty tracks climbing the charts right now — refreshed every hour, from every corner.
           </p>
         </div>
         <div className="flex items-center gap-3 pb-2">

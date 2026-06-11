@@ -21,26 +21,13 @@ const HorizontalRail = ({
     smoothScrollBy(ref.current, { left: resolveStep() * direction });
   };
 
-  const handleKeyDown = (event) => {
-    if (event.key === 'ArrowLeft') {
-      event.preventDefault();
-      scroll(-1);
-    }
-    if (event.key === 'ArrowRight') {
-      event.preventDefault();
-      scroll(1);
-    }
-  };
-
   return (
     <div className="relative group/rail">
       <div
         id={regionId}
         ref={ref}
         role="region"
-        tabIndex={0}
         aria-label={ariaLabel}
-        onKeyDown={handleKeyDown}
         // Edge fade-masks blend the leftmost and rightmost tiles into the
         // background so the rail reads as "more is over there" rather than
         // ending abruptly. Pure cosmetic; scroll behaviour is unchanged.

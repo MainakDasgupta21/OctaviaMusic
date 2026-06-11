@@ -38,7 +38,7 @@ const ArtistCircle = ({ artist, sample, slug }) => {
 
   return (
     <Link
-      to={`/artist/${slug}`}
+      to={`/artist/${encodeURIComponent(slug)}`}
       className="flex-shrink-0 w-36 text-center group snap-start focus-ring rounded-sharp lift press"
     >
       {content}

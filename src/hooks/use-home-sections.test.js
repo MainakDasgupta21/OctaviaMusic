@@ -36,6 +36,18 @@ describe('use-home-sections helpers', () => {
     expect(mixes[1].id).toBe('mix-dua-lipa');
   });
 
+  it('buildDailyMixes links each mix to search with song filter', () => {
+    const history = [
+      { id: '1', videoId: 'JGwWNGJdvx8', artist: 'Daft Punk', thumbnail: 'https://i.ytimg.com/vi/JGwWNGJdvx8/hqdefault.jpg' },
+      { id: '2', videoId: '2Vv-BfVoq4g', artist: 'Daft Punk', thumbnail: 'https://i.ytimg.com/vi/2Vv-BfVoq4g/hqdefault.jpg' },
+      { id: '3', videoId: 'DkeiKbqa02g', artist: 'Dua Lipa', thumbnail: 'https://i.ytimg.com/vi/DkeiKbqa02g/hqdefault.jpg' },
+    ];
+
+    const mixes = buildDailyMixes({ history, favorites: [] });
+    expect(mixes[0].to).toBe('/search?q=Daft%20Punk&type=song');
+    expect(mixes[1].to).toBe('/search?q=Dua%20Lipa&type=song');
+  });
+
   it('buildSectionOrdinals renumbers visible sections without gaps', () => {
     const ordinals = buildSectionOrdinals({
       hasHistory: false,

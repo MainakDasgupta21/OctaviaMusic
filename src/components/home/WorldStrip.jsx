@@ -71,11 +71,11 @@ const extractTracks = (payload) => {
 
 const WorldStrip = ({ onPlayTracks }) => {
   const queryClient = useQueryClient();
-  const [loadingId, setLoadingId] = useState(null);
+  const [loadingIds, setLoadingIds] = useState([]);
 
   const handlePlay = async (scene) => {
-    if (loadingId) return;
-    setLoadingId(scene.id);
+    if (loadingIds.includes(scene.id)) return;
+    setLoadingIds((prev) => [...prev, scene.id]);
     try {
       const data = await queryClient.fetchQuery({
         queryKey: queryKeys.search(scene.query, 'song', 12),
@@ -97,7 +97,7 @@ const WorldStrip = ({ onPlayTracks }) => {
       // eslint-disable-next-line no-console
       console.error('[WorldStrip] play failed', scene.id, err);
     } finally {
-      setLoadingId(null);
+      setLoadingIds((prev) => prev.filter((id) => id !== scene.id));
     }
   };
 
@@ -116,21 +116,21 @@ const WorldStrip = ({ onPlayTracks }) => {
         className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3"
       >
         {SCENES.map((scene) => {
-          const isLoading = loadingId === scene.id;
+          const isLoading = loadingIds.includes(scene.id);
           return (
             <motion.button
               variants={fadeUp}
               key={scene.id}
               type="button"
               onClick={() => handlePlay(scene)}
-              disabled={Boolean(loadingId)}
+              disabled={isLoading}
               aria-busy={isLoading || undefined}
               aria-label={`Play ${scene.label} from ${scene.region}`}
               className={cn(
                 'relative aspect-[4/3] rounded-sharp overflow-hidden p-4 text-left focus-ring transition-transform',
                 'border border-white/[0.08] hover:border-white/25 group',
                 'disabled:opacity-70 disabled:cursor-not-allowed',
-                !loadingId && 'hover:-translate-y-0.5',
+                !isLoading && 'hover:-translate-y-0.5',
               )}
               style={{ background: 'hsl(var(--surface-2))' }}
             >

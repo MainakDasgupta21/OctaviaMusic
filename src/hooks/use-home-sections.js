@@ -56,7 +56,7 @@ export const buildDailyMixes = ({ history = [], favorites = [], max = 6 } = {}) 
       artist: entry.artist,
       sampleTrack: entry.sampleTrack,
       thumbnail: sanitizeImageUrl(entry.sampleTrack?.thumbnail, { fallback: DAILY_MIX_FALLBACK }),
-      to: `/explore?artist=${encodeURIComponent(entry.artist)}`,
+      to: `/search?q=${encodeURIComponent(entry.artist)}&type=song`,
     }));
 };
 

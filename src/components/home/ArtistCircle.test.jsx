@@ -20,6 +20,23 @@ describe('ArtistCircle', () => {
     );
   });
 
+  it('encodes special characters in artist slug links', () => {
+    render(
+      <MemoryRouter>
+        <ArtistCircle
+          artist="Encoded Artist"
+          sample="https://i.ytimg.com/vi/JGwWNGJdvx8/hqdefault.jpg"
+          slug="artist/name"
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('link', { name: /encoded artist/i })).toHaveAttribute(
+      'href',
+      '/artist/artist%2Fname',
+    );
+  });
+
   it('renders non-link fallback when slug is missing', () => {
     render(
       <MemoryRouter>

@@ -13,6 +13,7 @@ import {
 import { usePlayer } from '@/contexts/PlayerContext';
 import { useFavorites } from '@/contexts/FavoritesContext';
 import { useSettings } from '@/contexts/SettingsContext';
+import { useAuth } from '@/contexts/AuthContext';
 import Button from '@/components/ui-v2/Button';
 import EmptyState from '@/components/ui-v2/EmptyState';
 import SectionHeader from '@/components/ui-v2/SectionHeader';
@@ -58,8 +59,8 @@ import { cn } from '@/lib/utils';
 // 21-40) on top of the existing Top 12 + Fresh finds rails. The unified
 // `/api/home` endpoint clamps to 100 so the higher ask is safe.
 const TRENDING_LIMIT = 40;
-const CHARTS_FETCH_LIMIT = 50;
 const CHARTS_RAIL_LIMIT = 12;
+const CHARTS_FETCH_LIMIT = CHARTS_RAIL_LIMIT;
 const HOME_SURPRISE_FETCH_LIMIT = 60;
 const HOME_SURPRISE_FETCH_ATTEMPTS = 3;
 
@@ -98,6 +99,7 @@ const HomePage = () => {
   const { history, playTrack, playTracksInOrder, currentTrack } = usePlayer();
   const { list: favorites } = useFavorites();
   const { settings } = useSettings();
+  const { user } = useAuth();
   const [homeSurpriseLoading, setHomeSurpriseLoading] = useState(false);
 
   const { greeting, masthead, issueNum } = useEditorialMeta({ includeGreeting: true });
@@ -110,17 +112,12 @@ const HomePage = () => {
   });
 
   const chartsKey = queryKeys.charts('global', 'this_week', CHARTS_FETCH_LIMIT);
-  const hasWarmGenresCache = Boolean(queryClient.getQueryData(queryKeys.genres()));
-  const hasWarmChartsCache = Boolean(queryClient.getQueryData(chartsKey));
-  const shouldDeferSecondaryQueries =
-    homeQuery.isPending && !homeQuery.data && !hasWarmGenresCache && !hasWarmChartsCache;
 
   // Genres feed the on-Home "Browse genres" rail. Independent query so it
   // caches & retries on its own without coupling to the home feed.
   const genresQuery = useQuery({
     queryKey: queryKeys.genres(),
     queryFn: ({ signal }) => getGenres({ signal }),
-    enabled: !shouldDeferSecondaryQueries || hasWarmGenresCache,
     ...cachePolicy.genres,
   });
 
@@ -135,7 +132,6 @@ const HomePage = () => {
         limit: CHARTS_FETCH_LIMIT,
         signal,
       }),
-    enabled: !shouldDeferSecondaryQueries || hasWarmChartsCache,
     select: (payload) => ({
       ...payload,
       items: Array.isArray(payload?.items)
@@ -209,8 +205,11 @@ const HomePage = () => {
   });
 
   const spotlightArtist = spotlightArtistQuery.data;
-  const showSpotlight =
-    Boolean(spotlightSeed?.slug) && (spotlightArtistQuery.isLoading || spotlightArtist?.topTracks?.length >= 3);
+  const hasSpotlightSeed = Boolean(spotlightSeed?.slug);
+  const spotlightTrackCount = Array.isArray(spotlightArtist?.topTracks)
+    ? spotlightArtist.topTracks.length
+    : 0;
+  const spotlightReady = spotlightTrackCount >= 3;
 
   const backendOffline = homeQuery.isError && isNetworkError(homeQuery.error);
   const pageError = usePageError(homeQuery.error, { resource: 'the home feed' });
@@ -357,10 +356,10 @@ const HomePage = () => {
         onRetry={() => genresQuery.refetch()}
       />
 
-      {showSpotlight ? (
+      {hasSpotlightSeed ? (
         spotlightArtistQuery.isLoading && !spotlightArtist ? (
           <SpotlightArtistSkeleton />
-        ) : (
+        ) : spotlightReady ? (
           <SpotlightArtist
             artist={spotlightArtist}
             fallbackImage={spotlightSeed?.sample}
@@ -369,6 +368,18 @@ const HomePage = () => {
               playTracksInOrder(tracks, { replaceQueue: true, forceSequential: false })
             }
           />
+        ) : (
+          <div className="mb-14">
+            <InlineIssue
+              title="Spotlight artist unavailable"
+              description={
+                spotlightArtistQuery.isError
+                  ? 'We could not load this week\'s spotlight artist. Retry to fetch the latest profile.'
+                  : 'This week\'s spotlight artist is still warming up. Check back in a moment.'
+              }
+              onRetry={() => spotlightArtistQuery.refetch()}
+            />
+          </div>
         )
       ) : null}
 
@@ -380,7 +391,7 @@ const HomePage = () => {
             eyebrow="Continued"
             title="Pick up where you left off"
             subtitle="Recent tracks, ready to resume — exactly where the needle lifted."
-            to="/library"
+            to={user ? '/library' : '/player'}
           />
           <HorizontalRail ariaLabel="Recently played tracks">
             {history.slice(0, 12).map((track, index) => (

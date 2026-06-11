@@ -886,61 +886,12 @@ const SearchPage = () => {
               </motion.div>
             ) : null}
 
-            {(filter === 'all' || filter === 'song') && grouped.library.length > 0 ? (
-              <div>
-                <SectionRule ordinal="01" label="From your library" className="mb-3 mt-0" />
-                <div className="rounded-sharp border border-white/[0.06] bg-surface-2/35 backdrop-blur-md overflow-hidden">
-                  {grouped.library.map((r, i) => (
-                    <motion.div
-                      variants={fadeUp}
-                      key={`lib-${r.id || r.videoId}-${i}`}
-                      onClick={() => playTrack(toTrack(r))}
-                      className="group flex min-w-0 items-center gap-3 sm:gap-4 p-3 cursor-pointer border-b border-white/[0.05] last:border-0 row-hover"
-                    >
-                      <div className="relative w-11 h-11 flex-shrink-0">
-                        <SmartImage
-                          src={r.thumbnail}
-                          alt=""
-                          kind="track"
-                          rounded="rounded-sharp"
-                          className="w-11 h-11 ring-1 ring-white/10"
-                          imgClassName="object-cover"
-                        />
-                        <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-sharp">
-                          <Play className="w-4 h-4 text-white fill-current" />
-                        </div>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[14px] font-medium truncate text-ink">
-                          <SearchHighlight text={r.title} tokens={highlightTokens} />
-                        </p>
-                        <p className="text-[12px] text-ink-3 truncate mt-0.5">
-                          {librarySourceLabel(r)}
-                        </p>
-                      </div>
-                      <div
-                        onClick={(e) => e.stopPropagation()}
-                        className="touch-action-visible opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex items-center gap-1"
-                      >
-                        <AddToPlaylistButton
-                          track={toTrack(r)}
-                          className="p-1.5"
-                          buttonLabel={`Add ${r.title} to playlist`}
-                        />
-                        <HeartButton track={toTrack(r)} size="sm" />
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
             {/* Top result + songs grid */}
             {songs.length > 0 || topResult ? (
               <div className={cn('grid grid-cols-1 xl:grid-cols-3 gap-6 xl:gap-8', songs.length === 0 && 'xl:grid-cols-1')}>
                 {topResult ? (
                   <motion.div variants={fadeUp} className="xl:col-span-1">
-                    <SectionRule ordinal="02" label="Top result" tone="accent" className="mb-3 mt-0" />
+                    <SectionRule ordinal="01" label="Top result" tone="accent" className="mb-3 mt-0" />
 
                     <TopResultCard
                       result={topResult}
@@ -963,7 +914,7 @@ const SearchPage = () => {
                 {songs.length > 0 ? (
                   <div className="xl:col-span-2 min-w-0 space-y-5">
                     <SectionRule
-                      ordinal="03"
+                      ordinal="02"
                       label="Songs"
                       className="mb-3 mt-0"
                       trailing={
@@ -1008,6 +959,55 @@ const SearchPage = () => {
                     ) : null}
                   </div>
                 ) : null}
+              </div>
+            ) : null}
+
+            {(filter === 'all' || filter === 'song') && grouped.library.length > 0 ? (
+              <div>
+                <SectionRule ordinal="03" label="From your library" className="mb-3 mt-0" />
+                <div className="rounded-sharp border border-white/[0.06] bg-surface-2/35 backdrop-blur-md overflow-hidden">
+                  {grouped.library.map((r, i) => (
+                    <motion.div
+                      variants={fadeUp}
+                      key={`lib-${r.id || r.videoId}-${i}`}
+                      onClick={() => playTrack(toTrack(r))}
+                      className="group flex min-w-0 items-center gap-3 sm:gap-4 p-3 cursor-pointer border-b border-white/[0.05] last:border-0 row-hover"
+                    >
+                      <div className="relative w-11 h-11 flex-shrink-0">
+                        <SmartImage
+                          src={r.thumbnail}
+                          alt=""
+                          kind="track"
+                          rounded="rounded-sharp"
+                          className="w-11 h-11 ring-1 ring-white/10"
+                          imgClassName="object-cover"
+                        />
+                        <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-sharp">
+                          <Play className="w-4 h-4 text-white fill-current" />
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[14px] font-medium truncate text-ink">
+                          <SearchHighlight text={r.title} tokens={highlightTokens} />
+                        </p>
+                        <p className="text-[12px] text-ink-3 truncate mt-0.5">
+                          {librarySourceLabel(r)}
+                        </p>
+                      </div>
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="touch-action-visible opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex items-center gap-1"
+                      >
+                        <AddToPlaylistButton
+                          track={toTrack(r)}
+                          className="p-1.5"
+                          buttonLabel={`Add ${r.title} to playlist`}
+                        />
+                        <HeartButton track={toTrack(r)} size="sm" />
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
               </div>
             ) : null}
 
