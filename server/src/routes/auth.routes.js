@@ -1,6 +1,7 @@
 const express = require('express');
 const { authLimiter, authRegisterLimiter } = require('../middleware/rate-limiters');
 const { validate } = require('../middleware/validate');
+const { requireDatabaseConnection } = require('../middleware/db-ready');
 const { requireAuth, requireCsrf } = require('../middleware/auth');
 const { asyncHandler } = require('../utils/async-handler');
 const {
@@ -20,6 +21,8 @@ const {
 } = require('../controllers/auth.controller');
 
 const router = express.Router();
+
+router.use(requireDatabaseConnection);
 
 router.post('/auth/register', authRegisterLimiter, validate(registerSchema), asyncHandler(register));
 router.post('/auth/login', authLimiter, validate(loginSchema), asyncHandler(login));

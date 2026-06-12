@@ -1,5 +1,6 @@
 const express = require('express');
 const { requireAuth, requireRole, requireCsrf } = require('../middleware/auth');
+const { requireDatabaseConnection } = require('../middleware/db-ready');
 const { validate } = require('../middleware/validate');
 const { asyncHandler } = require('../utils/async-handler');
 const { listUsers, updateUserRole, deleteUser } = require('../controllers/admin.controller');
@@ -11,7 +12,7 @@ const {
 
 const router = express.Router();
 
-router.use(requireAuth, requireRole('admin'));
+router.use(requireDatabaseConnection, requireAuth, requireRole('admin'));
 
 router.get('/admin/users', validate(listUsersSchema), asyncHandler(listUsers));
 router.patch(

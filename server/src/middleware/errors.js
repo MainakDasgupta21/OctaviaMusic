@@ -6,7 +6,20 @@ const {
   NotFoundError,
   ForbiddenError,
   ConflictError,
+  ServiceUnavailableError,
 } = require('../utils/app-errors');
+
+const DB_ERROR_NAME_RE =
+  /(MongooseServerSelectionError|MongoNetworkError|MongoServerSelectionError)/i;
+const DB_ERROR_MESSAGE_RE =
+  /(buffering timed out|server selection|unable to connect|could not connect to any servers|topology was destroyed|econnrefused|enotfound|connection timed out)/i;
+
+const isDbUnavailableError = (error) =>
+  Boolean(
+    error
+    && (DB_ERROR_NAME_RE.test(String(error.name || ''))
+      || DB_ERROR_MESSAGE_RE.test(String(error.message || ''))),
+  );
 
 const errorToResponse = (error) => {
   if (error instanceof AppError) {
@@ -63,6 +76,16 @@ const errorToResponse = (error) => {
     };
   }
 
+  if (isDbUnavailableError(error)) {
+    const wrapped = new ServiceUnavailableError(
+      'Authentication is temporarily unavailable. Please try again shortly.',
+    );
+    return {
+      statusCode: wrapped.statusCode,
+      payload: { error: wrapped.name, message: wrapped.message },
+    };
+  }
+
   return {
     statusCode: 500,
     payload: { error: 'InternalServerError', message: 'Something went wrong' },
@@ -91,4 +114,6 @@ module.exports = {
   NotFoundError,
   ForbiddenError,
   ConflictError,
+  ServiceUnavailableError,
+  isDbUnavailableError,
 };

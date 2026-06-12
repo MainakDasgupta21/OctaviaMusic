@@ -1,5 +1,6 @@
 const express = require('express');
 const { requireAuth, requireCsrf, requireOwnership } = require('../middleware/auth');
+const { requireDatabaseConnection } = require('../middleware/db-ready');
 const { validate } = require('../middleware/validate');
 const { asyncHandler } = require('../utils/async-handler');
 const { Playlist } = require('../models/Playlist');
@@ -45,7 +46,7 @@ const {
 
 const router = express.Router();
 
-router.use(requireAuth);
+router.use(requireDatabaseConnection, requireAuth);
 
 router.get('/me/favorites', asyncHandler(listFavorites));
 router.post('/me/favorites', requireCsrf, validate(favoriteCreateSchema), asyncHandler(createFavorite));

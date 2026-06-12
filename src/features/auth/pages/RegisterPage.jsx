@@ -28,6 +28,12 @@ const registerSchema = z
 
 const readFriendlyError = (error, fallback) => {
   const status = error?.response?.status;
+  if (status === 503) {
+    return (
+      error?.response?.data?.message
+      || 'Authentication is temporarily unavailable. Please try again shortly.'
+    );
+  }
   if (status >= 500) {
     if (import.meta.env?.DEV) {
       console.error('[auth] register failed', error);
