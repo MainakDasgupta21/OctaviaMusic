@@ -146,7 +146,16 @@ const MainLayout = () => {
         </main>
       </div>
 
-      <FooterPlayer />
+      <ErrorBoundary
+        fallback={() => null}
+        onError={(error) => {
+          if (typeof window !== 'undefined' && window.console) {
+            console.error('[FooterPlayerBoundary]', error?.message || error);
+          }
+        }}
+      >
+        <FooterPlayer />
+      </ErrorBoundary>
       <MobileNav />
       {paletteEverOpened ? (
         <Suspense fallback={null}>
