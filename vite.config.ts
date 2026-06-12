@@ -46,32 +46,9 @@ export default defineConfig(({ mode }) => ({
     },
   },
   build: {
-    // Hoist big shared dependencies so the page-level chunks stay tiny and
-    // the browser can cache vendors independently of our code changes.
-    // Note: we intentionally do NOT force-split react-player/hls.js/dash.js.
-    // A dedicated vendor-player chunk caused a production runtime init error
-    // on Render (`Cannot access ... before initialization`) for the app shell.
-    // Letting Rollup place those modules with default behavior is stable.
-    rollupOptions: {
-      output: {
-        manualChunks: (id) => {
-          if (!id.includes("node_modules")) return undefined;
-          if (id.includes("@radix-ui")) return "vendor-radix";
-          if (id.includes("framer-motion")) return "vendor-motion";
-          if (id.includes("lucide-react")) return "vendor-icons";
-          if (id.includes("@dnd-kit")) return "vendor-dnd";
-          if (id.includes("@tanstack")) return "vendor-query";
-          if (id.includes("cmdk")) return "vendor-cmdk";
-          if (id.includes("sonner")) return "vendor-sonner";
-          if (id.includes("react-router")) return "vendor-router";
-          if (id.includes("lenis")) return "vendor-lenis";
-          if (id.includes("/react/") || id.includes("/react-dom/") || id.includes("scheduler")) {
-            return "vendor-react";
-          }
-          return "vendor";
-        },
-      },
-    },
+    // Keep production bundling on Vite/Rollup defaults for runtime safety.
+    // A custom manualChunks strategy caused a startup crash on Render
+    // (`Cannot read properties of undefined`) due fragile cross-chunk init.
     chunkSizeWarningLimit: 700,
   },
 }));
