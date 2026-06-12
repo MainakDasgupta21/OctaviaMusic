@@ -46,23 +46,16 @@ export default defineConfig(({ mode }) => ({
     },
   },
   build: {
-    // Vite's default modulepreload emits a `<link rel="modulepreload">` for
-    // every chunk reachable from the entry — even ones we deliberately
-    // lazy-load. Strip the player chunk so the 1.5 MB react-player bundle
-    // really is fetched on demand (first time the user presses play).
-    modulePreload: {
-      resolveDependencies: (_filename, deps) =>
-        deps.filter((dep) => !dep.includes("vendor-player")),
-    },
     // Hoist big shared dependencies so the page-level chunks stay tiny and
     // the browser can cache vendors independently of our code changes.
+    // Note: we intentionally do NOT force-split react-player/hls.js/dash.js.
+    // A dedicated vendor-player chunk caused a production runtime init error
+    // on Render (`Cannot access ... before initialization`) for the app shell.
+    // Letting Rollup place those modules with default behavior is stable.
     rollupOptions: {
       output: {
         manualChunks: (id) => {
           if (!id.includes("node_modules")) return undefined;
-          if (id.includes("react-player") || id.includes("hls.js") || id.includes("dashjs")) {
-            return "vendor-player";
-          }
           if (id.includes("@radix-ui")) return "vendor-radix";
           if (id.includes("framer-motion")) return "vendor-motion";
           if (id.includes("lucide-react")) return "vendor-icons";
