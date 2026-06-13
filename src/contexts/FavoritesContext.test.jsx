@@ -95,4 +95,40 @@ describe('FavoritesContext', () => {
     expect(removed).toBe(false);
     await waitFor(() => expect(apiDelete).toHaveBeenCalledWith('/me/favorites/track-1'));
   });
+
+  it('saves and lists songs that lack a playable video id', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+    authStateRef.current = { user: { id: 'u-1', role: 'user' } };
+    apiGet.mockResolvedValue({
+      data: {
+        items: [
+          { id: 'non-standard-id', title: 'Rare Live Set', artist: 'Some Artist' },
+        ],
+      },
+    });
+
+    const { result } = renderHook(() => useFavorites(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    // A stored favorite without a valid 11-char video id is still listed.
+    await waitFor(() => expect(result.current.count).toBe(1));
+    expect(result.current.list[0].id).toBe('non-standard-id');
+
+    // Liking such a track is saved rather than silently refused.
+    const added = result.current.toggleFavorite({
+      id: 'another-rare-id',
+      title: 'Unreleased Mix',
+      artist: 'Some Artist',
+    });
+    expect(added).toBe(true);
+    await waitFor(() =>
+      expect(apiPost).toHaveBeenCalledWith('/me/favorites', { track: expect.any(Object) }),
+    );
+  });
 });

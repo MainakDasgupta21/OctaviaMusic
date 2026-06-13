@@ -33,7 +33,10 @@ const FavoritesContext = createContext(undefined);
 const mapFavoritesList = (items) => {
   if (!Array.isArray(items)) return {};
   return items.reduce((acc, raw) => {
-    const track = sanitizeTrack(raw, { requirePlayable: true });
+    // Keep every saved favorite visible. Unplayable rows (no valid video id)
+    // are still listed and carry `playable: false` so the player can disable
+    // playback rather than silently dropping the song from the library.
+    const track = sanitizeTrack(raw);
     if (!track?.id) return acc;
     acc[track.id] = toFavoriteShape({ ...raw, ...track }, raw?.addedAt);
     return acc;
@@ -71,7 +74,7 @@ export const FavoritesProvider = ({ children }) => {
   const favorites = userId ? favoritesQuery.data || {} : {};
 
   const toggleFavorite = useCallback((track) => {
-    const safeTrack = sanitizeTrack(track, { requirePlayable: true });
+    const safeTrack = sanitizeTrack(track);
     if (!safeTrack?.id) return false;
 
     if (!userId) {
