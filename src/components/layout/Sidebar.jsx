@@ -104,7 +104,7 @@ const NavItem = ({
       className={cn(
         'group relative flex items-center rounded-xl border focus-ring',
         'transition-[background-color,color,border-color,box-shadow] duration-short ease-emphasis',
-        expanded ? 'gap-3 pl-3 pr-3 py-2.5' : 'justify-center h-12 w-12 mx-auto',
+        expanded ? 'gap-3 pl-3 pr-3 py-2.5' : 'justify-center h-10 w-10 mx-auto',
         isActive
           ? 'text-ink bg-white/[0.07] border-white/[0.14] shadow-[inset_0_1px_0_rgba(255,255,255,0.07)]'
           : 'border-transparent text-ink-3 hover:text-ink hover:bg-white/[0.035] hover:border-white/[0.06]',
@@ -145,7 +145,7 @@ const NavItem = ({
       <span
         className={cn(
           'relative z-10 inline-flex items-center justify-center rounded-lg transition-colors',
-          expanded ? 'h-8 w-8' : 'h-9 w-9',
+          'h-8 w-8',
           isActive
             ? 'bg-track/[0.16] text-accent'
             : 'text-current group-hover:bg-white/[0.06]',
@@ -440,7 +440,7 @@ const Sidebar = ({ onNavigate }) => {
                 onClick={handleCreate}
                 title="Create playlist"
                 aria-label="Create playlist"
-                className="touch-target mx-auto h-12 w-12 flex items-center justify-center rounded-md text-ink-3 hover:text-ink hover:bg-white/[0.04] focus-ring"
+                className="touch-target mx-auto h-10 w-10 flex items-center justify-center rounded-md text-ink-3 hover:text-ink hover:bg-white/[0.04] focus-ring"
               >
                 <Plus className="w-4 h-4" />
               </button>
@@ -507,7 +507,7 @@ const Sidebar = ({ onNavigate }) => {
           disabled={!isDesktopWide}
           className={cn(
             'touch-target inline-flex items-center justify-center rounded-md text-ink-3 hover:text-ink hover:bg-white/[0.04] focus-ring',
-            expanded ? 'mx-1 mt-1 h-10' : 'mx-auto h-12 w-12',
+            expanded ? 'mx-1 mt-1 h-10' : 'mx-auto h-10 w-10',
             !isDesktopWide && 'opacity-45 cursor-not-allowed hover:bg-transparent hover:text-ink-3',
           )}
         >

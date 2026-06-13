@@ -26,7 +26,6 @@ import usePlaylistActions from '@/hooks/use-playlist-actions';
 import HeartButton from '@/components/HeartButton';
 import AddToPlaylistButton from '@/components/playlist/AddToPlaylistButton';
 import Button from '@/components/ui-v2/Button';
-import Stat from '@/components/ui-v2/Stat';
 import Tabs from '@/components/ui-v2/Tabs';
 import SectionHeader from '@/components/ui-v2/SectionHeader';
 import EmptyState from '@/components/ui-v2/EmptyState';
@@ -180,7 +179,6 @@ const LibraryPage = () => {
           history={history}
           favorites={favorites}
           topArtists={topArtists}
-          recentSearches={recentSearches}
           playTrack={playTrack}
           handlePlayAll={handlePlayAll}
           currentTrack={currentTrack}
@@ -237,21 +235,12 @@ const Overview = ({
   history,
   favorites,
   topArtists,
-  recentSearches,
   playTrack,
   handlePlayAll,
   currentTrack,
   isPlaying,
 }) => (
   <div className="space-y-12">
-    {/* Stats spread */}
-    <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <Stat label="Recently played" value={history.length} icon={History} />
-      <Stat label="Favorites" value={favorites.length} icon={Heart} />
-      <Stat label="Top artists" value={topArtists.length} icon={Music2} />
-      <Stat label="Recent searches" value={recentSearches.length} icon={Search} />
-    </section>
-
     {history.length > 0 && (
       <section>
         <SectionHeader
@@ -392,7 +381,7 @@ const CompactTrack = ({ track, index, onPlay, isCurrent, isPlaying }) => (
       {typeof index === 'number' ? (
         <span
           aria-hidden="true"
-          className="absolute -top-1 -left-1 font-display italic text-base leading-none text-bone mix-blend-difference opacity-90 group-hover:opacity-0 transition-opacity"
+          className="absolute top-1 left-1 inline-flex min-w-[1.35rem] h-5 items-center justify-center px-1 rounded-sharp bg-black/82 backdrop-blur-sm ring-1 ring-white/20 font-mono text-[10px] font-semibold tabular-nums text-bone leading-none shadow-[0_1px_4px_rgba(0,0,0,0.45)]"
         >
           {String(index + 1).padStart(2, '0')}
         </span>

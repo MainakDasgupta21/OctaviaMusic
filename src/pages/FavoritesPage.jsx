@@ -8,7 +8,6 @@ import TrackContextMenu from '@/components/TrackContextMenu';
 import Button from '@/components/ui-v2/Button';
 import EmptyState from '@/components/ui-v2/EmptyState';
 import Tabs from '@/components/ui-v2/Tabs';
-import Kbd from '@/components/ui-v2/Kbd';
 import SmartImage from '@/components/SmartImage';
 import { useListNavigation } from '@/hooks/use-list-navigation';
 import notify from '@/lib/notify';
@@ -247,30 +246,6 @@ const FavoritesPage = () => {
               );
             })}
           </motion.div>
-
-          {/* Keyboard hint strip */}
-          <div className="mt-5 flex items-center gap-4 flex-wrap text-[11px] text-ink-3">
-            <span className="inline-flex items-center gap-1.5">
-              <Kbd keys={['j', 'k']} />
-              <span className="font-editorial italic">navigate</span>
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <Kbd keys={['Enter']} />
-              <span className="font-editorial italic">play</span>
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <Kbd keys={['Q']} />
-              <span className="font-editorial italic">queue</span>
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <Kbd keys={['L']} />
-              <span className="font-editorial italic">like</span>
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <Kbd keys={['Right click']} />
-              <span className="font-editorial italic">menu</span>
-            </span>
-          </div>
         </>
       ) : (
         <EmptyState

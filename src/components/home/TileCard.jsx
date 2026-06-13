@@ -63,7 +63,7 @@ const TileCard = ({ track, onPlay, isCurrent, index }) => {
       {typeof index === 'number' ? (
         <span
           aria-hidden="true"
-          className="absolute top-2 left-2.5 font-editorial text-ink leading-none text-2xl mix-blend-difference opacity-90 group-hover:opacity-0 transition-opacity tabular"
+          className="absolute top-2 left-2 inline-flex min-w-[1.5rem] h-6 items-center justify-center px-1 rounded-sharp bg-black/82 backdrop-blur-sm ring-1 ring-white/20 font-mono text-[11px] font-semibold tabular-nums text-bone leading-none shadow-[0_1px_4px_rgba(0,0,0,0.45)]"
         >
           {String(index + 1).padStart(2, '0')}
         </span>
