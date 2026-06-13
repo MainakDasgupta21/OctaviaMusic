@@ -2,6 +2,9 @@ const { z } = require('zod');
 
 const idString = z.string().trim().min(1).max(160);
 
+// Clients enrich tracks with display-only fields (e.g. `addedAt`, `playable`)
+// before sending them. Strip unknown keys rather than rejecting the request so
+// those extras are ignored; the service layer reads only the fields below.
 const trackSchema = z
   .object({
     id: idString,
@@ -14,7 +17,7 @@ const trackSchema = z
     thumbnail: z.string().trim().max(500).optional().nullable(),
     duration: z.string().trim().max(40).optional().nullable(),
   })
-  .strict();
+  .strip();
 
 const playlistInputSchema = z
   .object({

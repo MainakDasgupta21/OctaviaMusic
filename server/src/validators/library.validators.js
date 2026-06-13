@@ -30,7 +30,8 @@ const likedAlbumItemSchema = z
     thumbnail: z.string().trim().max(500).optional().nullable(),
     year: z.string().trim().max(40).optional().nullable(),
   })
-  .strict();
+  // Tolerate client display-only fields (e.g. `likedAt`) by stripping them.
+  .strip();
 
 const likedAlbumCreateSchema = z.object({
   body: z.object({ album: likedAlbumItemSchema }).strict(),
@@ -51,7 +52,8 @@ const followedArtistItemSchema = z
     name: z.string().trim().min(1).max(240),
     thumbnail: z.string().trim().max(500).optional().nullable(),
   })
-  .strict();
+  // Tolerate client display-only fields (e.g. `followedAt`) by stripping them.
+  .strip();
 
 const followedArtistCreateSchema = z.object({
   body: z.object({ artist: followedArtistItemSchema }).strict(),
