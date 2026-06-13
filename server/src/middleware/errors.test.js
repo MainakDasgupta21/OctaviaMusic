@@ -17,10 +17,21 @@ describe('error middleware db mapping', () => {
     };
     const result = errorToResponse(error);
     expect(result.statusCode).toBe(503);
-    expect(result.payload).toEqual({
+    expect(result.payload).toMatchObject({
       error: 'ServiceUnavailableError',
       message: 'Authentication is temporarily unavailable. Please try again shortly.',
     });
+  });
+
+  it('maps non-duplicate MongoServerError to 503', () => {
+    const error = {
+      name: 'MongoServerError',
+      code: 13,
+      message: 'not authorized on octavia to execute command',
+    };
+    const result = errorToResponse(error);
+    expect(result.statusCode).toBe(503);
+    expect(result.payload.error).toBe('ServiceUnavailableError');
   });
 
   it('keeps unknown errors as generic 500', () => {

@@ -10,13 +10,14 @@ const {
 } = require('../utils/app-errors');
 
 const DB_ERROR_NAME_RE =
-  /(MongooseServerSelectionError|MongoNetworkError|MongoServerSelectionError)/i;
+  /(MongooseServerSelectionError|MongoNetworkError|MongoServerSelectionError|MongoServerError|MongooseError)/i;
 const DB_ERROR_MESSAGE_RE =
-  /(buffering timed out|server selection|unable to connect|could not connect to any servers|topology was destroyed|econnrefused|enotfound|connection timed out)/i;
+  /(buffering timed out|server selection|unable to connect|could not connect to any servers|topology was destroyed|econnrefused|enotfound|connection timed out|before initial connection is complete|client must be connected|not authorized|authentication failed)/i;
 
 const isDbUnavailableError = (error) =>
   Boolean(
     error
+    && !(error?.name === 'MongoServerError' && error?.code === 11000)
     && (DB_ERROR_NAME_RE.test(String(error.name || ''))
       || DB_ERROR_MESSAGE_RE.test(String(error.message || ''))),
   );
@@ -82,25 +83,32 @@ const errorToResponse = (error) => {
     );
     return {
       statusCode: wrapped.statusCode,
-      payload: { error: wrapped.name, message: wrapped.message },
+      payload: {
+        error: wrapped.name,
+        message: wrapped.message,
+        // TEMP DIAGNOSTIC: surface the real DB error. Remove after root-cause is captured.
+        debug: { name: error?.name, message: error?.message, code: error?.code },
+      },
     };
   }
 
   return {
     statusCode: 500,
-    payload: { error: 'InternalServerError', message: 'Something went wrong' },
+    payload: {
+      error: 'InternalServerError',
+      message: 'Something went wrong',
+      // TEMP DIAGNOSTIC: surface the real error. Remove after root-cause is captured.
+      debug: { name: error?.name, message: error?.message, code: error?.code },
+    },
   };
 };
 
 const errorHandler = (error, _req, res, _next) => {
   const { statusCode, payload } = errorToResponse(error);
-  const isProd = process.env.NODE_ENV === 'production';
 
-  if (!isProd) {
-    const details = error?.stack || error?.message || error;
-    console.error('[error]', details);
-  } else if (statusCode >= 500) {
-    console.error('[error]', error?.message || 'Unhandled server error');
+  if (statusCode >= 500) {
+    // TEMP DIAGNOSTIC: always log full stack while we capture the production cause.
+    console.error('[error]', error?.stack || error?.message || error);
   }
 
   return res.status(statusCode).json(payload);
