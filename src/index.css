@@ -934,13 +934,22 @@
       min-width: 2.75rem;
       min-height: 2.75rem;
     }
+    /* Enforce 44px touch targets for interactive controls only. The bare
+       `[aria-label]` selector must EXCLUDE structural/landmark containers
+       (e.g. the toast regions `<div role="region" aria-label>` and Sonner's
+       `<section aria-label>`): those normally collapse to 0 because their
+       inner list is `position: fixed`, but a min-height here would inflate
+       them and push the whole app down, opening a gap above the header. */
     :where(
       button,
       [role='button'],
       [role='tab'],
       [type='button'],
       [type='submit'],
-      [aria-label],
+      [aria-label]:not(:where(
+        div, section, nav, header, footer, main, aside, ol, ul, form,
+        [role='region'], [role='status'], [role='log'], [role='alert'], [role='navigation']
+      )),
       input[type='range']
     ) {
       min-height: 44px;
