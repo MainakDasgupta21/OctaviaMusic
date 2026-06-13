@@ -37,7 +37,12 @@ const HorizontalRail = ({
           maskImage:
             'linear-gradient(90deg, transparent 0, #000 clamp(10px,3vw,16px), #000 calc(100% - clamp(10px,3vw,16px)), transparent 100%)',
         }}
-        className={`flex gap-3 sm:gap-4 lg:gap-5 overflow-x-auto no-scrollbar snap-x snap-proximity scroll-pl-2 xs:scroll-pl-3 sm:scroll-pl-6 -mx-0.5 xs:-mx-1 sm:-mx-2 px-0.5 xs:px-1 sm:px-2 focus-ring rounded-sharp ${className}`}
+        // `overflow-x-auto` promotes overflow-y to `auto` as well (CSS spec),
+        // so without vertical room the rail would shear card hover-lifts,
+        // magnetic glows, drop shadows, and focus rings at the top/bottom
+        // edges. `py-2 -my-2` adds that breathing room with zero net layout
+        // shift. Horizontal `-mx-* px-*` keep edge tiles flush to the gutter.
+        className={`flex gap-3 sm:gap-4 lg:gap-5 overflow-x-auto no-scrollbar snap-x snap-proximity scroll-pl-2 xs:scroll-pl-3 sm:scroll-pl-6 scroll-pr-4 sm:scroll-pr-6 py-2 -my-2 -mx-0.5 xs:-mx-1 sm:-mx-2 px-0.5 xs:px-1 sm:px-2 focus-ring rounded-sharp ${className}`}
       >
         {children}
       </div>

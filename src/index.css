@@ -325,6 +325,30 @@
     }
   }
 
+  /* === LANDSCAPE PHONES / SHORT VIEWPORTS ===
+     A phone held sideways (e.g. 740x360, 896x414) only has ~360-414px of
+     height, and the stacked top bar + floating mini-player + bottom nav can
+     swallow ~37% of it. Trim the chrome tokens so more of the viewport is
+     content. Safe by construction: the mobile-nav / mini-player tokens only
+     drive chrome that is `display:none` at lg+, and any genuinely short
+     landscape *desktop* window simply gets a slightly slimmer top bar.
+     Gated above the smart-display height (Nest Hub 600px / Nest Hub Max 800px
+     are taller than 500px, so they are never matched) and below lg so it can
+     never clobber the desktop footer's bottom-padding tokens on a short, wide
+     window. */
+  @media (max-width: 1023px) and (max-height: 500px) and (orientation: landscape) {
+    :root {
+      --topbar-height: 3rem;
+      --mobile-nav-height: 3rem;
+      --mobile-nav-offset: 0.4rem;
+      --mobile-mini-height: 3.25rem;
+      --mobile-mini-gap: 0.45rem;
+      --app-main-bottom: calc(var(--mobile-nav-height) + var(--mobile-nav-offset) + env(safe-area-inset-bottom, 0px) + 0.4rem);
+      --app-main-bottom-with-player: calc(var(--mobile-nav-height) + var(--mobile-nav-offset) + var(--mobile-mini-height) + var(--mobile-mini-gap) + env(safe-area-inset-bottom, 0px) + 0.5rem);
+      --player-page-bottom-pad: calc(var(--mobile-nav-height) + var(--mobile-nav-offset) + env(safe-area-inset-bottom, 0px) + 0.6rem);
+    }
+  }
+
   /* The page tint glides between accents in JS — `use-color-extraction`
      RAF-lerps --track-accent / -2 / -3 (and their `-strong` companions)
      in HSL space when the track changes, so every accent-driven surface

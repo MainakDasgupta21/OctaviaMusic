@@ -51,7 +51,7 @@ const DiscoverRibbon = ({
       className="mb-12 rounded-soft border border-white/[0.08] bg-surface-2/40 backdrop-blur-md p-6 md:p-8"
       style={{
         background:
-          'radial-gradient(ellipse 60% 80% at 0% 0%, hsl(var(--track-accent) / 0.18), transparent 60%), radial-gradient(ellipse 50% 60% at 100% 100%, hsl(var(--iris) / 0.18), transparent 60%), hsl(var(--surface-2) / 0.55)',
+          'radial-gradient(ellipse 60% 80% at 0% 0%, hsl(var(--track-accent) / 0.18), transparent 60%), radial-gradient(ellipse 50% 60% at 100% 100%, hsl(var(--track-accent-3) / 0.18), transparent 60%), hsl(var(--surface-2) / 0.55)',
       }}
     >
       <div className="grid md:grid-cols-[1fr_auto] gap-6 md:gap-10 items-start md:items-center">

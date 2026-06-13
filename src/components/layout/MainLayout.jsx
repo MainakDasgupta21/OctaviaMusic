@@ -132,7 +132,15 @@ const MainLayout = () => {
                   'overflow-hidden pb-0',
                 )
               : cn(
-                  'overflow-y-auto',
+                  // `overflow-y-auto` makes this the page scroll container.
+                  // Without an explicit x rule the browser promotes overflow-x
+                  // to `auto`, so a single stray-wide child would paint a
+                  // page-level horizontal scrollbar (body's overflow-x:hidden
+                  // can't catch it — this element is the scroller, not body).
+                  // `overflow-x-clip` pins the x axis shut without turning this
+                  // into an x-scroll container, while inner rails keep their
+                  // own `overflow-x-auto`.
+                  'overflow-y-auto overflow-x-clip',
                   currentTrack ? 'app-main-padding--player' : 'app-main-padding',
                 ),
           )}
