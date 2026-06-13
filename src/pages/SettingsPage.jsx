@@ -466,17 +466,19 @@ const SettingsPage = () => {
         </p>
       </motion.div>
 
-      {/* Sticky quick-nav — a glass segmented rail with a sliding accent pill */}
+      {/* Sticky quick-nav — a floating glass pill with a sliding accent chip.
+          The wrapper is transparent (no rectangular band); only the oval rail
+          is visible, and its own blur keeps it legible over scrolling content. */}
       <nav
         aria-label="Settings sections"
-        className="sticky top-0 z-20 -mx-3 sm:-mx-4 md:-mx-6 mb-6 px-3 sm:px-4 md:px-6 pt-3 pb-3.5 bg-gradient-to-b from-surface-1 via-surface-1/90 to-surface-1/0 backdrop-blur-xl"
+        className="sticky top-2 z-20 mb-6 flex justify-start"
       >
         <div
           ref={navRailRef}
           className={cn(
             'flex w-max max-w-full items-center gap-0.5 overflow-x-auto rounded-full p-1',
-            'border border-white/[0.08] bg-surface-2/60 backdrop-blur-md',
-            'shadow-[inset_0_1px_0_hsl(var(--ink-primary)/0.06),0_10px_30px_-14px_rgba(0,0,0,0.7)]',
+            'border border-white/[0.10] bg-surface-2/85 backdrop-blur-xl',
+            'shadow-[inset_0_1px_0_hsl(var(--ink-primary)/0.08),0_12px_34px_-12px_rgba(0,0,0,0.78)]',
             '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
           )}
         >
