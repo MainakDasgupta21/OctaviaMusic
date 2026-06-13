@@ -100,12 +100,14 @@ const ExploreFlowEnabledPage = () => {
     const track = flow.currentTrack;
     if (!track) return;
     const trackId = track?.id || track?.videoId || '';
+    let saveResult = true;
     if (trackId && !isFavorite(trackId)) {
-      toggleFavorite({
+      saveResult = toggleFavorite({
         ...track,
         id: track?.id || trackId,
       });
     }
+    if (saveResult == null) return;
     recordFeedback({ type: 'save', track, moodId: mood || null, genreId: genre || null });
     applyEvent({ type: 'save', moodId: mood || null });
     flow.saveTop();

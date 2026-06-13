@@ -228,6 +228,7 @@ describe('ExplorePage', () => {
     mocks.playTrack.mockReset();
     mocks.playTracksInOrder.mockReset();
     mocks.toggleFavorite.mockReset();
+    mocks.toggleFavorite.mockReturnValue(true);
     mocks.recordFeedback.mockReset();
     mocks.applyEvent.mockReset();
     mocks.isFavorite.mockReset();

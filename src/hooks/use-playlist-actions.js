@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 import { usePlaylists } from '@/contexts/PlaylistContext';
 import notify from '@/lib/notify';
 
@@ -7,6 +8,8 @@ const trackTitle = (track) => track?.title || 'Track';
 
 export const usePlaylistActions = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAuthenticated = Boolean(user);
   const { playlists, createPlaylist, addTrackToPlaylist } = usePlaylists();
 
   const orderedPlaylists = useMemo(
@@ -28,6 +31,7 @@ export const usePlaylistActions = () => {
   const addTrackToPlaylistWithFeedback = useCallback(
     ({ playlist, track, notifyOnAdded = true, notifyOnDuplicate = true } = {}) => {
       if (!playlist?.id || !track?.id) return { status: 'invalid' };
+      if (!isAuthenticated) return { status: 'unauthenticated' };
       if (isTrackInPlaylist(playlist, track)) {
         if (notifyOnDuplicate) notify.info(`Already in ${playlist.name}`);
         return { status: 'duplicate' };
@@ -37,7 +41,7 @@ export const usePlaylistActions = () => {
       if (notifyOnAdded) notify.added(`${trackTitle(track)} \u2192 ${playlist.name}`);
       return { status: 'added' };
     },
-    [addTrackToPlaylist, isTrackInPlaylist],
+    [addTrackToPlaylist, isAuthenticated, isTrackInPlaylist],
   );
 
   const createPlaylistFromTrack = useCallback(
@@ -57,6 +61,7 @@ export const usePlaylistActions = () => {
         tracks: [track],
         pinned,
       });
+      if (!id) return null;
       if (notifyOnCreate) notify.added(`Playlist \u2014 ${playlistName}`);
       if (navigateTo) navigate(`/playlist/${id}`);
       return id;
@@ -79,6 +84,7 @@ export const usePlaylistActions = () => {
         tracks: [],
         pinned,
       });
+      if (!id) return null;
       if (notifyOnCreate) notify.added(`Playlist \u2014 ${playlistName}`);
       if (navigateTo) navigate(`/playlist/${id}`);
       return id;

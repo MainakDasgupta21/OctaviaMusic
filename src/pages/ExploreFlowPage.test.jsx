@@ -104,6 +104,7 @@ describe('ExploreFlowPage', () => {
     Object.values(mocks).forEach((fn) => {
       if (typeof fn?.mockReset === 'function') fn.mockReset();
     });
+    mocks.toggleFavorite.mockReturnValue(true);
     mocks.isFavorite.mockReturnValue(false);
     mocks.getSeenTrackSet.mockReturnValue(new Set());
     mocks.getArtistFatigueMap.mockReturnValue(new Map());

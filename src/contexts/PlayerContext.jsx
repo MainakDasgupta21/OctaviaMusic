@@ -77,7 +77,7 @@ const sanitizePersistedState = (state) => {
     queue,
     queueIndex,
     queueMode: normalizeQueueMode(state.queueMode),
-    history: sanitizeTrackList(state.history, { requirePlayable: true }).slice(0, HISTORY_MAX),
+    history: [],
     shuffle: Boolean(state.shuffle),
     repeat: ['off', 'all', 'one'].includes(state.repeat) ? state.repeat : 'off',
   };
@@ -165,7 +165,6 @@ export const PlayerProvider = ({ children }) => {
   const queueStateRef = useRef(queueState);
   const smartQueueRequestRef = useRef(0);
   const historySyncUserRef = useRef(null);
-  const historyRef = useRef(history);
 
   useEffect(() => {
     currentTrackRef.current = currentTrack;
@@ -176,12 +175,9 @@ export const PlayerProvider = ({ children }) => {
   }, [queueState]);
 
   useEffect(() => {
-    historyRef.current = history;
-  }, [history]);
-
-  useEffect(() => {
     if (!isAuthenticated) {
       historySyncUserRef.current = null;
+      setHistory([]);
       return;
     }
 
@@ -191,16 +187,6 @@ export const PlayerProvider = ({ children }) => {
     let active = true;
     const syncHistoryFromServer = async () => {
       try {
-        const initial = await api.get('/me/history', { params: { limit: HISTORY_MAX } });
-        const serverRows = sanitizeTrackList(initial.data?.items || [], { requirePlayable: true });
-        const serverIds = new Set(serverRows.map((row) => row.id));
-        const localRows = sanitizeTrackList(historyRef.current, { requirePlayable: true });
-
-        for (const row of localRows) {
-          if (serverIds.has(row.id)) continue;
-          await api.post('/me/history', { track: row });
-        }
-
         const fresh = await api.get('/me/history', { params: { limit: HISTORY_MAX } });
         if (!active) return;
         const merged = sanitizeTrackList(fresh.data?.items || [], {
@@ -231,7 +217,6 @@ export const PlayerProvider = ({ children }) => {
         queue,
         queueIndex,
         queueMode,
-        history,
         shuffle,
         repeat,
       };
@@ -239,7 +224,7 @@ export const PlayerProvider = ({ children }) => {
     } catch {
       /* storage unavailable */
     }
-  }, [currentTrack, volume, queue, queueIndex, queueMode, history, shuffle, repeat]);
+  }, [currentTrack, volume, queue, queueIndex, queueMode, shuffle, repeat]);
 
   const invalidateSmartQueueRequests = useCallback(() => {
     smartQueueRequestRef.current += 1;

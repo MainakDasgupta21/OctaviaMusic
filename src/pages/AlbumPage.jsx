@@ -140,6 +140,7 @@ const AlbumPage = () => {
       thumbnail: album.cover || album.thumbnail,
       year: album.year,
     });
+    if (added == null) return;
     if (added) notify.liked(album.title);
     else notify.unliked(album.title);
   }, [album, toggleLiked]);

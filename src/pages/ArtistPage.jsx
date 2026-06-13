@@ -235,6 +235,7 @@ const ArtistPage = () => {
       name: artist.name,
       thumbnail: artist.thumbnail || artist.cover,
     });
+    if (added == null) return;
     if (added) notify.added(`Following ${artist.name}`);
     else notify.removed(`Unfollowed ${artist.name}`);
   };

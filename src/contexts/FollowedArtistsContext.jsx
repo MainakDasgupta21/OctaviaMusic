@@ -2,33 +2,16 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
-  useRef,
-  useState,
 } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
+import notify from '@/lib/notify';
 
-// Followed-artists store. Mirrors FavoritesContext but for artist slugs.
-// Persisted to `octavia.followed-artists.v1`.
-const STORAGE_KEY = 'octavia.followed-artists.v1';
-const FOLLOWED_ARTISTS_QUERY_KEY = ['me', 'followed-artists'];
+const followedArtistsQueryKey = (userId) => ['me', 'followed-artists', userId];
 
 const FollowedArtistsContext = createContext(undefined);
-
-const readFromStorage = () => {
-  if (typeof window === 'undefined') return {};
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
-  } catch {
-    return {};
-  }
-};
 
 const toFollowedShape = (artist) => ({
   slug: artist.slug || artist.id || '',
@@ -53,14 +36,13 @@ const mapFollowedArtists = (items) => {
 
 export const FollowedArtistsProvider = ({ children }) => {
   const { user } = useAuth();
-  const isAuthenticated = Boolean(user);
+  const userId = user?.id || user?._id || null;
   const queryClient = useQueryClient();
-  const mergedUserRef = useRef(null);
-  const [guestFollowed, setGuestFollowed] = useState(() => readFromStorage());
+  const queryKey = followedArtistsQueryKey(userId);
 
   const followedQuery = useQuery({
-    queryKey: FOLLOWED_ARTISTS_QUERY_KEY,
-    enabled: isAuthenticated,
+    queryKey,
+    enabled: Boolean(userId),
     queryFn: async () => {
       const response = await api.get('/me/followed-artists');
       return mapFollowedArtists(response.data?.items || []);
@@ -80,72 +62,7 @@ export const FollowedArtistsProvider = ({ children }) => {
     },
   });
 
-  useEffect(() => {
-    if (isAuthenticated || typeof window === 'undefined') return;
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(guestFollowed));
-    } catch {
-      /* quota — ignore */
-    }
-  }, [guestFollowed, isAuthenticated]);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      mergedUserRef.current = null;
-      setGuestFollowed(readFromStorage());
-    }
-  }, [isAuthenticated]);
-
-  useEffect(() => {
-    if (!isAuthenticated || !followedQuery.isSuccess) return;
-    const userId = user?.id || user?._id;
-    if (!userId || mergedUserRef.current === userId) return;
-
-    let active = true;
-    const mergeGuestFollowedArtists = async () => {
-      const guestMap = readFromStorage();
-      const guestItems = Object.values(guestMap || {});
-      if (guestItems.length === 0) {
-        mergedUserRef.current = userId;
-        return;
-      }
-
-      const serverMap = followedQuery.data || {};
-      const toMerge = guestItems.filter((item) => {
-        const key = followedKey(item);
-        return key && !serverMap[key];
-      });
-      let mergeSucceeded = true;
-      for (const item of toMerge) {
-        try {
-          await api.post('/me/followed-artists', { artist: item });
-        } catch {
-          mergeSucceeded = false;
-          break;
-        }
-      }
-
-      if (!active) return;
-      await queryClient.invalidateQueries({ queryKey: FOLLOWED_ARTISTS_QUERY_KEY });
-      if (mergeSucceeded) {
-        try {
-          window.localStorage.removeItem(STORAGE_KEY);
-        } catch {
-          /* noop */
-        }
-        setGuestFollowed({});
-      }
-      mergedUserRef.current = userId;
-    };
-
-    void mergeGuestFollowedArtists();
-
-    return () => {
-      active = false;
-    };
-  }, [followedQuery.data, followedQuery.isSuccess, isAuthenticated, queryClient, user?.id, user?._id]);
-
-  const followed = isAuthenticated ? followedQuery.data || {} : guestFollowed;
+  const followed = userId ? followedQuery.data || {} : {};
 
   const isFollowing = useCallback(
     (slugOrId) => {
@@ -161,67 +78,51 @@ export const FollowedArtistsProvider = ({ children }) => {
     const key = followedKey(normalized);
     if (!key) return false;
 
-    if (!isAuthenticated) {
-      let didAdd = false;
-      setGuestFollowed((prev) => {
-        const next = { ...prev };
-        if (next[key]) {
-          delete next[key];
-          didAdd = false;
-        } else {
-          next[key] = normalized;
-          didAdd = true;
-        }
-        return next;
-      });
-      return didAdd;
+    if (!userId) {
+      notify.signInRequired('follow artists');
+      return null;
     }
 
-    const prev = queryClient.getQueryData(FOLLOWED_ARTISTS_QUERY_KEY) || {};
+    const prev = queryClient.getQueryData(queryKey) || {};
     const exists = Boolean(prev[key]);
     const next = { ...prev };
     if (exists) {
       delete next[key];
-      queryClient.setQueryData(FOLLOWED_ARTISTS_QUERY_KEY, next);
+      queryClient.setQueryData(queryKey, next);
       removeFollowMutation.mutate(key, {
-        onError: () => queryClient.setQueryData(FOLLOWED_ARTISTS_QUERY_KEY, prev),
+        onError: () => queryClient.setQueryData(queryKey, prev),
       });
       return false;
     }
 
     next[key] = normalized;
-    queryClient.setQueryData(FOLLOWED_ARTISTS_QUERY_KEY, next);
+    queryClient.setQueryData(queryKey, next);
     addFollowMutation.mutate(normalized, {
-      onError: () => queryClient.setQueryData(FOLLOWED_ARTISTS_QUERY_KEY, prev),
+      onError: () => queryClient.setQueryData(queryKey, prev),
     });
     return true;
-  }, [addFollowMutation, isAuthenticated, queryClient, removeFollowMutation]);
+  }, [addFollowMutation, queryClient, queryKey, removeFollowMutation, userId]);
 
   const unfollow = useCallback((slugOrId) => {
     if (!slugOrId) return;
 
-    if (!isAuthenticated) {
-      setGuestFollowed((prev) => {
-        if (!prev[slugOrId]) return prev;
-        const next = { ...prev };
-        delete next[slugOrId];
-        return next;
-      });
+    if (!userId) {
+      notify.signInRequired('manage followed artists');
       return;
     }
 
-    const prev = queryClient.getQueryData(FOLLOWED_ARTISTS_QUERY_KEY) || {};
+    const prev = queryClient.getQueryData(queryKey) || {};
     const key = prev[slugOrId]
       ? slugOrId
       : Object.keys(prev).find((entryKey) => prev[entryKey]?.id === slugOrId) || slugOrId;
     if (!prev[key]) return;
     const next = { ...prev };
     delete next[key];
-    queryClient.setQueryData(FOLLOWED_ARTISTS_QUERY_KEY, next);
+    queryClient.setQueryData(queryKey, next);
     removeFollowMutation.mutate(prev[key]?.id || slugOrId, {
-      onError: () => queryClient.setQueryData(FOLLOWED_ARTISTS_QUERY_KEY, prev),
+      onError: () => queryClient.setQueryData(queryKey, prev),
     });
-  }, [isAuthenticated, queryClient, removeFollowMutation]);
+  }, [queryClient, queryKey, removeFollowMutation, userId]);
 
   const list = useMemo(
     () =>

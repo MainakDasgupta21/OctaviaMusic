@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { renderHook, waitFor, act } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 
 const {
@@ -31,19 +32,28 @@ vi.mock('@/lib/api', () => ({
   registerAccount,
 }));
 
-const wrapper = ({ children }) => <AuthProvider>{children}</AuthProvider>;
+const createWrapper = (queryClient) =>
+  function Wrapper({ children }) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>{children}</AuthProvider>
+      </QueryClientProvider>
+    );
+  };
 
 describe('AuthContext bootstrap', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
   });
 
   it('hydrates authenticated user from /auth/me', async () => {
+    const queryClient = new QueryClient();
     getCurrentUser.mockResolvedValueOnce({
       user: { id: 'u-1', email: 'user@example.com', role: 'user' },
     });
 
-    const { result } = renderHook(() => useAuth(), { wrapper });
+    const { result } = renderHook(() => useAuth(), { wrapper: createWrapper(queryClient) });
 
     await waitFor(() => expect(result.current.status).toBe('authenticated'));
     expect(result.current.user?.email).toBe('user@example.com');
@@ -51,6 +61,7 @@ describe('AuthContext bootstrap', () => {
   });
 
   it('falls back to /auth/refresh once after initial 401', async () => {
+    const queryClient = new QueryClient();
     getCurrentUser
       .mockRejectedValueOnce({ response: { status: 401 } })
       .mockResolvedValueOnce({
@@ -58,7 +69,7 @@ describe('AuthContext bootstrap', () => {
       });
     refreshSession.mockResolvedValueOnce({ ok: true });
 
-    const { result } = renderHook(() => useAuth(), { wrapper });
+    const { result } = renderHook(() => useAuth(), { wrapper: createWrapper(queryClient) });
 
     await waitFor(() => expect(result.current.status).toBe('authenticated'));
     expect(refreshSession).toHaveBeenCalledTimes(1);
@@ -66,13 +77,38 @@ describe('AuthContext bootstrap', () => {
   });
 
   it('enters guest mode when /auth/me and /auth/refresh both fail', async () => {
+    const queryClient = new QueryClient();
     getCurrentUser.mockRejectedValueOnce({ response: { status: 401 } });
     refreshSession.mockRejectedValueOnce(new Error('refresh failed'));
 
-    const { result } = renderHook(() => useAuth(), { wrapper });
+    const { result } = renderHook(() => useAuth(), { wrapper: createWrapper(queryClient) });
 
     await waitFor(() => expect(result.current.status).toBe('guest'));
     expect(result.current.user).toBeNull();
     expect(refreshSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears per-user cache and legacy storage on logout', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    getCurrentUser.mockResolvedValueOnce({
+      user: { id: 'u-3', email: 'logout@example.com', role: 'user' },
+    });
+    logoutSession.mockResolvedValueOnce({ ok: true });
+
+    window.localStorage.setItem('octavia.favorites.v1', '{"track-1":true}');
+    queryClient.setQueryData(['me', 'favorites', 'u-3'], { track: true });
+
+    const { result } = renderHook(() => useAuth(), { wrapper: createWrapper(queryClient) });
+    await waitFor(() => expect(result.current.status).toBe('authenticated'));
+
+    await act(async () => {
+      await result.current.logout();
+    });
+
+    await waitFor(() => expect(result.current.status).toBe('guest'));
+    expect(queryClient.getQueryData(['me', 'favorites', 'u-3'])).toBeUndefined();
+    expect(window.localStorage.getItem('octavia.favorites.v1')).toBeNull();
   });
 });

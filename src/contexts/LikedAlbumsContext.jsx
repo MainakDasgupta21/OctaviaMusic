@@ -2,33 +2,16 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
-  useRef,
-  useState,
 } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
+import notify from '@/lib/notify';
 
-// Liked-albums store. Companion to FavoritesContext (which holds liked tracks).
-// Persisted to `octavia.liked-albums.v1`.
-const STORAGE_KEY = 'octavia.liked-albums.v1';
-const LIKED_ALBUMS_QUERY_KEY = ['me', 'liked-albums'];
+const likedAlbumsQueryKey = (userId) => ['me', 'liked-albums', userId];
 
 const LikedAlbumsContext = createContext(undefined);
-
-const readFromStorage = () => {
-  if (typeof window === 'undefined') return {};
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
-  } catch {
-    return {};
-  }
-};
 
 const toLikedShape = (album) => ({
   id: album.id,
@@ -51,14 +34,13 @@ const mapLikedAlbums = (items) => {
 
 export const LikedAlbumsProvider = ({ children }) => {
   const { user } = useAuth();
-  const isAuthenticated = Boolean(user);
+  const userId = user?.id || user?._id || null;
   const queryClient = useQueryClient();
-  const mergedUserRef = useRef(null);
-  const [guestLiked, setGuestLiked] = useState(() => readFromStorage());
+  const queryKey = likedAlbumsQueryKey(userId);
 
   const likedQuery = useQuery({
-    queryKey: LIKED_ALBUMS_QUERY_KEY,
-    enabled: isAuthenticated,
+    queryKey,
+    enabled: Boolean(userId),
     queryFn: async () => {
       const response = await api.get('/me/liked-albums');
       return mapLikedAlbums(response.data?.items || []);
@@ -78,133 +60,55 @@ export const LikedAlbumsProvider = ({ children }) => {
     },
   });
 
-  useEffect(() => {
-    if (isAuthenticated || typeof window === 'undefined') return;
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(guestLiked));
-    } catch {
-      /* quota — ignore */
-    }
-  }, [guestLiked, isAuthenticated]);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      mergedUserRef.current = null;
-      setGuestLiked(readFromStorage());
-    }
-  }, [isAuthenticated]);
-
-  useEffect(() => {
-    if (!isAuthenticated || !likedQuery.isSuccess) return;
-    const userId = user?.id || user?._id;
-    if (!userId || mergedUserRef.current === userId) return;
-
-    let active = true;
-    const mergeGuestLikedAlbums = async () => {
-      const guestMap = readFromStorage();
-      const guestItems = Object.values(guestMap || {});
-      if (guestItems.length === 0) {
-        mergedUserRef.current = userId;
-        return;
-      }
-
-      const serverMap = likedQuery.data || {};
-      const toMerge = guestItems.filter((item) => item?.id && !serverMap[item.id]);
-      let mergeSucceeded = true;
-      for (const item of toMerge) {
-        try {
-          await api.post('/me/liked-albums', { album: item });
-        } catch {
-          mergeSucceeded = false;
-          break;
-        }
-      }
-
-      if (!active) return;
-      await queryClient.invalidateQueries({ queryKey: LIKED_ALBUMS_QUERY_KEY });
-      if (mergeSucceeded) {
-        try {
-          window.localStorage.removeItem(STORAGE_KEY);
-        } catch {
-          /* noop */
-        }
-        setGuestLiked({});
-      }
-      mergedUserRef.current = userId;
-    };
-
-    void mergeGuestLikedAlbums();
-
-    return () => {
-      active = false;
-    };
-  }, [isAuthenticated, likedQuery.data, likedQuery.isSuccess, queryClient, user?.id, user?._id]);
-
-  const liked = isAuthenticated ? likedQuery.data || {} : guestLiked;
+  const liked = userId ? likedQuery.data || {} : {};
 
   const isLiked = useCallback((id) => Boolean(id && liked[id]), [liked]);
 
   const toggleLiked = useCallback((album) => {
     if (!album?.id) return false;
 
-    if (!isAuthenticated) {
-      let didAdd = false;
-      setGuestLiked((prev) => {
-        const next = { ...prev };
-        if (next[album.id]) {
-          delete next[album.id];
-          didAdd = false;
-        } else {
-          next[album.id] = toLikedShape(album);
-          didAdd = true;
-        }
-        return next;
-      });
-      return didAdd;
+    if (!userId) {
+      notify.signInRequired('like albums');
+      return null;
     }
 
-    const prev = queryClient.getQueryData(LIKED_ALBUMS_QUERY_KEY) || {};
+    const prev = queryClient.getQueryData(queryKey) || {};
     const exists = Boolean(prev[album.id]);
     const next = { ...prev };
     if (exists) {
       delete next[album.id];
-      queryClient.setQueryData(LIKED_ALBUMS_QUERY_KEY, next);
+      queryClient.setQueryData(queryKey, next);
       removeLikedMutation.mutate(album.id, {
-        onError: () => queryClient.setQueryData(LIKED_ALBUMS_QUERY_KEY, prev),
+        onError: () => queryClient.setQueryData(queryKey, prev),
       });
       return false;
     }
 
     next[album.id] = toLikedShape(album);
-    queryClient.setQueryData(LIKED_ALBUMS_QUERY_KEY, next);
+    queryClient.setQueryData(queryKey, next);
     addLikedMutation.mutate(next[album.id], {
-      onError: () => queryClient.setQueryData(LIKED_ALBUMS_QUERY_KEY, prev),
+      onError: () => queryClient.setQueryData(queryKey, prev),
     });
     return true;
-  }, [addLikedMutation, isAuthenticated, queryClient, removeLikedMutation]);
+  }, [addLikedMutation, queryClient, queryKey, removeLikedMutation, userId]);
 
   const removeLiked = useCallback((id) => {
     if (!id) return;
 
-    if (!isAuthenticated) {
-      setGuestLiked((prev) => {
-        if (!prev[id]) return prev;
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      });
+    if (!userId) {
+      notify.signInRequired('manage liked albums');
       return;
     }
 
-    const prev = queryClient.getQueryData(LIKED_ALBUMS_QUERY_KEY) || {};
+    const prev = queryClient.getQueryData(queryKey) || {};
     if (!prev[id]) return;
     const next = { ...prev };
     delete next[id];
-    queryClient.setQueryData(LIKED_ALBUMS_QUERY_KEY, next);
+    queryClient.setQueryData(queryKey, next);
     removeLikedMutation.mutate(id, {
-      onError: () => queryClient.setQueryData(LIKED_ALBUMS_QUERY_KEY, prev),
+      onError: () => queryClient.setQueryData(queryKey, prev),
     });
-  }, [isAuthenticated, queryClient, removeLikedMutation]);
+  }, [queryClient, queryKey, removeLikedMutation, userId]);
 
   const list = useMemo(
     () => Object.values(liked).sort((a, b) => (b.likedAt || 0) - (a.likedAt || 0)),

@@ -27,9 +27,6 @@ const sampleTrack = {
 
 const Harness = () => {
   const { playlists } = usePlaylists();
-  const inLateNightDrive = playlists
-    .find((playlist) => playlist.name === 'Late night drive')
-    ?.tracks?.some((track) => track.id === sampleTrack.id);
 
   return (
     <div>
@@ -39,7 +36,6 @@ const Harness = () => {
         buttonLabel="Add sample track to playlist"
       />
       <span data-testid="playlist-count">{playlists.length}</span>
-      <span data-testid="in-late-night">{inLateNightDrive ? 'yes' : 'no'}</span>
     </div>
   );
 };
@@ -58,10 +54,14 @@ const renderHarness = () =>
 describe('AddToPlaylistButton', () => {
   beforeEach(() => {
     queryClient.clear();
-    window.localStorage.removeItem('octavia.playlists.v1');
   });
 
-  it('creates a new playlist from the current track', () => {
+  it('starts with no playlists for signed-out users', () => {
+    renderHarness();
+    expect(screen.getByTestId('playlist-count').textContent).toBe('0');
+  });
+
+  it('does not create a playlist while signed out', () => {
     renderHarness();
     const trigger = screen.getByRole('button', { name: /add sample track to playlist/i });
     const before = Number(screen.getByTestId('playlist-count').textContent);
@@ -70,16 +70,14 @@ describe('AddToPlaylistButton', () => {
     fireEvent.click(screen.getByRole('button', { name: /new playlist/i }));
 
     const after = Number(screen.getByTestId('playlist-count').textContent);
-    expect(after).toBe(before + 1);
+    expect(after).toBe(before);
   });
 
-  it('adds the track to a selected playlist', () => {
+  it('shows an empty playlist state in the picker when signed out', () => {
     renderHarness();
     const trigger = screen.getByRole('button', { name: /add sample track to playlist/i });
 
     fireEvent.click(trigger);
-    fireEvent.click(screen.getByRole('button', { name: /late night drive/i }));
-
-    expect(screen.getByTestId('in-late-night').textContent).toBe('yes');
+    expect(screen.getByText(/no playlists yet/i)).toBeInTheDocument();
   });
 });

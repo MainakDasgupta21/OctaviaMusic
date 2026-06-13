@@ -98,7 +98,8 @@ const TrackContextMenu = ({ track, children, onShareLink }) => {
         <ContextMenuSeparator />
         <ContextMenuItem
           onClick={() => {
-            toggleFavorite(track);
+            const changed = toggleFavorite(track);
+            if (changed == null) return;
             if (liked) notify.unliked(track.title); else notify.liked(track.title);
           }}
         >

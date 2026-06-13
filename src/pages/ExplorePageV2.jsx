@@ -851,12 +851,14 @@ const ExplorePageV2 = () => {
       addDeckSeenTrack(track);
       markDiscoveryTrack(track, 'swipe_save');
       const trackId = track?.id || track?.videoId || '';
+      let saveResult = true;
       if (trackId && !isFavorite(trackId)) {
-        toggleFavorite({
+        saveResult = toggleFavorite({
           ...track,
           id: track?.id || trackId,
         });
       }
+      if (saveResult == null) return;
       recordTasteAndProgress({
         type: 'save',
         track,

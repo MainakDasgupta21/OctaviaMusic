@@ -273,6 +273,7 @@ const Sidebar = ({ onNavigate }) => {
 
   const handleCreate = () => {
     const id = createPlaylist({ name: 'New playlist', pinned: true });
+    if (!id) return;
     toast.success('Playlist created');
     navigate(`/playlist/${id}`);
   };

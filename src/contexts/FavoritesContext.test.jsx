@@ -3,8 +3,6 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { FavoritesProvider, useFavorites } from '@/contexts/FavoritesContext';
 
-const STORAGE_KEY = 'octavia.favorites.v1';
-
 const { apiGet, apiPost, apiDelete, authStateRef } = vi.hoisted(() => ({
   apiGet: vi.fn(),
   apiPost: vi.fn(),
@@ -34,27 +32,16 @@ const createWrapper = (queryClient) =>
     );
   };
 
-describe('FavoritesContext merge on login', () => {
+describe('FavoritesContext', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     authStateRef.current = { user: null };
-    window.localStorage.clear();
     apiGet.mockResolvedValue({ data: { items: [] } });
     apiPost.mockResolvedValue({ data: {} });
     apiDelete.mockResolvedValue({ data: {} });
   });
 
-  it('merges guest favorites into server once user signs in', async () => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      'track-1': {
-        id: 'track-1',
-        videoId: 'dQw4w9WgXcQ',
-        title: 'Never Gonna Give You Up',
-        artist: 'Rick Astley',
-        addedAt: Date.now(),
-      },
-    }));
-
+  it('requires login before mutating favorites', () => {
     const queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -62,17 +49,50 @@ describe('FavoritesContext merge on login', () => {
       },
     });
 
-    const { rerender } = renderHook(() => useFavorites(), {
+    const { result } = renderHook(() => useFavorites(), {
       wrapper: createWrapper(queryClient),
     });
 
+    const added = result.current.toggleFavorite({
+      id: 'track-1',
+      videoId: 'dQw4w9WgXcQ',
+      title: 'Never Gonna Give You Up',
+      artist: 'Rick Astley',
+    });
+    expect(added).toBeNull();
+    expect(result.current.count).toBe(0);
     expect(apiGet).not.toHaveBeenCalled();
+    expect(apiPost).not.toHaveBeenCalled();
+    expect(apiDelete).not.toHaveBeenCalled();
+  });
 
+  it('loads server favorites and syncs toggle calls when signed in', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
     authStateRef.current = { user: { id: 'u-1', role: 'user' } };
-    rerender();
+
+    const { result } = renderHook(() => useFavorites(), {
+      wrapper: createWrapper(queryClient),
+    });
 
     await waitFor(() => expect(apiGet).toHaveBeenCalledWith('/me/favorites'));
-    await waitFor(() => expect(apiPost).toHaveBeenCalled());
-    await waitFor(() => expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull());
+    const payload = {
+      id: 'track-1',
+      videoId: 'dQw4w9WgXcQ',
+      title: 'Never Gonna Give You Up',
+      artist: 'Rick Astley',
+    };
+
+    const added = result.current.toggleFavorite(payload);
+    expect(added).toBe(true);
+    await waitFor(() => expect(apiPost).toHaveBeenCalledWith('/me/favorites', { track: expect.any(Object) }));
+
+    const removed = result.current.toggleFavorite(payload);
+    expect(removed).toBe(false);
+    await waitFor(() => expect(apiDelete).toHaveBeenCalledWith('/me/favorites/track-1'));
   });
 });

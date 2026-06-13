@@ -52,7 +52,8 @@ const FavoritesPage = () => {
       notify.added(track.title);
     },
     onLike: (track) => {
-      toggleFavorite(track);
+      const changed = toggleFavorite(track);
+      if (changed == null) return;
       notify.unliked(track.title);
     },
   });

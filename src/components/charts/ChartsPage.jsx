@@ -96,6 +96,7 @@ const ChartsPage = () => {
 
   const handleFavoriteSong = (song) => {
     const added = toggleFavorite(song);
+    if (added == null) return;
     if (added) notify.liked(song.title);
     else notify.unliked(song.title);
   };

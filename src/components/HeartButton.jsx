@@ -34,6 +34,7 @@ const HeartButton = ({ track, size = 'md', className }) => {
     e.stopPropagation();
     e.preventDefault();
     const wasAdded = toggleFavorite(track);
+    if (wasAdded == null) return;
     if (wasAdded) {
       if (!reduceMotion) {
         tokenRef.current += 1;

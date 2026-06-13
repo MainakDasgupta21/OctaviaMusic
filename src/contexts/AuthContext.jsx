@@ -6,6 +6,7 @@ import {
   useMemo,
   useState,
 } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import api, {
   configureApiAuth,
   getCurrentUser,
@@ -16,6 +17,13 @@ import api, {
 } from '@/lib/api';
 
 const AuthContext = createContext(undefined);
+const LEGACY_LIBRARY_STORAGE_KEYS = [
+  'octavia.favorites.v1',
+  'octavia.liked-albums.v1',
+  'octavia.followed-artists.v1',
+  'octavia.playlists.v1',
+  'octavia.player.v1',
+];
 
 const readCookie = (name) => {
   if (typeof document === 'undefined') return null;
@@ -39,8 +47,21 @@ const useGuestState = (setUser, setStatus) =>
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [status, setStatus] = useState('loading');
+  const queryClient = useQueryClient();
 
   const goGuest = useGuestState(setUser, setStatus);
+
+  const clearPerUserClientState = useCallback(() => {
+    queryClient.removeQueries({ queryKey: ['me'] });
+    if (typeof window === 'undefined') return;
+    for (const key of LEGACY_LIBRARY_STORAGE_KEYS) {
+      try {
+        window.localStorage.removeItem(key);
+      } catch {
+        /* storage unavailable */
+      }
+    }
+  }, [queryClient]);
 
   const applySession = useCallback((payload) => {
     const nextUser = payload?.user || null;
@@ -57,15 +78,15 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     configureApiAuth({
       onAuthFailure: () => {
-        setUser(null);
-        setStatus('guest');
+        clearPerUserClientState();
+        goGuest();
         if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
           window.location.assign('/login');
         }
       },
       getCsrfToken: () => readCookie('csrfToken'),
     });
-  }, []);
+  }, [clearPerUserClientState, goGuest]);
 
   const refresh = useCallback(async () => {
     const payload = await refreshSession();
@@ -125,8 +146,9 @@ export const AuthProvider = ({ children }) => {
     } catch (_error) {
       // ignore network/auth failures, client state still needs to clear
     }
+    clearPerUserClientState();
     goGuest();
-  }, [goGuest]);
+  }, [clearPerUserClientState, goGuest]);
 
   const updateProfile = useCallback(
     async (patch) => {

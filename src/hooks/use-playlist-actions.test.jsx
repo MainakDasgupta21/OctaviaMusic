@@ -36,10 +36,9 @@ const sampleTrack = {
 describe('usePlaylistActions', () => {
   beforeEach(() => {
     queryClient.clear();
-    window.localStorage.removeItem('octavia.playlists.v1');
   });
 
-  it('creates a playlist seeded from a track', () => {
+  it('requires login before creating a playlist', () => {
     const { result } = renderHook(() => usePlaylistActions(), { wrapper });
 
     let createdId;
@@ -51,51 +50,22 @@ describe('usePlaylistActions', () => {
       });
     });
 
-    const created = result.current.playlists.find((playlist) => playlist.id === createdId);
-    expect(created).toBeTruthy();
-    expect(created.name).toBe(sampleTrack.title);
-    expect(created.tracks).toHaveLength(1);
-    expect(created.tracks[0].id).toBe(sampleTrack.id);
+    expect(createdId).toBeNull();
+    expect(result.current.playlists).toHaveLength(0);
   });
 
-  it('dedupes when adding the same song twice', () => {
+  it('returns unauthenticated when adding to a playlist while signed out', () => {
     const { result } = renderHook(() => usePlaylistActions(), { wrapper });
 
-    let playlistId;
+    let addResult;
     act(() => {
-      playlistId = result.current.createEmptyPlaylist({
-        name: 'Focus Session',
-        navigateTo: false,
-        notifyOnCreate: false,
-      });
-    });
-
-    let playlist = result.current.playlists.find((entry) => entry.id === playlistId);
-    let firstAdd;
-    act(() => {
-      firstAdd = result.current.addTrackToPlaylistWithFeedback({
-        playlist,
+      addResult = result.current.addTrackToPlaylistWithFeedback({
+        playlist: { id: 'playlist-1', name: 'Focus Session', tracks: [] },
         track: sampleTrack,
         notifyOnAdded: false,
         notifyOnDuplicate: false,
       });
     });
-    expect(firstAdd.status).toBe('added');
-
-    playlist = result.current.playlists.find((entry) => entry.id === playlistId);
-    let duplicateAdd;
-    act(() => {
-      duplicateAdd = result.current.addTrackToPlaylistWithFeedback({
-        playlist,
-        track: sampleTrack,
-        notifyOnAdded: false,
-        notifyOnDuplicate: false,
-      });
-    });
-
-    expect(duplicateAdd.status).toBe('duplicate');
-    expect(
-      result.current.playlists.find((entry) => entry.id === playlistId)?.tracks || [],
-    ).toHaveLength(1);
+    expect(addResult.status).toBe('unauthenticated');
   });
 });

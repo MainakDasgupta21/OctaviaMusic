@@ -106,6 +106,7 @@ export const useKeyboardShortcuts = () => {
           if (listNavigationActive) return;
           e.preventDefault();
           const wasAdded = toggleFavorite(currentTrack);
+          if (wasAdded == null) return;
           toast(wasAdded ? 'Added to favorites' : 'Removed from favorites', {
             description: currentTrack.title,
           });

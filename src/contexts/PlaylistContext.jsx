@@ -2,53 +2,14 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
-  useRef,
-  useState,
 } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
+import notify from '@/lib/notify';
 
-const STORAGE_KEY = 'octavia.playlists.v1';
-const PLAYLISTS_QUERY_KEY = ['me', 'playlists'];
-
-// Seed playlists shown on first load — gives the Library a populated feel
-// for new users while real persistence kicks in.
-const seedPlaylists = () => [
-  {
-    id: 'p-seed-1',
-    name: 'Late night drive',
-    description: 'Synthwave for empty highways.',
-    tracks: [],
-    pinned: true,
-    createdAt: Date.now() - 1000 * 60 * 60 * 24 * 2,
-    updatedAt: Date.now() - 1000 * 60 * 60 * 24 * 2,
-  },
-  {
-    id: 'p-seed-2',
-    name: 'Morning focus',
-    description: 'Instrumental tracks to start the day.',
-    tracks: [],
-    pinned: true,
-    createdAt: Date.now() - 1000 * 60 * 60 * 24,
-    updatedAt: Date.now() - 1000 * 60 * 60 * 24,
-  },
-];
-
-const readFromStorage = () => {
-  if (typeof window === 'undefined') return seedPlaylists();
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return seedPlaylists();
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return seedPlaylists();
-    return parsed;
-  } catch {
-    return seedPlaylists();
-  }
-};
+const playlistsQueryKey = (userId) => ['me', 'playlists', userId];
 
 const PlaylistContext = createContext(undefined);
 
@@ -57,14 +18,13 @@ const newId = () => `p-${Date.now().toString(36)}-${(++counter).toString(36)}`;
 
 export const PlaylistProvider = ({ children }) => {
   const { user } = useAuth();
-  const isAuthenticated = Boolean(user);
+  const userId = user?.id || user?._id || null;
   const queryClient = useQueryClient();
-  const mergedUserRef = useRef(null);
-  const [guestPlaylists, setGuestPlaylists] = useState(() => readFromStorage());
+  const queryKey = playlistsQueryKey(userId);
 
   const playlistsQuery = useQuery({
-    queryKey: PLAYLISTS_QUERY_KEY,
-    enabled: isAuthenticated,
+    queryKey,
+    enabled: Boolean(userId),
     queryFn: async () => {
       const response = await api.get('/me/playlists');
       return Array.isArray(response.data?.items) ? response.data.items : [];
@@ -105,131 +65,67 @@ export const PlaylistProvider = ({ children }) => {
     },
   });
 
-  useEffect(() => {
-    if (isAuthenticated) return;
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(guestPlaylists));
-    } catch {
-      /* noop */
-    }
-  }, [guestPlaylists, isAuthenticated]);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      mergedUserRef.current = null;
-      setGuestPlaylists(readFromStorage());
-    }
-  }, [isAuthenticated]);
-
-  useEffect(() => {
-    if (!isAuthenticated || !playlistsQuery.isSuccess) return;
-    const userId = user?.id || user?._id;
-    if (!userId || mergedUserRef.current === userId) return;
-
-    let active = true;
-    const mergeGuestPlaylists = async () => {
-      const guestRows = Array.isArray(readFromStorage()) ? readFromStorage() : [];
-      if (guestRows.length === 0) {
-        mergedUserRef.current = userId;
-        return;
-      }
-
-      const existingIds = new Set((playlistsQuery.data || []).map((playlist) => playlist.id));
-      const toMerge = guestRows.filter((playlist) => playlist?.id && !existingIds.has(playlist.id));
-
-      let mergeSucceeded = true;
-      for (const playlist of toMerge) {
-        try {
-          await api.post('/me/playlists', {
-            id: playlist.id,
-            name: playlist.name,
-            description: playlist.description || '',
-            tracks: Array.isArray(playlist.tracks) ? playlist.tracks : [],
-            pinned: Boolean(playlist.pinned),
-          });
-        } catch {
-          mergeSucceeded = false;
-          break;
-        }
-      }
-
-      if (!active) return;
-
-      await queryClient.invalidateQueries({ queryKey: PLAYLISTS_QUERY_KEY });
-      if (mergeSucceeded) {
-        try {
-          window.localStorage.removeItem(STORAGE_KEY);
-        } catch {
-          /* noop */
-        }
-        setGuestPlaylists([]);
-      }
-      mergedUserRef.current = userId;
-    };
-
-    void mergeGuestPlaylists();
-
-    return () => {
-      active = false;
-    };
-  }, [isAuthenticated, playlistsQuery.data, playlistsQuery.isSuccess, queryClient, user?.id, user?._id]);
-
-  const playlists = isAuthenticated ? playlistsQuery.data || [] : guestPlaylists;
+  const playlists = userId ? playlistsQuery.data || [] : [];
 
   const updatePlaylistCollection = useCallback((updater) => {
-    if (!isAuthenticated) {
-      setGuestPlaylists((current) => updater(Array.isArray(current) ? current : []));
-      return;
-    }
-    queryClient.setQueryData(PLAYLISTS_QUERY_KEY, (current) =>
+    queryClient.setQueryData(queryKey, (current) =>
       updater(Array.isArray(current) ? current : []));
-  }, [isAuthenticated, queryClient]);
+  }, [queryClient, queryKey]);
 
   const createPlaylist = useCallback(
     ({ name = 'New playlist', description = '', tracks = [], pinned = false } = {}) => {
+      if (!userId) {
+        notify.signInRequired('create playlists');
+        return null;
+      }
       const id = newId();
       const now = Date.now();
       const draft = { id, name, description, tracks, pinned, createdAt: now, updatedAt: now };
-      const previous = queryClient.getQueryData(PLAYLISTS_QUERY_KEY) || [];
+      const previous = queryClient.getQueryData(queryKey) || [];
 
       updatePlaylistCollection((rows) => [...rows, draft]);
-
-      if (isAuthenticated) {
-        createPlaylistMutation.mutate(draft, {
-          onError: () => queryClient.setQueryData(PLAYLISTS_QUERY_KEY, previous),
-        });
-      }
+      createPlaylistMutation.mutate(draft, {
+        onError: () => queryClient.setQueryData(queryKey, previous),
+      });
       return id;
     },
-    [createPlaylistMutation, isAuthenticated, queryClient, updatePlaylistCollection],
+    [createPlaylistMutation, queryClient, queryKey, updatePlaylistCollection, userId],
   );
 
   const deletePlaylist = useCallback((id) => {
-    const previous = queryClient.getQueryData(PLAYLISTS_QUERY_KEY) || [];
-    updatePlaylistCollection((rows) => rows.filter((entry) => entry.id !== id));
-    if (isAuthenticated) {
-      deletePlaylistMutation.mutate(id, {
-        onError: () => queryClient.setQueryData(PLAYLISTS_QUERY_KEY, previous),
-      });
+    if (!userId) {
+      notify.signInRequired('manage playlists');
+      return;
     }
-  }, [deletePlaylistMutation, isAuthenticated, queryClient, updatePlaylistCollection]);
+    const previous = queryClient.getQueryData(queryKey) || [];
+    updatePlaylistCollection((rows) => rows.filter((entry) => entry.id !== id));
+    deletePlaylistMutation.mutate(id, {
+      onError: () => queryClient.setQueryData(queryKey, previous),
+    });
+  }, [deletePlaylistMutation, queryClient, queryKey, updatePlaylistCollection, userId]);
 
   const updatePlaylist = useCallback((id, patch) => {
-    const previous = queryClient.getQueryData(PLAYLISTS_QUERY_KEY) || [];
+    if (!userId) {
+      notify.signInRequired('manage playlists');
+      return;
+    }
+    const previous = queryClient.getQueryData(queryKey) || [];
     updatePlaylistCollection((rows) =>
       rows.map((entry) =>
         entry.id === id ? { ...entry, ...patch, updatedAt: Date.now() } : entry),
     );
-    if (isAuthenticated) {
-      updatePlaylistMutation.mutate({ id, patch }, {
-        onError: () => queryClient.setQueryData(PLAYLISTS_QUERY_KEY, previous),
-      });
-    }
-  }, [isAuthenticated, queryClient, updatePlaylistCollection, updatePlaylistMutation]);
+    updatePlaylistMutation.mutate({ id, patch }, {
+      onError: () => queryClient.setQueryData(queryKey, previous),
+    });
+  }, [queryClient, queryKey, updatePlaylistCollection, updatePlaylistMutation, userId]);
 
   const addTrackToPlaylist = useCallback((playlistId, track) => {
     if (!track?.id) return;
-    const previous = queryClient.getQueryData(PLAYLISTS_QUERY_KEY) || [];
+    if (!userId) {
+      notify.signInRequired('save songs to playlists');
+      return;
+    }
+    const previous = queryClient.getQueryData(queryKey) || [];
     updatePlaylistCollection((rows) =>
       rows.map((entry) => {
         if (entry.id !== playlistId) return entry;
@@ -237,15 +133,17 @@ export const PlaylistProvider = ({ children }) => {
         return { ...entry, tracks: [...entry.tracks, track], updatedAt: Date.now() };
       }),
     );
-    if (isAuthenticated) {
-      addTrackMutation.mutate({ playlistId, track }, {
-        onError: () => queryClient.setQueryData(PLAYLISTS_QUERY_KEY, previous),
-      });
-    }
-  }, [addTrackMutation, isAuthenticated, queryClient, updatePlaylistCollection]);
+    addTrackMutation.mutate({ playlistId, track }, {
+      onError: () => queryClient.setQueryData(queryKey, previous),
+    });
+  }, [addTrackMutation, queryClient, queryKey, updatePlaylistCollection, userId]);
 
   const removeTrackFromPlaylist = useCallback((playlistId, trackId) => {
-    const previous = queryClient.getQueryData(PLAYLISTS_QUERY_KEY) || [];
+    if (!userId) {
+      notify.signInRequired('manage playlists');
+      return;
+    }
+    const previous = queryClient.getQueryData(queryKey) || [];
     updatePlaylistCollection((rows) =>
       rows.map((entry) =>
         entry.id === playlistId
@@ -256,15 +154,17 @@ export const PlaylistProvider = ({ children }) => {
             }
           : entry),
     );
-    if (isAuthenticated) {
-      removeTrackMutation.mutate({ playlistId, trackId }, {
-        onError: () => queryClient.setQueryData(PLAYLISTS_QUERY_KEY, previous),
-      });
-    }
-  }, [isAuthenticated, queryClient, removeTrackMutation, updatePlaylistCollection]);
+    removeTrackMutation.mutate({ playlistId, trackId }, {
+      onError: () => queryClient.setQueryData(queryKey, previous),
+    });
+  }, [queryClient, queryKey, removeTrackMutation, updatePlaylistCollection, userId]);
 
   const reorderTracks = useCallback((playlistId, fromIdx, toIdx) => {
-    const previous = queryClient.getQueryData(PLAYLISTS_QUERY_KEY) || [];
+    if (!userId) {
+      notify.signInRequired('manage playlists');
+      return;
+    }
+    const previous = queryClient.getQueryData(queryKey) || [];
     let reorderedTrackIds = null;
     updatePlaylistCollection((rows) =>
       rows.map((entry) => {
@@ -277,15 +177,19 @@ export const PlaylistProvider = ({ children }) => {
         return { ...entry, tracks: nextTracks, updatedAt: Date.now() };
       }),
     );
-    if (isAuthenticated && Array.isArray(reorderedTrackIds)) {
+    if (Array.isArray(reorderedTrackIds)) {
       reorderTracksMutation.mutate({ playlistId, trackIds: reorderedTrackIds }, {
-        onError: () => queryClient.setQueryData(PLAYLISTS_QUERY_KEY, previous),
+        onError: () => queryClient.setQueryData(queryKey, previous),
       });
     }
-  }, [isAuthenticated, queryClient, reorderTracksMutation, updatePlaylistCollection]);
+  }, [queryClient, queryKey, reorderTracksMutation, updatePlaylistCollection, userId]);
 
   const togglePin = useCallback((id) => {
-    const previous = queryClient.getQueryData(PLAYLISTS_QUERY_KEY) || [];
+    if (!userId) {
+      notify.signInRequired('manage playlists');
+      return;
+    }
+    const previous = queryClient.getQueryData(queryKey) || [];
     let nextPinned = null;
     updatePlaylistCollection((rows) =>
       rows.map((entry) => {
@@ -294,14 +198,18 @@ export const PlaylistProvider = ({ children }) => {
         return { ...entry, pinned: nextPinned, updatedAt: Date.now() };
       }),
     );
-    if (isAuthenticated && typeof nextPinned === 'boolean') {
+    if (typeof nextPinned === 'boolean') {
       updatePlaylistMutation.mutate({ id, patch: { pinned: nextPinned } }, {
-        onError: () => queryClient.setQueryData(PLAYLISTS_QUERY_KEY, previous),
+        onError: () => queryClient.setQueryData(queryKey, previous),
       });
     }
-  }, [isAuthenticated, queryClient, updatePlaylistCollection, updatePlaylistMutation]);
+  }, [queryClient, queryKey, updatePlaylistCollection, updatePlaylistMutation, userId]);
 
   const reorderPlaylists = useCallback((fromId, toId) => {
+    if (!userId) {
+      notify.signInRequired('manage playlists');
+      return;
+    }
     updatePlaylistCollection((rows) => {
       const fromIdx = rows.findIndex((entry) => entry.id === fromId);
       const toIdx = rows.findIndex((entry) => entry.id === toId);
@@ -311,7 +219,7 @@ export const PlaylistProvider = ({ children }) => {
       next.splice(toIdx, 0, moved);
       return next;
     });
-  }, [updatePlaylistCollection]);
+  }, [updatePlaylistCollection, userId]);
 
   const pinned = useMemo(() => playlists.filter((p) => p.pinned), [playlists]);
 
