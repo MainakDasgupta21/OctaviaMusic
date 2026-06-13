@@ -3,6 +3,9 @@ const {
   favoriteCreateSchema,
   likedAlbumCreateSchema,
   followedArtistCreateSchema,
+  searchHistoryCreateSchema,
+  searchHistoryDeleteSchema,
+  searchHistoryListSchema,
 } = require('./library.validators');
 
 const asRequest = (body) => ({ body, params: {}, query: {} });
@@ -57,5 +60,50 @@ describe('library validators tolerate client display fields', () => {
     expect(result.success).toBe(true);
     expect(result.data.body.artist).not.toHaveProperty('followedAt');
     expect(result.data.body.artist.id).toBe('artist-1');
+  });
+});
+
+describe('search history validators', () => {
+  it('accepts a non-empty query and strips extra fields', () => {
+    const result = searchHistoryCreateSchema.safeParse(
+      asRequest({ query: '  blinding lights  ', searchedAt: 1700000000000 }),
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.data.body.query).toBe('blinding lights');
+    expect(result.data.body).not.toHaveProperty('searchedAt');
+  });
+
+  it('rejects an empty query', () => {
+    const result = searchHistoryCreateSchema.safeParse(asRequest({ query: '   ' }));
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts a delete with an optional query target', () => {
+    const withQuery = searchHistoryDeleteSchema.safeParse({
+      body: {},
+      params: {},
+      query: { query: 'starboy' },
+    });
+    const clearAll = searchHistoryDeleteSchema.safeParse({
+      body: {},
+      params: {},
+      query: {},
+    });
+
+    expect(withQuery.success).toBe(true);
+    expect(withQuery.data.query.query).toBe('starboy');
+    expect(clearAll.success).toBe(true);
+  });
+
+  it('coerces the list limit from the query string', () => {
+    const result = searchHistoryListSchema.safeParse({
+      body: {},
+      params: {},
+      query: { limit: '20' },
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data.query.limit).toBe(20);
   });
 });

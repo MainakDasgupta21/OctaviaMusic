@@ -139,6 +139,38 @@ const historyListSchema = z.object({
     .default({}),
 });
 
+const searchQueryString = z.string().trim().min(1).max(160);
+
+const searchHistoryListSchema = z.object({
+  body: z.object({}).strict().optional().default({}),
+  params: emptyParams,
+  query: z
+    .object({
+      limit: z.coerce.number().int().min(1).max(50).optional(),
+    })
+    .strict()
+    .optional()
+    .default({}),
+});
+
+const searchHistoryCreateSchema = z.object({
+  body: z.object({ query: searchQueryString }).strip(),
+  params: emptyParams,
+  query: emptyQuery,
+});
+
+const searchHistoryDeleteSchema = z.object({
+  body: z.object({}).strict().optional().default({}),
+  params: emptyParams,
+  query: z
+    .object({
+      query: searchQueryString.optional(),
+    })
+    .strict()
+    .optional()
+    .default({}),
+});
+
 const settingsPatchSchema = z.object({
   body: settingsSchema.refine((value) => Object.keys(value).length > 0, {
     message: 'At least one setting must be provided',
@@ -162,5 +194,8 @@ module.exports = {
   playlistTrackReorderSchema,
   historyCreateSchema,
   historyListSchema,
+  searchHistoryListSchema,
+  searchHistoryCreateSchema,
+  searchHistoryDeleteSchema,
   settingsPatchSchema,
 };

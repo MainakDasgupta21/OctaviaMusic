@@ -48,6 +48,7 @@ import { useEditorialMeta } from '@/hooks/use-editorial-meta';
 import { useHoverPrefetch } from '@/hooks/use-route-prefetch';
 import { useSearchSuggestions } from '@/hooks/use-search-suggestions';
 import { usePersonalizationSignals } from '@/hooks/use-personalization-signals';
+import { useSearchHistory } from '@/contexts/SearchHistoryContext';
 import { FilterChipBar } from '@/components/search/FilterChipBar';
 import { QuickPresets } from '@/components/search/QuickPresets';
 import { SearchRelatedRail } from '@/components/search/RelatedRail';
@@ -59,23 +60,7 @@ import VoiceSearchButton from '@/components/search/VoiceSearchButton';
 import AddToPlaylistButton from '@/components/playlist/AddToPlaylistButton';
 import { cn } from '@/lib/utils';
 
-const RECENT_KEY = 'octavia.recent-searches.v1';
-
-const readRecents = () => {
-  if (typeof window === 'undefined') return [];
-  try {
-    return JSON.parse(window.localStorage.getItem(RECENT_KEY) || '[]');
-  } catch {
-    return [];
-  }
-};
-const writeRecents = (arr) => {
-  try {
-    window.localStorage.setItem(RECENT_KEY, JSON.stringify(arr.slice(0, 8)));
-  } catch {
-    /* noop */
-  }
-};
+const RECENTS_DISPLAY_LIMIT = 8;
 
 // Debounced state hook — used by the input to avoid a fetch per keystroke.
 const useDebouncedValue = (value, delay) => {
@@ -125,7 +110,16 @@ const SearchPage = () => {
     return fromUrl && VALID_FILTERS.has(fromUrl) ? fromUrl : 'all';
   })();
   const [filter, setFilter] = useState(initialType);
-  const [recents, setRecents] = useState(() => readRecents());
+  const {
+    searches: allRecents,
+    recordSearch,
+    removeSearch,
+    clearSearches,
+  } = useSearchHistory();
+  const recents = useMemo(
+    () => (allRecents || []).slice(0, RECENTS_DISPLAY_LIMIT),
+    [allRecents],
+  );
   const [selectedIdx, setSelectedIdx] = useState(0);
   const inputRef = useRef(null);
   const { playTrack, addToQueue, history, currentTrack } = usePlayer();
@@ -255,17 +249,8 @@ const SearchPage = () => {
   // result row activation) can commit a term to recents without leaking
   // half-typed debounce noise into the list.
   const commitRecent = useCallback((term) => {
-    const trimmed = String(term || '').trim();
-    if (!trimmed) return;
-    setRecents((prev) => {
-      const next = [
-        trimmed,
-        ...prev.filter((x) => x.toLowerCase() !== trimmed.toLowerCase()),
-      ].slice(0, 8);
-      writeRecents(next);
-      return next;
-    });
-  }, []);
+    recordSearch(term);
+  }, [recordSearch]);
 
   const rankParams = useMemo(() => {
     const displayFilter = filter === 'playlist' ? filter : operatorType || filter;
@@ -748,7 +733,7 @@ const SearchPage = () => {
                   </p>
                   <button
                     type="button"
-                    onClick={() => { setRecents([]); writeRecents([]); }}
+                    onClick={() => clearSearches()}
                     className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-4 hover:text-ink focus-ring rounded-sharp px-2 py-1 transition-colors"
                   >
                     Clear all
@@ -769,11 +754,7 @@ const SearchPage = () => {
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          const next = recents.filter((x) => x !== r);
-                          setRecents(next);
-                          writeRecents(next);
-                        }}
+                        onClick={() => removeSearch(r)}
                         className="touch-action-visible opacity-100 md:opacity-0 md:group-hover:opacity-100 text-ink-3 hover:text-ink focus-ring rounded-sharp p-0.5"
                         aria-label={`Remove ${r}`}
                       >

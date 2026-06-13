@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -21,6 +21,7 @@ import { usePlayer } from '@/contexts/PlayerContext';
 import { useFavorites } from '@/contexts/FavoritesContext';
 import { useFollowedArtists } from '@/contexts/FollowedArtistsContext';
 import { useLikedAlbums } from '@/contexts/LikedAlbumsContext';
+import { useSearchHistory } from '@/contexts/SearchHistoryContext';
 import usePlaylistActions from '@/hooks/use-playlist-actions';
 import HeartButton from '@/components/HeartButton';
 import AddToPlaylistButton from '@/components/playlist/AddToPlaylistButton';
@@ -33,25 +34,6 @@ import SmartImage from '@/components/SmartImage';
 import { fadeUp, staggerChildren } from '@/design/motion';
 import { artistSlugOf, isUsableArtistSlug } from '@/lib/slug';
 import { cn } from '@/lib/utils';
-
-const RECENT_SEARCHES_KEY = 'octavia.recent-searches.v1';
-
-const readRecentSearches = () => {
-  if (typeof window === 'undefined') return [];
-  try {
-    return JSON.parse(window.localStorage.getItem(RECENT_SEARCHES_KEY) || '[]');
-  } catch {
-    return [];
-  }
-};
-
-const writeRecentSearches = (arr) => {
-  try {
-    window.localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(arr));
-  } catch {
-    /* noop */
-  }
-};
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: LibraryIcon },
@@ -99,19 +81,13 @@ const LibraryPage = () => {
     addTrackToPlaylistWithFeedback,
     createEmptyPlaylist,
   } = usePlaylistActions();
+  const { searches: recentSearches, clearSearches } = useSearchHistory();
   const [tab, setTab] = useState('overview');
-  const [recentSearches, setRecentSearches] = useState(() => readRecentSearches());
   const masthead = useMemo(() => formatMasthead(), []);
   const issueNum = useMemo(() => {
     const start = new Date(new Date().getFullYear(), 0, 0);
     return String(Math.floor((Date.now() - start.getTime()) / 86400000)).padStart(3, '0');
   }, []);
-
-  useEffect(() => {
-    if (tab === 'searches' || tab === 'overview') {
-      setRecentSearches(readRecentSearches());
-    }
-  }, [tab]);
 
   const topArtists = useMemo(() => {
     const counts = new Map();
@@ -141,8 +117,7 @@ const LibraryPage = () => {
   };
 
   const handleClearSearches = () => {
-    setRecentSearches([]);
-    writeRecentSearches([]);
+    clearSearches();
   };
 
   const isEmpty =

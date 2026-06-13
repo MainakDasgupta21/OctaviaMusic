@@ -102,6 +102,26 @@ const createHistoryEntry = async (req, res) => {
   res.status(201).json({ item });
 };
 
+const listSearchHistory = async (req, res) => {
+  const items = await libraryService.listSearchHistory(req.user._id, { limit: req.query.limit });
+  res.json({ items });
+};
+
+const createSearchHistory = async (req, res) => {
+  const item = await libraryService.recordSearchHistory(req.user._id, req.body.query);
+  res.status(201).json({ item });
+};
+
+const deleteSearchHistory = async (req, res) => {
+  const query = req.query.query;
+  if (query) {
+    await libraryService.removeSearchHistory(req.user._id, query);
+  } else {
+    await libraryService.clearSearchHistory(req.user._id);
+  }
+  res.status(204).send();
+};
+
 const getSettings = async (req, res) => {
   const settings = await libraryService.getUserSettings(req.user._id);
   res.json({ settings });
@@ -131,6 +151,9 @@ module.exports = {
   reorderPlaylistTracks,
   listHistory,
   createHistoryEntry,
+  listSearchHistory,
+  createSearchHistory,
+  deleteSearchHistory,
   getSettings,
   updateSettings,
 };

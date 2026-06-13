@@ -23,6 +23,9 @@ const {
   reorderPlaylistTracks,
   listHistory,
   createHistoryEntry,
+  listSearchHistory,
+  createSearchHistory,
+  deleteSearchHistory,
   getSettings,
   updateSettings,
 } = require('../controllers/library.controller');
@@ -41,6 +44,9 @@ const {
   playlistTrackReorderSchema,
   historyCreateSchema,
   historyListSchema,
+  searchHistoryListSchema,
+  searchHistoryCreateSchema,
+  searchHistoryDeleteSchema,
   settingsPatchSchema,
 } = require('../validators/library.validators');
 
@@ -125,6 +131,20 @@ router.patch(
 
 router.get('/me/history', validate(historyListSchema), asyncHandler(listHistory));
 router.post('/me/history', requireCsrf, validate(historyCreateSchema), asyncHandler(createHistoryEntry));
+
+router.get('/me/searches', validate(searchHistoryListSchema), asyncHandler(listSearchHistory));
+router.post(
+  '/me/searches',
+  requireCsrf,
+  validate(searchHistoryCreateSchema),
+  asyncHandler(createSearchHistory),
+);
+router.delete(
+  '/me/searches',
+  requireCsrf,
+  validate(searchHistoryDeleteSchema),
+  asyncHandler(deleteSearchHistory),
+);
 
 router.get('/me/settings', asyncHandler(getSettings));
 router.patch('/me/settings', requireCsrf, validate(settingsPatchSchema), asyncHandler(updateSettings));

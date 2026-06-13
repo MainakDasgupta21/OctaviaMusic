@@ -4,10 +4,19 @@ const { LikedAlbum } = require('../models/LikedAlbum');
 const { FollowedArtist } = require('../models/FollowedArtist');
 const { Playlist } = require('../models/Playlist');
 const { ListeningHistory } = require('../models/ListeningHistory');
+const { SearchHistory } = require('../models/SearchHistory');
 const { User, USER_SETTINGS_DEFAULTS } = require('../models/User');
 const { NotFoundError, ValidationError } = require('../utils/app-errors');
 
+const SEARCH_HISTORY_CAP = 50;
+
 const toObjectId = (value) => value;
+
+const normalizeSearchQuery = (raw) => {
+  const query = String(raw || '').trim();
+  if (!query) throw new ValidationError('Search query is required');
+  return { query, queryKey: query.toLowerCase() };
+};
 
 const normalizeTrack = (track, { requireTitle = false } = {}) => {
   const id = String(track?.id || '').trim();
@@ -51,6 +60,7 @@ const createLibraryService = ({
   FollowedArtistModel = FollowedArtist,
   PlaylistModel = Playlist,
   ListeningHistoryModel = ListeningHistory,
+  SearchHistoryModel = SearchHistory,
   UserModel = User,
 } = {}) => {
   const listFavorites = async (userId) =>
@@ -244,6 +254,45 @@ const createLibraryService = ({
     return doc.toJSON();
   };
 
+  const listSearchHistory = async (userId, { limit = SEARCH_HISTORY_CAP } = {}) =>
+    SearchHistoryModel.find({ userId: toObjectId(userId) })
+      .sort({ searchedAt: -1, updatedAt: -1 })
+      .limit(Math.max(1, Math.min(SEARCH_HISTORY_CAP, Number(limit) || SEARCH_HISTORY_CAP)))
+      .lean()
+      .then((rows) => rows.map((row) => SearchHistoryModel.hydrate(row).toJSON()));
+
+  const recordSearchHistory = async (userId, rawQuery) => {
+    const { query, queryKey } = normalizeSearchQuery(rawQuery);
+    const doc = await SearchHistoryModel.findOneAndUpdate(
+      { userId: toObjectId(userId), queryKey },
+      { $set: { query, queryKey, searchedAt: new Date() } },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
+
+    // Keep only the most recent `SEARCH_HISTORY_CAP` terms per user so the
+    // collection can't grow without bound.
+    const overflow = await SearchHistoryModel.find({ userId: toObjectId(userId) })
+      .sort({ searchedAt: -1, updatedAt: -1 })
+      .skip(SEARCH_HISTORY_CAP)
+      .select('_id')
+      .lean();
+    if (overflow.length) {
+      await SearchHistoryModel.deleteMany({ _id: { $in: overflow.map((row) => row._id) } });
+    }
+
+    return doc.toJSON();
+  };
+
+  const removeSearchHistory = async (userId, rawQuery) => {
+    const queryKey = String(rawQuery || '').trim().toLowerCase();
+    if (!queryKey) return;
+    await SearchHistoryModel.deleteOne({ userId: toObjectId(userId), queryKey });
+  };
+
+  const clearSearchHistory = async (userId) => {
+    await SearchHistoryModel.deleteMany({ userId: toObjectId(userId) });
+  };
+
   const getUserSettings = async (userId) => {
     const user = await UserModel.findById(userId).select('settings');
     if (!user) throw new NotFoundError('User not found');
@@ -321,6 +370,7 @@ const createLibraryService = ({
       FollowedArtistModel.deleteMany({ userId: user._id }),
       PlaylistModel.deleteMany({ userId: user._id }),
       ListeningHistoryModel.deleteMany({ userId: user._id }),
+      SearchHistoryModel.deleteMany({ userId: user._id }),
       UserModel.deleteOne({ _id: user._id }),
     ]);
   };
@@ -344,6 +394,10 @@ const createLibraryService = ({
     reorderPlaylistTracks,
     listHistory,
     addHistoryItem,
+    listSearchHistory,
+    recordSearchHistory,
+    removeSearchHistory,
+    clearSearchHistory,
     getUserSettings,
     updateUserSettings,
     updateCurrentUser,

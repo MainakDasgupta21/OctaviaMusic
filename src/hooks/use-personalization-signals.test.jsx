@@ -1,12 +1,17 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { __testing as personalization, usePersonalizationSignals } from '@/hooks/use-personalization-signals';
 
-const { buildArtistCounts, pickTopArtists, RECENT_SEARCH_KEY } = personalization;
+const { buildArtistCounts, pickTopArtists } = personalization;
 
 const playerHistoryMock = vi.fn();
 vi.mock('@/contexts/PlayerContext', () => ({
   usePlayer: () => ({ history: playerHistoryMock() }),
+}));
+
+const searchHistoryMock = vi.fn();
+vi.mock('@/contexts/SearchHistoryContext', () => ({
+  useSearchHistory: () => ({ searches: searchHistoryMock() }),
 }));
 
 describe('buildArtistCounts', () => {
@@ -57,17 +62,14 @@ describe('pickTopArtists', () => {
 
 describe('usePersonalizationSignals', () => {
   beforeEach(() => {
-    window.localStorage.clear();
     playerHistoryMock.mockReset();
     playerHistoryMock.mockReturnValue([
       { artist: 'The Weeknd' },
       { artist: 'Drake' },
       { artist: 'The Weeknd' },
     ]);
-  });
-
-  afterEach(() => {
-    window.localStorage.clear();
+    searchHistoryMock.mockReset();
+    searchHistoryMock.mockReturnValue([]);
   });
 
   it('returns historyArtistCounts derived from the player history', () => {
@@ -76,17 +78,14 @@ describe('usePersonalizationSignals', () => {
     expect(result.current.topPlayedArtists[0]).toBe('the weeknd');
   });
 
-  it('reads recent search terms from localStorage', () => {
-    window.localStorage.setItem(
-      RECENT_SEARCH_KEY,
-      JSON.stringify(['blinding lights', 'starboy']),
-    );
+  it('reads recent search terms from the search history hook', () => {
+    searchHistoryMock.mockReturnValue(['blinding lights', 'starboy']);
     const { result } = renderHook(() => usePersonalizationSignals());
     expect(result.current.recentSearchTerms.has('blinding lights')).toBe(true);
     expect(result.current.recentSearchTerms.has('starboy')).toBe(true);
   });
 
-  it('returns an empty Set when localStorage is empty', () => {
+  it('returns an empty Set when there are no recent searches', () => {
     const { result } = renderHook(() => usePersonalizationSignals());
     expect(result.current.recentSearchTerms.size).toBe(0);
   });

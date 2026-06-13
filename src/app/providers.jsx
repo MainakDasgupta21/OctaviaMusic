@@ -8,6 +8,7 @@ import { FavoritesProvider } from '@/contexts/FavoritesContext';
 import { LikedAlbumsProvider } from '@/contexts/LikedAlbumsContext';
 import { FollowedArtistsProvider } from '@/contexts/FollowedArtistsContext';
 import { PlaylistProvider } from '@/contexts/PlaylistContext';
+import { SearchHistoryProvider } from '@/contexts/SearchHistoryContext';
 import { NotificationsProvider } from '@/contexts/NotificationsContext';
 import { UIProvider } from '@/contexts/UIContext';
 import { SoundProvider } from '@/contexts/SoundContext';
@@ -33,13 +34,15 @@ const AppProviders = ({ children }) => (
               <LikedAlbumsProvider>
                 <FollowedArtistsProvider>
                   <PlaylistProvider>
-                    <NotificationsProvider>
-                      <UIProvider>
-                        <SoundProvider>
-                          <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
-                        </SoundProvider>
-                      </UIProvider>
-                    </NotificationsProvider>
+                    <SearchHistoryProvider>
+                      <NotificationsProvider>
+                        <UIProvider>
+                          <SoundProvider>
+                            <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
+                          </SoundProvider>
+                        </UIProvider>
+                      </NotificationsProvider>
+                    </SearchHistoryProvider>
                   </PlaylistProvider>
                 </FollowedArtistsProvider>
               </LikedAlbumsProvider>

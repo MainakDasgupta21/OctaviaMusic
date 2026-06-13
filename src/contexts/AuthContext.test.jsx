@@ -101,6 +101,7 @@ describe('AuthContext bootstrap', () => {
     logoutSession.mockResolvedValueOnce({ ok: true });
 
     window.localStorage.setItem('octavia.favorites.v1', '{"track-1":true}');
+    window.localStorage.setItem('octavia.recent-searches.v1', '["blinding lights"]');
     queryClient.setQueryData(['me', 'favorites', 'u-3'], { track: true });
 
     const { result } = renderHook(() => useAuth(), { wrapper: createWrapper(queryClient) });
@@ -113,6 +114,7 @@ describe('AuthContext bootstrap', () => {
     await waitFor(() => expect(result.current.status).toBe('guest'));
     expect(queryClient.getQueryData(['me', 'favorites', 'u-3'])).toBeUndefined();
     expect(window.localStorage.getItem('octavia.favorites.v1')).toBeNull();
+    expect(window.localStorage.getItem('octavia.recent-searches.v1')).toBeNull();
     expect(clearCsrfToken).toHaveBeenCalled();
   });
 });

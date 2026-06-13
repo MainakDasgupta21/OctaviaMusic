@@ -24,6 +24,9 @@ const LEGACY_LIBRARY_STORAGE_KEYS = [
   'octavia.followed-artists.v1',
   'octavia.playlists.v1',
   'octavia.player.v1',
+  // Guest search history fallback — cleared on auth change so one account's
+  // searches never bleed into another on a shared browser.
+  'octavia.recent-searches.v1',
 ];
 
 const readCookie = (name) => {
