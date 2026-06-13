@@ -61,9 +61,14 @@ const MainLayout = () => {
         return;
       }
       const expandedOnViewport = settings.sidebarExpanded && desktopWide.matches;
+      // These must match the sidebar's *actual* rendered widths (the fixed
+      // EXPANDED_W / COLLAPSED_W pixel constants in Sidebar.jsx). Using a
+      // viewport-based clamp here lets --sidebar-w exceed the real sidebar on
+      // wide screens, which opens a gap between the sidebar and the content,
+      // topbar, and footer player.
       document.documentElement.style.setProperty(
         '--sidebar-w',
-        expandedOnViewport ? 'clamp(15rem, 16vw, 17rem)' : 'clamp(4.5rem, 5.2vw, 5rem)',
+        expandedOnViewport ? '248px' : '76px',
       );
     };
 
