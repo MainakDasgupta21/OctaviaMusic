@@ -376,7 +376,7 @@ const FooterPlayer = () => {
           initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 100, opacity: 0 }}
-          className="fixed inset-x-2 bottom-[calc(var(--mobile-nav-height)+var(--mobile-nav-offset)+env(safe-area-inset-bottom)+0.5rem)] phablet:inset-x-auto phablet:bottom-[calc(var(--mobile-nav-height)+var(--mobile-nav-offset)+env(safe-area-inset-bottom)+0.5rem)] lg:bottom-0 phablet:left-[var(--sidebar-w,0px)] phablet:right-0 h-[68px] z-40 glass-strong border border-warning/30 phablet:border-x-0 phablet:border-b-0 flex items-center px-4 phablet:px-5 gap-3 phablet:gap-4 rounded-soft phablet:rounded-none"
+          className="fixed inset-x-2 bottom-[calc(var(--mobile-nav-height)+var(--mobile-nav-offset)+env(safe-area-inset-bottom)+0.5rem)] lg:inset-x-auto lg:bottom-0 lg:left-[var(--sidebar-w,0px)] lg:right-0 h-[68px] z-40 glass-strong border border-warning/30 lg:border-x-0 lg:border-b-0 flex items-center px-4 lg:px-5 gap-3 lg:gap-4 rounded-soft lg:rounded-none"
           role="alert"
         >
           <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
@@ -434,7 +434,7 @@ const FooterPlayer = () => {
           initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 100, opacity: 0 }}
-          className="player-footer-desktop hidden phablet:flex fixed bottom-[calc(var(--mobile-nav-height)+var(--mobile-nav-offset)+env(safe-area-inset-bottom,0px)+0.5rem)] lg:bottom-0 right-0 h-[var(--desktop-footer-height)] glass-strong z-40 transition-[left,bottom] duration-med ease-emphasis border-t border-white/[0.06]"
+          className="player-footer-desktop hidden lg:flex fixed bottom-0 right-0 h-[var(--desktop-footer-height)] glass-strong z-40 transition-[left,bottom] duration-med ease-emphasis border-t border-white/[0.06]"
           style={{
             left: 'var(--sidebar-w, 0px)',
             // Rim-light along the top edge so the footer reads as a
@@ -731,7 +731,7 @@ const FooterPlayer = () => {
             initial={{ y: 100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 100, opacity: 0 }}
-            className="player-footer-mobile phablet:hidden fixed inset-x-2 z-40 h-[var(--mobile-mini-height)] rounded-soft glass-strong overflow-hidden ring-1 ring-white/[0.06]"
+            className="player-footer-mobile lg:hidden fixed inset-x-2 z-40 h-[var(--mobile-mini-height)] rounded-soft glass-strong overflow-hidden ring-1 ring-white/[0.06]"
             style={{
               bottom:
                 'calc(var(--mobile-nav-height) + var(--mobile-nav-offset) + env(safe-area-inset-bottom, 0px) + var(--mobile-mini-gap))',
@@ -747,7 +747,7 @@ const FooterPlayer = () => {
                 the ring and the desktop seek bar. */}
             <span
               aria-hidden="true"
-              className="pointer-events-none absolute inset-x-0 bottom-0 h-[2px] bg-white/[0.06]"
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-[3px] bg-white/[0.08]"
             >
               <span
                 className={cn(
@@ -780,7 +780,7 @@ const FooterPlayer = () => {
               onPointerCancel={handleMobilePressCancel}
               onPointerLeave={handleMobilePressCancel}
               onContextMenu={(e) => e.preventDefault()}
-              className="absolute inset-0 flex items-center pl-2 pr-16 gap-3 text-left focus-ring"
+              className="absolute inset-0 flex items-center pl-2 pr-16 phablet:pr-44 gap-3 text-left focus-ring"
               aria-label="Open now playing page (long-press for quick actions)"
             >
               {/* Mobile mini — same ring vocabulary as desktop, just smaller.
@@ -818,7 +818,19 @@ const FooterPlayer = () => {
                 </p>
               </div>
             </button>
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+            <div className="absolute right-2 phablet:right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 phablet:gap-1.5">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  transport.onPlayPrevious();
+                }}
+                disabled={!canGoPrevious}
+                className="hidden phablet:inline-flex w-10 h-10 items-center justify-center rounded-full text-ink-3 hover:text-ink hover:bg-white/[0.06] transition-colors focus-ring disabled:opacity-40 disabled:cursor-not-allowed"
+                aria-label={transport.labels.previous}
+              >
+                <SkipBack className="w-[18px] h-[18px]" />
+              </button>
               <button
                 type="button"
                 onClick={(e) => {
@@ -837,6 +849,18 @@ const FooterPlayer = () => {
                 ) : (
                   <Play className="w-[18px] h-[18px] fill-current ml-0.5" />
                 )}
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  transport.onPlayNext();
+                }}
+                disabled={!canGoNext}
+                className="hidden phablet:inline-flex w-10 h-10 items-center justify-center rounded-full text-ink-3 hover:text-ink hover:bg-white/[0.06] transition-colors focus-ring disabled:opacity-40 disabled:cursor-not-allowed"
+                aria-label={transport.labels.next}
+              >
+                <SkipForward className="w-[18px] h-[18px]" />
               </button>
             </div>
           </motion.div>

@@ -240,7 +240,7 @@
       --topbar-height: 3.65rem;
       --desktop-footer-height: 5.45rem;
       --app-main-bottom: calc(var(--mobile-nav-height) + var(--mobile-nav-offset) + env(safe-area-inset-bottom, 0px) + 0.7rem);
-      --app-main-bottom-with-player: calc(var(--mobile-nav-height) + var(--mobile-nav-offset) + var(--desktop-footer-height) + env(safe-area-inset-bottom, 0px) + 0.8rem);
+      --app-main-bottom-with-player: calc(var(--mobile-nav-height) + var(--mobile-nav-offset) + var(--mobile-mini-height) + var(--mobile-mini-gap) + env(safe-area-inset-bottom, 0px) + 0.8rem);
       --player-page-bottom-pad: calc(var(--mobile-nav-height) + var(--mobile-nav-offset) + env(safe-area-inset-bottom, 0px) + 1.1rem);
     }
   }
@@ -252,7 +252,7 @@
       --desktop-footer-height: 5.7rem;
       --page-pad-x-md: 1.6rem;
       --app-main-bottom: calc(var(--mobile-nav-height) + var(--mobile-nav-offset) + env(safe-area-inset-bottom, 0px) + 0.8rem);
-      --app-main-bottom-with-player: calc(var(--mobile-nav-height) + var(--mobile-nav-offset) + var(--desktop-footer-height) + env(safe-area-inset-bottom, 0px) + 0.9rem);
+      --app-main-bottom-with-player: calc(var(--mobile-nav-height) + var(--mobile-nav-offset) + var(--mobile-mini-height) + var(--mobile-mini-gap) + env(safe-area-inset-bottom, 0px) + 0.9rem);
       --player-page-bottom-pad: calc(var(--mobile-nav-height) + var(--mobile-nav-offset) + env(safe-area-inset-bottom, 0px) + 1.25rem);
     }
   }
@@ -872,42 +872,6 @@
       left: max(0.85rem, calc((100vw - 54rem) / 2));
       right: max(0.85rem, calc((100vw - 54rem) / 2));
       height: 3.55rem;
-    }
-  }
-
-  @media (min-width: 600px) and (max-width: 1023px) {
-    .player-footer-desktop {
-      margin-inline: 0.5rem;
-      border-radius: var(--radius-soft);
-      border-inline: 1px solid hsl(var(--ink-primary) / 0.08);
-    }
-
-    .player-footer-inner {
-      max-width: 100%;
-    }
-
-    .player-desktop-left {
-      width: 34%;
-      min-width: 0;
-    }
-
-    .player-desktop-center {
-      width: 44%;
-      min-width: 0;
-    }
-
-    .player-desktop-right {
-      width: 22%;
-      min-width: 0;
-      gap: 0.25rem;
-    }
-
-    .player-desktop-right button[aria-label='Show queue'] {
-      display: none;
-    }
-
-    .player-desktop-right [aria-label='Volume'] {
-      min-width: 4.25rem;
     }
   }
 
