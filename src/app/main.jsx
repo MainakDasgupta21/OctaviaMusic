@@ -1,10 +1,25 @@
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import '../index.css';
+import { getAccentPreset } from '@/lib/accent-presets';
+import { lockPalette } from '@/hooks/use-color-extraction';
 
 const SETTINGS_KEY = 'octavia.settings.v1';
-const VALID_THEMES = new Set(['dark', 'oled', 'light', 'hicontrast']);
+const VALID_THEMES = new Set([
+  'dark',
+  'oled',
+  'light',
+  'hicontrast',
+  'midnight',
+  'sepia',
+  'forest',
+  'slate',
+]);
+const VALID_TEXT_SIZES = new Set(['sm', 'md', 'lg']);
 
+// Apply persisted appearance prefs before React mounts so there's no flash of
+// the default theme/scale/accent on first paint (guest path; signed-in users
+// are reconciled by SettingsEffects once their server settings load).
 try {
   const raw = localStorage.getItem(SETTINGS_KEY);
   if (raw) {
@@ -18,6 +33,13 @@ try {
     }
     if (settings?.reduceMotion === true) {
       document.documentElement.dataset.reduceMotion = 'true';
+    }
+    if (settings && VALID_TEXT_SIZES.has(settings.textSize) && settings.textSize !== 'md') {
+      document.documentElement.dataset.textSize = settings.textSize;
+    }
+    const accentPreset = getAccentPreset(settings?.accentColor);
+    if (accentPreset) {
+      lockPalette([{ h: accentPreset.h, s: accentPreset.s, l: accentPreset.l }]);
     }
   }
 } catch {

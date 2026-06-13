@@ -24,7 +24,9 @@ export const settingsDefaults = Object.freeze({
   email: 'user@example.com',
   // UI prefs
   sidebarExpanded: false,
-  theme: 'dark', // 'dark' | 'oled' | 'light' | 'hicontrast'
+  theme: 'dark', // 'dark' | 'oled' | 'light' | 'hicontrast' | 'midnight' | 'sepia' | 'forest' | 'slate'
+  accentColor: 'dynamic', // 'dynamic' | accent preset id (see lib/accent-presets)
+  textSize: 'md', // 'sm' | 'md' | 'lg' — interface scale
   vimNavigation: false,
   soundEffects: false,
 });
@@ -174,9 +176,33 @@ export const SettingsProvider = ({ children }) => {
     });
   }, [isAuthenticated, queryClient, updateSettingsMutation]);
 
+  // Bulk-apply a patch (used by Settings import). Only known keys are kept so
+  // an imported file can never inject arbitrary fields into storage / server.
+  const importSettings = useCallback((patch) => {
+    if (!patch || typeof patch !== 'object') return;
+    const clean = {};
+    Object.keys(settingsDefaults).forEach((key) => {
+      if (patch[key] !== undefined) clean[key] = patch[key];
+    });
+    if (Object.keys(clean).length === 0) return;
+
+    if (!isAuthenticated) {
+      setGuestSettings((prev) => ({ ...prev, ...clean }));
+      return;
+    }
+
+    const previous = queryClient.getQueryData(SETTINGS_QUERY_KEY) || {
+      ...settingsDefaults,
+    };
+    queryClient.setQueryData(SETTINGS_QUERY_KEY, { ...previous, ...clean });
+    updateSettingsMutation.mutate(clean, {
+      onError: () => queryClient.setQueryData(SETTINGS_QUERY_KEY, previous),
+    });
+  }, [isAuthenticated, queryClient, updateSettingsMutation]);
+
   const value = useMemo(
-    () => ({ settings, updateSetting, resetSettings }),
-    [settings, updateSetting, resetSettings],
+    () => ({ settings, updateSetting, resetSettings, importSettings }),
+    [settings, updateSetting, resetSettings, importSettings],
   );
 
   return (

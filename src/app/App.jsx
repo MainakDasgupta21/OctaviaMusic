@@ -6,6 +6,7 @@ import MainLayout from '@/components/layout/MainLayout';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
 import TitleCardIntro from '@/components/common/TitleCardIntro';
 import RouteHead from '@/components/common/RouteHead';
+import SettingsEffects from '@/components/common/SettingsEffects';
 import { Loader2 } from 'lucide-react';
 import { registerPrefetch } from '@/hooks/use-route-prefetch';
 import { useAccentRotator } from '@/hooks/use-accent-rotator';
@@ -97,6 +98,7 @@ const AccentDriver = () => {
 
 const App = () => (
   <AppProviders>
+    <SettingsEffects />
     <AccentDriver />
     <Toaster />
     <Sonner position="bottom-right" theme="dark" richColors closeButton />

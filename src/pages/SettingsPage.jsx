@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import {
@@ -11,6 +11,11 @@ import {
   RotateCcw,
   Check,
   X as XIcon,
+  Sparkles,
+  Type,
+  Download,
+  Upload,
+  Database,
 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
@@ -18,6 +23,13 @@ import Input from '@/components/ui-v2/Input';
 import Button from '@/components/ui-v2/Button';
 import Kbd from '@/components/ui-v2/Kbd';
 import { useSettings } from '@/contexts/SettingsContext';
+import {
+  ACCENT_PRESETS,
+  DYNAMIC_ACCENT,
+  accentPresetColor,
+  getAccentPreset,
+} from '@/lib/accent-presets';
+import { smoothScrollIntoView } from '@/lib/scroll';
 import { fadeUp } from '@/design/motion';
 import { cn } from '@/lib/utils';
 
@@ -47,16 +59,97 @@ const formatMasthead = () => {
   }).format(d).toUpperCase();
 };
 
+// Section anchors for the sticky quick-nav + scroll-spy.
+const SECTIONS = [
+  { id: 'set-playback', label: 'Playback' },
+  { id: 'set-appearance', label: 'Appearance' },
+  { id: 'set-shortcuts', label: 'Shortcuts' },
+  { id: 'set-notifications', label: 'Alerts' },
+  { id: 'set-account', label: 'Account' },
+  { id: 'set-data', label: 'Data' },
+  { id: 'set-about', label: 'About' },
+];
+
+// Theme preview swatches — gradients mirror the actual data-theme blocks in
+// index.css so the picker reads true. `light: true` flips label legibility.
+const THEMES = [
+  {
+    id: 'dark',
+    label: 'Editorial night',
+    family: 'Dark',
+    preview:
+      'radial-gradient(ellipse at 25% 0%, hsl(16 82% 56% / 0.18), transparent 55%), radial-gradient(ellipse at 90% 110%, hsl(350 35% 22% / 0.45), transparent 55%), hsl(30 11% 6%)',
+  },
+  {
+    id: 'oled',
+    label: 'OLED',
+    family: 'Dark',
+    preview:
+      'radial-gradient(ellipse at 25% 0%, hsl(16 82% 56% / 0.18), transparent 55%), hsl(0 0% 0%)',
+  },
+  {
+    id: 'midnight',
+    label: 'Midnight',
+    family: 'Dark',
+    preview:
+      'radial-gradient(ellipse at 25% 0%, hsl(224 76% 64% / 0.30), transparent 55%), radial-gradient(ellipse at 90% 110%, hsl(244 60% 40% / 0.50), transparent 55%), hsl(230 30% 7%)',
+  },
+  {
+    id: 'forest',
+    label: 'Forest',
+    family: 'Dark',
+    preview:
+      'radial-gradient(ellipse at 25% 0%, hsl(152 56% 46% / 0.28), transparent 55%), radial-gradient(ellipse at 90% 110%, hsl(150 50% 30% / 0.50), transparent 55%), hsl(155 28% 7%)',
+  },
+  {
+    id: 'slate',
+    label: 'Slate',
+    family: 'Dark',
+    preview:
+      'radial-gradient(ellipse at 25% 0%, hsl(202 72% 58% / 0.28), transparent 55%), radial-gradient(ellipse at 90% 110%, hsl(210 30% 30% / 0.50), transparent 55%), hsl(215 19% 12%)',
+  },
+  {
+    id: 'light',
+    label: 'Editorial day',
+    family: 'Light',
+    light: true,
+    preview:
+      'radial-gradient(ellipse at 25% 0%, hsl(16 82% 56% / 0.16), transparent 55%), hsl(38 32% 98%)',
+  },
+  {
+    id: 'sepia',
+    label: 'Sepia',
+    family: 'Light',
+    light: true,
+    preview:
+      'radial-gradient(ellipse at 25% 0%, hsl(24 72% 46% / 0.20), transparent 55%), radial-gradient(ellipse at 90% 110%, hsl(28 60% 56% / 0.28), transparent 55%), hsl(38 46% 94%)',
+  },
+  {
+    id: 'hicontrast',
+    label: 'High contrast',
+    family: 'Access',
+    preview: 'linear-gradient(135deg, #000, #1a1a1a)',
+  },
+];
+
+const TEXT_SIZES = [
+  { id: 'sm', label: 'Small' },
+  { id: 'md', label: 'Default' },
+  { id: 'lg', label: 'Large' },
+];
+
 /**
  * Editorial section card — sharp top, hairline border, ordinal eyebrow.
  * Reads like a magazine column with its own dateline.
  */
-const SectionCard = ({ icon: Icon, ordinal, eyebrow, title, delay = 0, children }) => (
+const SectionCard = ({ id, icon: Icon, ordinal, eyebrow, title, delay = 0, children }) => (
   <motion.section
+    id={id}
     initial={{ opacity: 0, y: 16 }}
-    animate={{ opacity: 1, y: 0 }}
+    whileInView={{ opacity: 1, y: 0 }}
+    viewport={{ once: true, margin: '-40px' }}
     transition={{ delay, duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
-    className="rounded-sharp bg-surface-2/40 backdrop-blur-md border border-white/[0.07] p-4 sm:p-6 md:p-7"
+    className="scroll-mt-24 rounded-sharp bg-surface-2/40 backdrop-blur-md border border-white/[0.07] p-4 sm:p-6 md:p-7"
   >
     <header className="mb-6">
       <div className="flex items-center gap-2.5 mb-2">
@@ -96,7 +189,7 @@ const Row = ({ title, description, children }) => (
   </div>
 );
 
-const EditableField = ({ label, value, onSave, type = 'text' }) => {
+const EditableField = ({ label, value, onSave, type = 'text', validate }) => {
   const fieldId = useId();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -108,6 +201,10 @@ const EditableField = ({ label, value, onSave, type = 'text' }) => {
     if (!trimmed) {
       setDraft(value);
       setEditing(false);
+      return;
+    }
+    if (validate && !validate(trimmed)) {
+      toast.error(`That doesn't look like a valid ${label.toLowerCase()}`);
       return;
     }
     if (trimmed !== value) {
@@ -184,60 +281,97 @@ const EditableField = ({ label, value, onSave, type = 'text' }) => {
   );
 };
 
-// Theme preview swatches — match the actual data-theme gradients.
-const THEMES = [
-  {
-    id: 'dark',
-    label: 'Editorial night',
-    preview:
-      'radial-gradient(ellipse at 25% 0%, hsl(16 82% 56% / 0.18), transparent 55%), radial-gradient(ellipse at 90% 110%, hsl(350 35% 22% / 0.45), transparent 55%), hsl(30 11% 6%)',
-  },
-  {
-    id: 'oled',
-    label: 'OLED',
-    preview:
-      'radial-gradient(ellipse at 25% 0%, hsl(16 82% 56% / 0.18), transparent 55%), hsl(0 0% 0%)',
-  },
-  {
-    id: 'light',
-    label: 'Editorial day',
-    preview:
-      'radial-gradient(ellipse at 25% 0%, hsl(16 82% 56% / 0.16), transparent 55%), hsl(38 32% 98%)',
-  },
-  {
-    id: 'hicontrast',
-    label: 'High contrast',
-    preview: 'linear-gradient(135deg, #000, #1a1a1a)',
-  },
-];
+const isValidEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 
 const SettingsPage = () => {
-  const { settings, updateSetting, resetSettings } = useSettings();
+  const { settings, updateSetting, resetSettings, importSettings } = useSettings();
   const masthead = useMemo(() => formatMasthead(), []);
+  const fileInputRef = useRef(null);
+  const [activeSection, setActiveSection] = useState(SECTIONS[0].id);
 
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-    const root = document.documentElement;
-    if (settings.reduceMotion) {
-      root.setAttribute('data-reduce-motion', 'true');
-    } else {
-      root.removeAttribute('data-reduce-motion');
-    }
-  }, [settings.reduceMotion]);
+  const accentMode = settings.accentColor || DYNAMIC_ACCENT;
+  const activeAccentPreset = getAccentPreset(accentMode);
+  const textSize = settings.textSize || 'md';
 
+  // Scroll-spy: highlight the quick-nav chip for the section nearest the top.
   useEffect(() => {
-    if (typeof document === 'undefined') return;
-    const root = document.documentElement;
-    if (!settings.theme || settings.theme === 'dark') {
-      root.removeAttribute('data-theme');
-    } else {
-      root.setAttribute('data-theme', settings.theme);
+    if (typeof document === 'undefined' || typeof IntersectionObserver === 'undefined') {
+      return undefined;
     }
-  }, [settings.theme]);
+    const root = document.getElementById('main-content');
+    const els = SECTIONS.map((s) => document.getElementById(s.id)).filter(Boolean);
+    if (els.length === 0) return undefined;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible[0]) setActiveSection(visible[0].target.id);
+      },
+      { root: root || null, rootMargin: '-96px 0px -55% 0px', threshold: 0 },
+    );
+    els.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
+
+  const scrollToSection = (sectionId) => {
+    const el = document.getElementById(sectionId);
+    if (el) {
+      setActiveSection(sectionId);
+      smoothScrollIntoView(el, { offset: -96, block: 'start' });
+    }
+  };
 
   const handleReset = () => {
     resetSettings();
     toast.success('Settings restored to defaults');
+  };
+
+  const handleExport = () => {
+    try {
+      const payload = {
+        app: 'octavia',
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        settings,
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {
+        type: 'application/json',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'octavia-settings.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success('Settings exported');
+    } catch {
+      toast.error('Could not export settings');
+    }
+  };
+
+  const handleImportClick = () => fileInputRef.current?.click();
+
+  const handleImportFile = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const incoming =
+        parsed && typeof parsed === 'object' && parsed.settings && typeof parsed.settings === 'object'
+          ? parsed.settings
+          : parsed;
+      if (!incoming || typeof incoming !== 'object') throw new Error('invalid');
+      importSettings(incoming);
+      toast.success('Settings imported');
+    } catch {
+      toast.error('That file is not a valid settings export');
+    }
   };
 
   return (
@@ -257,40 +391,54 @@ const SettingsPage = () => {
       </div>
 
       {/* Page header */}
-      <motion.div
-        {...fadeUp}
-        className="mb-10 flex items-end justify-between gap-4 flex-wrap"
-      >
-        <div>
-          <p className="eyebrow eyebrow-accent mb-3 flex items-center gap-2">
-            <span className="w-6 h-px bg-track" />
-            The colophon
-          </p>
-          <h1 className="font-display text-display-xl text-ink leading-[0.92] mask-rise">
-            <span>
-              Settings,{' '}
-              <em className="font-editorial text-track not-italic">tailored.</em>
-            </span>
-          </h1>
-          <p className="font-editorial text-[14px] text-ink-3 mt-3 max-w-md leading-snug">
-            Make Octavia look, sound, and behave exactly how you want.
-          </p>
-        </div>
-        <Button
-          variant="editorial"
-          size="sm"
-          onClick={handleReset}
-          leftIcon={<RotateCcw className="w-3.5 h-3.5" />}
-        >
-          Reset to defaults
-        </Button>
+      <motion.div {...fadeUp} className="mb-6">
+        <p className="eyebrow eyebrow-accent mb-3 flex items-center gap-2">
+          <span className="w-6 h-px bg-track" />
+          The colophon
+        </p>
+        <h1 className="font-display text-display-xl text-ink leading-[0.92] mask-rise">
+          <span>
+            Settings,{' '}
+            <em className="font-editorial text-track not-italic">tailored.</em>
+          </span>
+        </h1>
+        <p className="font-editorial text-[14px] text-ink-3 mt-3 max-w-md leading-snug">
+          Make Octavia look, sound, and behave exactly how you want.
+        </p>
       </motion.div>
 
+      {/* Sticky quick-nav — scrollable chips on mobile, inline on desktop */}
+      <nav
+        aria-label="Settings sections"
+        className="sticky top-0 z-20 -mx-3 sm:mx-0 mb-6 px-3 sm:px-0 py-2 bg-surface-1/80 backdrop-blur-md border-b border-white/[0.06]"
+      >
+        <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {SECTIONS.map((s) => {
+            const active = activeSection === s.id;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => scrollToSection(s.id)}
+                aria-current={active ? 'true' : undefined}
+                className={cn(
+                  'shrink-0 rounded-full px-3 py-1.5 text-[11px] font-mono uppercase tracking-[0.14em] transition-colors focus-ring',
+                  active
+                    ? 'bg-track text-track-fg'
+                    : 'text-ink-3 hover:text-ink hover:bg-white/[0.06]',
+                )}
+              >
+                {s.label}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
       <div className="space-y-5">
-        {/* ============================ */}
-        {/* PLAYBACK */}
-        {/* ============================ */}
+        {/* ============================ PLAYBACK ============================ */}
         <SectionCard
+          id="set-playback"
           ordinal={1}
           eyebrow="Playback"
           icon={Volume2}
@@ -319,8 +467,9 @@ const SettingsPage = () => {
               }
               description="Overlap adjacent tracks for smoother transitions."
             >
-              <div className="w-24 sm:w-32 flex-shrink-0">
+              <div className="w-32 sm:w-40 flex-shrink-0">
                 <Slider
+                  className="settings-slider"
                   value={[settings.crossfadeSeconds]}
                   max={12}
                   step={1}
@@ -330,10 +479,7 @@ const SettingsPage = () => {
               </div>
             </Row>
             <div className="editorial-rule" />
-            <Row
-              title="Autoplay"
-              description="Continue playing when your queue ends."
-            >
+            <Row title="Autoplay" description="Continue playing when your queue ends.">
               <Switch
                 checked={settings.autoplay}
                 onCheckedChange={(v) => updateSetting('autoplay', v)}
@@ -342,10 +488,9 @@ const SettingsPage = () => {
           </div>
         </SectionCard>
 
-        {/* ============================ */}
-        {/* APPEARANCE */}
-        {/* ============================ */}
+        {/* ============================ APPEARANCE ============================ */}
         <SectionCard
+          id="set-appearance"
           ordinal={2}
           eyebrow="Appearance"
           icon={Palette}
@@ -353,14 +498,15 @@ const SettingsPage = () => {
           delay={0.06}
         >
           <div className="space-y-7">
+            {/* Theme */}
             <div>
               <p className="text-[14px] font-medium text-ink mb-1">Theme</p>
               <p className="font-editorial text-[12.5px] text-ink-3 mb-4">
-                Four palettes. Pick the one that suits the light you read in.
+                Eight palettes, dark to daylight. Pick the one that suits the light you read in.
               </p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                 {THEMES.map((t) => {
-                  const active = settings.theme === t.id;
+                  const active = (settings.theme || 'dark') === t.id;
                   return (
                     <button
                       key={t.id}
@@ -374,15 +520,28 @@ const SettingsPage = () => {
                       )}
                       style={{ background: t.preview }}
                       aria-pressed={active}
+                      title={t.label}
                     >
+                      <span
+                        className="absolute top-2 left-2 font-mono text-[8.5px] uppercase tracking-[0.16em] px-1.5 py-0.5 rounded-full"
+                        style={{
+                          color: t.light ? '#1a1a1a' : '#fff',
+                          background: t.light
+                            ? 'rgba(255,255,255,0.55)'
+                            : 'rgba(0,0,0,0.42)',
+                        }}
+                      >
+                        {t.family}
+                      </span>
                       <span
                         className={cn(
                           'absolute inset-x-0 bottom-0 px-2.5 py-1.5 text-[11px] font-medium',
-                          t.id === 'light' ? 'text-zinc-900' : 'text-white',
+                          t.light ? 'text-zinc-900' : 'text-white',
                         )}
                         style={{
-                          background:
-                            t.id === 'light' ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.50)',
+                          background: t.light
+                            ? 'rgba(255,255,255,0.55)'
+                            : 'rgba(0,0,0,0.50)',
                           backdropFilter: 'blur(6px)',
                         }}
                       >
@@ -404,6 +563,108 @@ const SettingsPage = () => {
                 })}
               </div>
             </div>
+
+            <div className="editorial-rule" />
+
+            {/* Accent color */}
+            <div>
+              <div className="flex items-center justify-between gap-3 mb-1">
+                <p className="text-[14px] font-medium text-ink">Accent color</p>
+                <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-ink-3">
+                  {activeAccentPreset ? activeAccentPreset.label : 'Dynamic'}
+                </span>
+              </div>
+              <p className="font-editorial text-[12.5px] text-ink-3 mb-4">
+                Dynamic follows the album art as it plays. Or pin a color you love.
+              </p>
+              <div className="flex flex-wrap items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => updateSetting('accentColor', DYNAMIC_ACCENT)}
+                  aria-pressed={!activeAccentPreset}
+                  aria-label="Dynamic accent from album art"
+                  title="Dynamic — follows the album art"
+                  className={cn(
+                    'relative w-9 h-9 rounded-full flex items-center justify-center focus-ring transition-transform',
+                    !activeAccentPreset
+                      ? 'ring-2 ring-track ring-offset-2 ring-offset-background scale-105'
+                      : 'ring-1 ring-white/15 hover:scale-105',
+                  )}
+                  style={{
+                    backgroundImage:
+                      'conic-gradient(from 210deg, hsl(var(--accent-iris-a)), hsl(var(--accent-iris-b)), hsl(var(--accent-iris-c)), hsl(var(--accent-iris-a)))',
+                  }}
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-white drop-shadow" />
+                </button>
+                {ACCENT_PRESETS.map((preset) => {
+                  const active = accentMode === preset.id;
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => updateSetting('accentColor', preset.id)}
+                      aria-pressed={active}
+                      aria-label={`${preset.label} accent`}
+                      title={preset.label}
+                      className={cn(
+                        'relative w-9 h-9 rounded-full flex items-center justify-center focus-ring transition-transform',
+                        active
+                          ? 'ring-2 ring-track ring-offset-2 ring-offset-background scale-105'
+                          : 'ring-1 ring-white/15 hover:scale-105',
+                      )}
+                      style={{ background: accentPresetColor(preset) }}
+                    >
+                      {active ? (
+                        <Check className="w-4 h-4 text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]" />
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="editorial-rule" />
+
+            {/* Interface scale */}
+            <Row
+              title="Interface size"
+              description="Scale the whole interface up or down for comfortable reading."
+            >
+              <div
+                role="group"
+                aria-label="Interface size"
+                className="inline-flex items-center rounded-full border border-white/[0.12] bg-white/[0.03] p-0.5"
+              >
+                {TEXT_SIZES.map((opt) => {
+                  const active = textSize === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => updateSetting('textSize', opt.id)}
+                      aria-pressed={active}
+                      className={cn(
+                        'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-medium transition-colors focus-ring',
+                        active
+                          ? 'bg-track text-track-fg'
+                          : 'text-ink-3 hover:text-ink',
+                      )}
+                    >
+                      {opt.id === 'sm' ? (
+                        <Type className="w-3 h-3" />
+                      ) : opt.id === 'lg' ? (
+                        <Type className="w-4 h-4" />
+                      ) : (
+                        <Type className="w-3.5 h-3.5" />
+                      )}
+                      <span className="hidden tiny:inline">{opt.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </Row>
+
             <div className="editorial-rule" />
             <Row
               title="Reduce motion"
@@ -441,15 +702,14 @@ const SettingsPage = () => {
           </div>
         </SectionCard>
 
-        {/* ============================ */}
-        {/* SHORTCUTS */}
-        {/* ============================ */}
+        {/* ============================ SHORTCUTS ============================ */}
         <SectionCard
+          id="set-shortcuts"
           ordinal={3}
           eyebrow="Shortcuts"
           icon={Keyboard}
           title="Hands on the keyboard"
-          delay={0.10}
+          delay={0.1}
         >
           <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3.5">
             {shortcuts.map((s) => (
@@ -464,10 +724,9 @@ const SettingsPage = () => {
           </ul>
         </SectionCard>
 
-        {/* ============================ */}
-        {/* NOTIFICATIONS */}
-        {/* ============================ */}
+        {/* ============================ NOTIFICATIONS ============================ */}
         <SectionCard
+          id="set-notifications"
           ordinal={4}
           eyebrow="Notifications"
           icon={Bell}
@@ -497,10 +756,9 @@ const SettingsPage = () => {
           </div>
         </SectionCard>
 
-        {/* ============================ */}
-        {/* ACCOUNT */}
-        {/* ============================ */}
+        {/* ============================ ACCOUNT ============================ */}
         <SectionCard
+          id="set-account"
           ordinal={5}
           eyebrow="Account"
           icon={User}
@@ -518,16 +776,77 @@ const SettingsPage = () => {
               label="Email"
               type="email"
               value={settings.email}
+              validate={isValidEmail}
               onSave={(v) => updateSetting('email', v)}
             />
           </div>
         </SectionCard>
 
-        {/* ============================ */}
-        {/* ABOUT — the colophon */}
-        {/* ============================ */}
+        {/* ============================ DATA & BACKUP ============================ */}
         <SectionCard
+          id="set-data"
           ordinal={6}
+          eyebrow="Data"
+          icon={Database}
+          title="Backup and reset"
+          delay={0.2}
+        >
+          <div className="space-y-6">
+            <Row
+              title="Export settings"
+              description="Download a JSON backup of all your preferences."
+            >
+              <Button
+                variant="editorial"
+                size="sm"
+                onClick={handleExport}
+                leftIcon={<Download className="w-3.5 h-3.5" />}
+              >
+                Export
+              </Button>
+            </Row>
+            <div className="editorial-rule" />
+            <Row
+              title="Import settings"
+              description="Restore preferences from a previously exported file."
+            >
+              <Button
+                variant="editorial"
+                size="sm"
+                onClick={handleImportClick}
+                leftIcon={<Upload className="w-3.5 h-3.5" />}
+              >
+                Import
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/json,.json"
+                className="hidden"
+                onChange={handleImportFile}
+              />
+            </Row>
+            <div className="editorial-rule" />
+            <Row
+              title="Reset to defaults"
+              description="Restore every preference on this page to its original value."
+            >
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={handleReset}
+                leftIcon={<RotateCcw className="w-3.5 h-3.5" />}
+              >
+                Reset all
+              </Button>
+            </Row>
+          </div>
+        </SectionCard>
+
+        {/* ============================ ABOUT — the colophon ============================ */}
+        <SectionCard
+          id="set-about"
+          ordinal={7}
           eyebrow="Colophon"
           icon={Info}
           title="About this edition"
@@ -541,8 +860,8 @@ const SettingsPage = () => {
               An editorial product for listening, slow-built with care.
             </p>
             <p className="text-ink-3">
-              Built with React, Tailwind CSS, Framer Motion, and react-player.
-              Typeset in Roboto and Roboto Mono.
+              Built with React, Tailwind CSS, Framer Motion, and react-player. Typeset in
+              Roboto and Roboto Mono.
             </p>
             <p className="font-mono not-italic text-[11px] uppercase tracking-[0.18em] text-ink-4 mt-5">
               Configure the backend URL with{' '}
@@ -551,17 +870,6 @@ const SettingsPage = () => {
             </p>
           </div>
         </SectionCard>
-
-        <div className="sm:hidden">
-          <Button
-            variant="editorial"
-            onClick={handleReset}
-            className="w-full"
-            leftIcon={<RotateCcw className="w-3.5 h-3.5" />}
-          >
-            Reset all settings
-          </Button>
-        </div>
       </div>
 
       {/* Footer */}

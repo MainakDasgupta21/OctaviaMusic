@@ -279,6 +279,11 @@ let CURRENT_TOKENS = null;
 let RAF_ID = 0;
 const LERP_DURATION_MS = 700;
 
+// When the user pins a fixed accent in Settings, we LOCK the pipeline: the
+// rotator and the cover-art extractor keep calling setRootPalette /
+// resetRootAccent, but those writes become no-ops so the chosen accent sticks.
+let LOCKED = false;
+
 const reduceMotion = () => {
   if (typeof window === 'undefined') return false;
   if (typeof document !== 'undefined' && document.documentElement.dataset.reduceMotion === 'true') {
@@ -325,6 +330,7 @@ const animateTo = (next) => {
 
 // Apply a full 3-swatch palette (lerps from the currently applied one).
 export const setRootPalette = (palette) => {
+  if (LOCKED) return;
   if (!Array.isArray(palette) || palette.length === 0) return;
   const completed = completePalette(palette.slice(0, 3));
   animateTo(paletteToTokens(completed));
@@ -338,6 +344,7 @@ export const setRootAccent = (h, s, l) => {
 };
 
 export const resetRootAccent = () => {
+  if (LOCKED) return;
   if (typeof window !== 'undefined' && RAF_ID) {
     window.cancelAnimationFrame(RAF_ID);
     RAF_ID = 0;
@@ -346,6 +353,31 @@ export const resetRootAccent = () => {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
   VAR_KEYS.forEach((key) => root.style.removeProperty(key));
+};
+
+// Pin a user-chosen accent. The palette ({ h, s, l }[]) is applied immediately
+// (no lerp) and the pipeline is locked so the rotator / cover-art extractor
+// stop overriding it. Safe to call repeatedly (idempotent for a given palette).
+export const lockPalette = (palette) => {
+  if (!Array.isArray(palette) || palette.length === 0) return;
+  LOCKED = false;
+  if (typeof window !== 'undefined' && RAF_ID) {
+    window.cancelAnimationFrame(RAF_ID);
+    RAF_ID = 0;
+  }
+  const completed = completePalette(palette.slice(0, 3));
+  const tokens = paletteToTokens(completed);
+  CURRENT_TOKENS = tokens;
+  if (typeof document !== 'undefined') writeTokens(tokens);
+  LOCKED = true;
+};
+
+// Release the lock and clear inline vars so the dynamic pipeline (rotator /
+// cover-art extractor) can resume owning the accent on its next tick.
+export const unlockPalette = () => {
+  if (!LOCKED) return;
+  LOCKED = false;
+  resetRootAccent();
 };
 
 // ----- Hooks -----------------------------------------------------------------
