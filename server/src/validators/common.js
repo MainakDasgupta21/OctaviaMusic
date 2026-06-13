@@ -2,6 +2,30 @@ const { z } = require('zod');
 
 const idString = z.string().trim().min(1).max(160);
 
+// Avatars are either an external http(s) image URL or a small base64 data URL
+// produced by the client-side crop editor. We bound the length so an uploaded
+// photo can never bloat the user record (the editor targets a few tens of KB).
+const AVATAR_DATA_URL_RE = /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/;
+const MAX_AVATAR_CHARS = 400 * 1024; // ~400 KB hard ceiling
+
+const isHttpUrl = (value) => {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
+const avatarUrlSchema = z
+  .string()
+  .trim()
+  .max(MAX_AVATAR_CHARS, 'Image is too large')
+  .refine((value) => value === '' || isHttpUrl(value) || AVATAR_DATA_URL_RE.test(value), {
+    message: 'Avatar must be an image URL or an uploaded image',
+  })
+  .nullable();
+
 // Clients enrich tracks with display-only fields (e.g. `addedAt`, `playable`)
 // before sending them. Strip unknown keys rather than rejecting the request so
 // those extras are ignored; the service layer reads only the fields below.
@@ -67,6 +91,7 @@ const settingsSchema = z
 module.exports = {
   z,
   idString,
+  avatarUrlSchema,
   trackSchema,
   playlistInputSchema,
   settingsSchema,

@@ -5,18 +5,13 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import Button from '@/components/ui-v2/Button';
 import Input from '@/components/ui-v2/Input';
+import AvatarField from '@/components/account/AvatarField';
 import api from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 
 const profileSchema = z.object({
   displayName: z.string().trim().min(1, 'Display name is required').max(80),
   email: z.string().trim().email('Enter a valid email'),
-  avatarUrl: z
-    .string()
-    .trim()
-    .url('Avatar URL must be a valid URL')
-    .max(500)
-    .or(z.literal('')),
 });
 
 const passwordSchema = z
@@ -49,7 +44,6 @@ const AccountPage = () => {
     defaultValues: {
       displayName: user?.displayName || '',
       email: user?.email || '',
-      avatarUrl: user?.avatarUrl || '',
     },
   });
 
@@ -66,16 +60,14 @@ const AccountPage = () => {
     profileForm.reset({
       displayName: user?.displayName || '',
       email: user?.email || '',
-      avatarUrl: user?.avatarUrl || '',
     });
-  }, [user?.displayName, user?.email, user?.avatarUrl, profileForm]);
+  }, [user?.displayName, user?.email, profileForm]);
 
   const submitProfile = profileForm.handleSubmit(async (values) => {
     try {
       await updateProfile({
         displayName: values.displayName,
         email: values.email,
-        avatarUrl: values.avatarUrl || null,
       });
       toast.success('Profile updated');
     } catch (error) {
@@ -105,7 +97,14 @@ const AccountPage = () => {
 
       <section className="rounded-sharp border border-white/[0.10] bg-surface-2/50 p-5 sm:p-6 backdrop-blur-md">
         <h2 className="text-lg font-medium text-ink">Profile details</h2>
-        <form className="mt-4 space-y-4" onSubmit={submitProfile} noValidate>
+
+        <div className="mt-4">
+          <AvatarField />
+        </div>
+
+        <div className="editorial-rule my-5" />
+
+        <form className="space-y-4" onSubmit={submitProfile} noValidate>
           <div className="space-y-1.5">
             <label className="text-sm text-ink-2" htmlFor="account-display-name">
               Display name
@@ -125,16 +124,6 @@ const AccountPage = () => {
             <Input id="account-email" type="email" {...profileForm.register('email')} />
             {profileForm.formState.errors.email ? (
               <p className="text-xs text-danger">{profileForm.formState.errors.email.message}</p>
-            ) : null}
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-sm text-ink-2" htmlFor="account-avatar-url">
-              Avatar URL (optional)
-            </label>
-            <Input id="account-avatar-url" placeholder="https://..." {...profileForm.register('avatarUrl')} />
-            {profileForm.formState.errors.avatarUrl ? (
-              <p className="text-xs text-danger">{profileForm.formState.errors.avatarUrl.message}</p>
             ) : null}
           </div>
 

@@ -1,10 +1,10 @@
-const { z, settingsSchema } = require('./common');
+const { z, settingsSchema, avatarUrlSchema } = require('./common');
 
 const updateCurrentUserSchema = z.object({
   body: z
     .object({
       displayName: z.string().trim().min(1).max(80).optional(),
-      avatarUrl: z.string().trim().url().max(500).nullable().optional(),
+      avatarUrl: avatarUrlSchema.optional(),
       email: z.string().trim().email().max(254).optional(),
       settings: settingsSchema.optional(),
     })

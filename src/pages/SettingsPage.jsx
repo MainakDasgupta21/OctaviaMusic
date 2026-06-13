@@ -26,6 +26,7 @@ import Button from '@/components/ui-v2/Button';
 import Kbd from '@/components/ui-v2/Kbd';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useAuth } from '@/contexts/AuthContext';
+import AvatarField from '@/components/account/AvatarField';
 import {
   ACCENT_PRESETS,
   DYNAMIC_ACCENT,
@@ -858,6 +859,8 @@ const SettingsPage = () => {
           delay={0.18}
         >
           <div className="space-y-6">
+            <AvatarField />
+            <div className="editorial-rule" />
             <EditableField
               label="Display name"
               value={user?.displayName ?? settings.displayName}

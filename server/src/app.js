@@ -23,7 +23,10 @@ const createApp = () => {
       },
     }),
   );
-  app.use(express.json());
+  // Profile photos are sent inline as small base64 data URLs (a few tens of KB
+  // after client-side crop/compression); 1 MB leaves comfortable headroom while
+  // still bounding request bodies. The avatar validator enforces a tighter cap.
+  app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: false }));
 
   app.get(['/health', '/api/health'], (_req, res) => {

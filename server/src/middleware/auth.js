@@ -23,8 +23,11 @@ const createTokenVerifier =
     const payload = jwtLib.verify(token, authConfig.jwtAccessSecret);
     if (!payload?.sub) throw new AuthError('Invalid authentication token');
 
+    // `avatarUrl` can be a multi-KB data URL; it's never read per request, so
+    // we keep it out of the hot-path select. The client receives it via
+    // /auth/me, login, refresh, and updateProfile responses instead.
     const user = await UserModel.findById(payload.sub)
-      .select('_id email username displayName avatarUrl role settings lastLoginAt')
+      .select('_id email username displayName role settings lastLoginAt')
       .lean();
     if (!user) throw new AuthError('Account not found');
 
