@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 
 const {
   apiPatch,
+  clearCsrfToken,
   configureApiAuth,
   getCurrentUser,
   loginAccount,
@@ -13,6 +14,7 @@ const {
   registerAccount,
 } = vi.hoisted(() => ({
   apiPatch: vi.fn(),
+  clearCsrfToken: vi.fn(),
   configureApiAuth: vi.fn(),
   getCurrentUser: vi.fn(),
   loginAccount: vi.fn(),
@@ -24,6 +26,7 @@ const {
 vi.mock('@/lib/api', () => ({
   __esModule: true,
   default: { patch: apiPatch },
+  clearCsrfToken,
   configureApiAuth,
   getCurrentUser,
   loginAccount,
@@ -110,5 +113,6 @@ describe('AuthContext bootstrap', () => {
     await waitFor(() => expect(result.current.status).toBe('guest'));
     expect(queryClient.getQueryData(['me', 'favorites', 'u-3'])).toBeUndefined();
     expect(window.localStorage.getItem('octavia.favorites.v1')).toBeNull();
+    expect(clearCsrfToken).toHaveBeenCalled();
   });
 });

@@ -27,7 +27,7 @@ const register = async (req, res) => {
     ip: req.ip || null,
   });
   setSessionCookies(res, session);
-  res.status(201).json({ user: session.user });
+  res.status(201).json({ user: session.user, csrfToken: session.csrfToken });
 };
 
 const login = async (req, res) => {
@@ -37,7 +37,7 @@ const login = async (req, res) => {
     ip: req.ip || null,
   });
   setSessionCookies(res, session);
-  res.json({ user: session.user });
+  res.json({ user: session.user, csrfToken: session.csrfToken });
 };
 
 const refresh = async (req, res) => {
@@ -49,7 +49,7 @@ const refresh = async (req, res) => {
     ip: req.ip || null,
   });
   setSessionCookies(res, session);
-  res.json({ user: session.user });
+  res.json({ user: session.user, csrfToken: session.csrfToken });
 };
 
 const logout = async (req, res) => {
@@ -81,10 +81,14 @@ const changePassword = async (req, res) => {
 
 const me = async (req, res) => {
   const user = await authService.getCurrentUser({ userId: req.user?._id });
-  if (!req.cookies?.csrfToken) {
-    res.cookie('csrfToken', createCsrfToken(), cookieOptions.csrf);
+  // Return a token that always matches the cookie so the cross-site SPA (which
+  // cannot read the backend's cookie) can echo it in the x-csrf-token header.
+  let csrfToken = req.cookies?.csrfToken;
+  if (!csrfToken) {
+    csrfToken = createCsrfToken();
+    res.cookie('csrfToken', csrfToken, cookieOptions.csrf);
   }
-  res.json({ user });
+  res.json({ user, csrfToken });
 };
 
 module.exports = {

@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import api, { configureApiAuth } from '@/lib/api';
+import api, {
+  clearCsrfToken,
+  configureApiAuth,
+  setCsrfToken,
+} from '@/lib/api';
 
 const makeResponse = (config, status, data = {}) => ({
   data,
@@ -21,6 +25,7 @@ describe('api auth interceptor', () => {
 
   afterEach(() => {
     api.defaults.adapter = originalAdapter;
+    clearCsrfToken();
     configureApiAuth({
       onAuthFailure: () => {},
       getCsrfToken: () => null,
@@ -86,5 +91,48 @@ describe('api auth interceptor', () => {
     });
     expect(refreshCalls).toBe(1);
     expect(onAuthFailure).toHaveBeenCalledTimes(1);
+  });
+
+  it('attaches the in-memory CSRF token on mutating requests', async () => {
+    setCsrfToken('csrf-abc');
+    let seenHeader;
+
+    api.defaults.adapter = async (config) => {
+      seenHeader = config.headers?.['x-csrf-token'];
+      return makeResponse(config, 200, { ok: true });
+    };
+
+    await api.post('/me/favorites', { track: {} });
+
+    expect(seenHeader).toBe('csrf-abc');
+  });
+
+  it('omits the CSRF header after the token is cleared', async () => {
+    setCsrfToken('csrf-abc');
+    clearCsrfToken();
+    let seenHeader = 'unset';
+
+    api.defaults.adapter = async (config) => {
+      seenHeader = config.headers?.['x-csrf-token'];
+      return makeResponse(config, 200, { ok: true });
+    };
+
+    await api.post('/me/favorites', { track: {} });
+
+    expect(seenHeader).toBeUndefined();
+  });
+
+  it('does not attach the CSRF header on non-mutating requests', async () => {
+    setCsrfToken('csrf-abc');
+    let seenHeader = 'unset';
+
+    api.defaults.adapter = async (config) => {
+      seenHeader = config.headers?.['x-csrf-token'];
+      return makeResponse(config, 200, { ok: true });
+    };
+
+    await api.get('/me/favorites');
+
+    expect(seenHeader).toBeUndefined();
   });
 });

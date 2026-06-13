@@ -8,6 +8,7 @@ import {
 } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import api, {
+  clearCsrfToken,
   configureApiAuth,
   getCurrentUser,
   loginAccount,
@@ -53,6 +54,7 @@ export const AuthProvider = ({ children }) => {
 
   const clearPerUserClientState = useCallback(() => {
     queryClient.removeQueries({ queryKey: ['me'] });
+    clearCsrfToken();
     if (typeof window === 'undefined') return;
     for (const key of LEGACY_LIBRARY_STORAGE_KEYS) {
       try {

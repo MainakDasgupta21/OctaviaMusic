@@ -55,6 +55,20 @@ let csrfTokenProvider = () => null;
 let refreshPromise = null;
 let refreshFailureHandled = false;
 
+// The frontend and API live on different *.onrender.com subdomains, so the
+// browser will not expose the backend's `csrfToken` cookie to JS. We therefore
+// receive the token in auth response bodies and keep it in memory to echo back
+// in the `x-csrf-token` header on mutating requests.
+let csrfToken = null;
+
+export const setCsrfToken = (token) => {
+  if (token) csrfToken = token;
+};
+
+export const clearCsrfToken = () => {
+  csrfToken = null;
+};
+
 export const configureApiAuth = ({ onAuthFailure, getCsrfToken } = {}) => {
   if (typeof onAuthFailure === 'function') authFailureHandler = onAuthFailure;
   if (typeof getCsrfToken === 'function') csrfTokenProvider = getCsrfToken;
@@ -66,6 +80,7 @@ const queueRefresh = async () => {
       .post('/auth/refresh', {}, { skipAuthRefresh: true })
       .then((response) => {
         refreshFailureHandled = false;
+        setCsrfToken(response?.data?.csrfToken);
         return response;
       })
       .catch((error) => {
@@ -85,10 +100,10 @@ const queueRefresh = async () => {
 
 api.interceptors.request.use((config) => {
   if (isMutatingMethod(config?.method)) {
-    const csrfToken = csrfTokenProvider();
-    if (csrfToken) {
+    const token = csrfToken || csrfTokenProvider();
+    if (token) {
       const nextHeaders = config.headers || {};
-      nextHeaders['x-csrf-token'] = csrfToken;
+      nextHeaders['x-csrf-token'] = token;
       config.headers = nextHeaders;
     }
   }
@@ -404,29 +419,35 @@ export const isNetworkError = (error) =>
 
 export const registerAccount = async (payload) => {
   const response = await api.post('/auth/register', payload, { skipAuthRefresh: true });
+  setCsrfToken(response.data?.csrfToken);
   return response.data;
 };
 
 export const loginAccount = async (payload) => {
   const response = await api.post('/auth/login', payload, { skipAuthRefresh: true });
+  setCsrfToken(response.data?.csrfToken);
   return response.data;
 };
 
 export const refreshSession = async () => {
   const response = await api.post('/auth/refresh', {}, { skipAuthRefresh: true });
+  setCsrfToken(response.data?.csrfToken);
   return response.data;
 };
 
 export const logoutSession = async () => {
   await api.post('/auth/logout', {}, { skipAuthRefresh: true });
+  clearCsrfToken();
 };
 
 export const logoutAllSessions = async () => {
   await api.post('/auth/logout-all', {}, { skipAuthRefresh: true });
+  clearCsrfToken();
 };
 
 export const getCurrentUser = async () => {
   const response = await api.get('/auth/me', { skipAuthRefresh: true });
+  setCsrfToken(response.data?.csrfToken);
   return response.data;
 };
 
