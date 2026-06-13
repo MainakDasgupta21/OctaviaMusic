@@ -48,7 +48,7 @@ const DiscoverRibbon = ({
     <motion.section
       {...fadeUp}
       aria-labelledby="home-discover"
-      className="mb-12 rounded-soft border border-white/[0.08] bg-surface-2/40 backdrop-blur-md p-6 md:p-8"
+      className="mb-10 md:mb-14 rounded-soft border border-white/[0.08] bg-surface-2/40 backdrop-blur-md p-6 md:p-8"
       style={{
         background:
           'radial-gradient(ellipse 60% 80% at 0% 0%, hsl(var(--track-accent) / 0.18), transparent 60%), radial-gradient(ellipse 50% 60% at 100% 100%, hsl(var(--track-accent-3) / 0.18), transparent 60%), hsl(var(--surface-2) / 0.55)',

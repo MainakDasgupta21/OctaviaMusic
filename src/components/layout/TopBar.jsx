@@ -915,7 +915,7 @@ const TopBar = () => {
 
         <div className="flex-1 lg:hidden" />
 
-        <div className="flex items-center ml-auto">
+        <div className="flex items-center ml-auto shrink-0">
           {/* Glass cluster — Favorites + Notifications grouped inside a
               single hairline pill so the chrome reads as one action region
               rather than two loose icons. Matches the back/forward pill on

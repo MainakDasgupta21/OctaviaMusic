@@ -486,7 +486,7 @@ const FooterPlayer = () => {
                   innerClassName="p-[10%]"
                 >
                   <motion.img
-                    layoutId="footer-art"
+                    layoutId="footer-art-desktop"
                     key={currentTrack.id}
                     initial={{ scale: 0.85, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
@@ -797,7 +797,7 @@ const FooterPlayer = () => {
                 innerClassName="p-[10%]"
               >
                 <motion.img
-                  layoutId="footer-art"
+                  layoutId="footer-art-mobile"
                   key={currentTrack.id}
                   src={safeThumbnail}
                   alt={currentTrack.title || ''}

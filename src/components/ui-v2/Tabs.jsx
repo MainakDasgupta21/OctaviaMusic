@@ -98,8 +98,8 @@ const Tabs = ({
             tabIndex={isActive ? 0 : -1}
             onClick={() => setActive(it.id)}
             className={cn(
-              'touch-target relative inline-flex items-center gap-2 text-[13px] font-medium focus-ring transition-colors',
-              variant === 'pill' ? 'px-3.5 py-2 rounded-sharp' : 'px-3.5 sm:px-4 py-2.5 sm:py-3',
+              'touch-target relative inline-flex shrink-0 items-center gap-2 whitespace-nowrap text-[13px] font-medium focus-ring transition-colors',
+              variant === 'pill' ? 'px-4 py-2 rounded-sharp' : 'px-3.5 sm:px-4 py-2.5 sm:py-3',
               isActive
                 ? variant === 'pill'
                   ? 'text-accent'
@@ -114,13 +114,13 @@ const Tabs = ({
                 transition={{ type: 'spring', stiffness: 380, damping: 30 }}
               />
             )}
-            <span className="relative z-10 inline-flex items-center gap-2">
-              {it.icon ? <it.icon className="w-3.5 h-3.5" strokeWidth={1.75} /> : null}
+            <span className="relative z-10 inline-flex items-center gap-2 whitespace-nowrap">
+              {it.icon ? <it.icon className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} /> : null}
               {it.label}
               {typeof it.count === 'number' ? (
                 <span
                   className={cn(
-                    'font-mono text-[10px] tabular-nums tracking-tight rounded-full px-1.5 py-[1px] border transition-colors',
+                    'inline-flex h-[1.05rem] min-w-[1.05rem] shrink-0 items-center justify-center whitespace-nowrap rounded-full border px-1 font-mono text-[10px] leading-none tabular-nums transition-colors',
                     isActive
                       ? 'text-bone bg-track/85 border-track/45'
                       : 'text-ink-4 bg-white/[0.04] border-white/[0.08]',

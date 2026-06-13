@@ -97,8 +97,8 @@ export default {
       fontSize: {
         // Fluid editorial type scale — clamped, mobile-friendly,
         // magazine-grade negative tracking that grows with size.
-        "display-2xl": ["clamp(3.5rem, 8vw, 7rem)",   { lineHeight: "0.88", letterSpacing: "-0.032em" }],
-        "display-xl":  ["clamp(3rem, 6vw, 5.5rem)",   { lineHeight: "0.90", letterSpacing: "-0.028em" }],
+        "display-2xl": ["clamp(2.75rem, 8vw, 7rem)",  { lineHeight: "0.90", letterSpacing: "-0.032em" }],
+        "display-xl":  ["clamp(2.25rem, 6vw, 5.5rem)",{ lineHeight: "0.92", letterSpacing: "-0.028em" }],
         "display-lg":  ["clamp(2.25rem, 4.5vw, 4rem)",{ lineHeight: "0.96", letterSpacing: "-0.022em" }],
         "display-md":  ["clamp(1.75rem, 3vw, 2.5rem)",{ lineHeight: "1.06", letterSpacing: "-0.018em" }],
         "display-sm":  ["clamp(1.375rem, 2.4vw, 1.75rem)", { lineHeight: "1.12", letterSpacing: "-0.014em" }],

@@ -279,7 +279,7 @@ const HomePage = () => {
 
       <motion.div
         {...fadeUp}
-        className="mb-10 grid md:grid-cols-[1fr_auto] gap-6 md:gap-10 items-end"
+        className="mb-8 md:mb-12 grid md:grid-cols-[1fr_auto] gap-6 md:gap-10 items-end"
       >
         <div>
           <p className="eyebrow eyebrow-accent mb-3 flex items-center gap-2">
@@ -312,7 +312,7 @@ const HomePage = () => {
         </div>
       ) : null}
 
-      <div className="mb-14">
+      <div className="mb-10 md:mb-14">
         {homeQuery.isLoading && !homeQuery.data ? (
           <HeroSkeleton />
         ) : homeQuery.isError && !hero ? (
@@ -369,7 +369,7 @@ const HomePage = () => {
             }
           />
         ) : (
-          <div className="mb-14">
+          <div className="mb-10 md:mb-14">
             <InlineIssue
               title="Spotlight artist unavailable"
               description={
@@ -384,7 +384,7 @@ const HomePage = () => {
       ) : null}
 
       {history.length > 0 && (
-        <section className="mb-14" aria-labelledby="home-jump-back-in">
+        <section className="mb-10 md:mb-14" aria-labelledby="home-jump-back-in">
           <SectionHeader
             id="home-jump-back-in"
             ordinal={ordinals.history}
@@ -407,7 +407,7 @@ const HomePage = () => {
         </section>
       )}
 
-      <section className="mb-14" aria-labelledby="home-trending">
+      <section className="mb-10 md:mb-14" aria-labelledby="home-trending">
         <SectionHeader
           id="home-trending"
           ordinal={ordinals.trending}
@@ -450,7 +450,7 @@ const HomePage = () => {
       </section>
 
       {(chartsQuery.isLoading || charts.length > 0 || chartsQuery.isError) && (
-        <section className="mb-14" aria-labelledby="home-top-charts">
+        <section className="mb-10 md:mb-14" aria-labelledby="home-top-charts">
           <SectionHeader
             id="home-top-charts"
             ordinal={ordinals.topCharts}
@@ -486,7 +486,7 @@ const HomePage = () => {
       )}
 
       {freshFinds.length > 0 && (
-        <section className="mb-14" aria-labelledby="home-fresh-finds">
+        <section className="mb-10 md:mb-14" aria-labelledby="home-fresh-finds">
           <SectionHeader
             id="home-fresh-finds"
             ordinal={ordinals.freshFinds}
@@ -510,7 +510,7 @@ const HomePage = () => {
       )}
 
       {risingNow.length > 0 && (
-        <section className="mb-14" aria-labelledby="home-rising-now">
+        <section className="mb-10 md:mb-14" aria-labelledby="home-rising-now">
           <SectionHeader
             id="home-rising-now"
             ordinal={ordinals.risingNow}
@@ -534,7 +534,7 @@ const HomePage = () => {
       )}
 
       {dailyMixes.length > 0 && (
-        <section className="mb-14" aria-labelledby="home-daily-mixes">
+        <section className="mb-10 md:mb-14" aria-labelledby="home-daily-mixes">
           <SectionHeader
             id="home-daily-mixes"
             ordinal={ordinals.dailyMixes}
@@ -590,7 +590,7 @@ const HomePage = () => {
       )}
 
       {topArtists.length > 0 && (
-        <section className="mb-14" aria-labelledby="home-top-artists">
+        <section className="mb-10 md:mb-14" aria-labelledby="home-top-artists">
           <SectionHeader
             id="home-top-artists"
             ordinal={ordinals.topArtists}
@@ -634,7 +634,7 @@ const HomePage = () => {
         onPlayTracks={(tracks, opts) => playTracksInOrder(tracks, opts)}
       />
 
-      <div className="mt-16 pt-6 border-t border-white/[0.06] flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-[10px] font-mono uppercase tracking-[0.2em] text-ink-4">
+      <div className="mt-12 md:mt-16 pt-6 border-t border-white/[0.06] flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-[10px] font-mono uppercase tracking-[0.2em] text-ink-4">
         <span>End of feed · {masthead}</span>
         <span className="hidden md:inline">Octavia · An editorial product</span>
       </div>
@@ -672,7 +672,7 @@ const COLD_START_STARTERS = [
 ];
 
 const ColdStartRail = () => (
-  <section className="mb-14" aria-labelledby="home-first-stop">
+  <section className="mb-10 md:mb-14" aria-labelledby="home-first-stop">
     <div className="flex items-end justify-between mb-5 gap-4">
       <div>
         <p className="eyebrow eyebrow-accent mb-2 inline-flex items-center gap-2">
@@ -716,7 +716,7 @@ const ColdStartRail = () => (
 const GenresRail = ({ genres = [], isLoading, isError, onRetry }) => {
   if (isError) {
     return (
-      <section className="mb-14" aria-labelledby="home-genres">
+      <section className="mb-10 md:mb-14" aria-labelledby="home-genres">
         <SectionHeader
           id="home-genres"
           eyebrow="Browse"
@@ -734,7 +734,7 @@ const GenresRail = ({ genres = [], isLoading, isError, onRetry }) => {
   }
 
   return (
-    <section className="mb-14" aria-labelledby="home-genres">
+    <section className="mb-10 md:mb-14" aria-labelledby="home-genres">
       <SectionHeader
         id="home-genres"
         eyebrow="Browse"

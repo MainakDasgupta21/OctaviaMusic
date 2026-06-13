@@ -342,7 +342,7 @@ const Sidebar = ({ onNavigate }) => {
         data-lenis-prevent
         className={cn(
           'relative z-10 min-h-0 flex-1 flex flex-col overflow-y-auto custom-scrollbar pb-8',
-          expanded ? 'gap-5 px-3' : 'gap-4 px-2',
+          expanded ? 'gap-5 px-3' : 'gap-2 px-2',
         )}
         // Fade-out mask along the bottom so a long playlist list feels
         // infinite rather than abruptly cut. The mask is purely cosmetic;
@@ -359,8 +359,8 @@ const Sidebar = ({ onNavigate }) => {
           <div
             key={group.label}
             className={cn(
-              'flex flex-col gap-1',
-              !expanded && 'mx-0.5 py-1.5',
+              'flex flex-col',
+              expanded ? 'gap-1' : 'gap-2',
             )}
           >
             {expanded && (
@@ -405,7 +405,7 @@ const Sidebar = ({ onNavigate }) => {
         ))}
 
         {/* Pinned playlists */}
-        <div className="flex flex-col gap-0.5">
+        <div className={cn('flex flex-col', expanded ? 'gap-0.5' : 'gap-2')}>
           {expanded ? (
             <div className="h-5 px-4 flex items-center justify-between gap-2">
               <span className="flex items-center gap-2 min-w-0">
@@ -430,13 +430,13 @@ const Sidebar = ({ onNavigate }) => {
             </div>
           ) : (
             <>
-              <div className="mx-auto mb-2 h-px w-8 bg-white/[0.10]" aria-hidden />
+              <div className="mx-auto h-px w-8 bg-white/[0.10]" aria-hidden />
               <button
                 type="button"
                 onClick={handleCreate}
                 title="Create playlist"
                 aria-label="Create playlist"
-                className="touch-target mx-auto h-11 w-11 flex items-center justify-center rounded-md text-ink-3 hover:text-ink hover:bg-white/[0.04] focus-ring"
+                className="touch-target mx-auto h-12 w-12 flex items-center justify-center rounded-md text-ink-3 hover:text-ink hover:bg-white/[0.04] focus-ring"
               >
                 <Plus className="w-4 h-4" />
               </button>
@@ -474,8 +474,8 @@ const Sidebar = ({ onNavigate }) => {
       {/* Settings + expand toggle + editorial footer */}
       <div
         className={cn(
-          'pt-3 mt-2 border-t border-white/[0.06] flex flex-col gap-1',
-          expanded ? 'px-3' : 'px-2',
+          'pt-3 mt-2 border-t border-white/[0.06] flex flex-col',
+          expanded ? 'gap-1 px-3' : 'gap-2 px-2',
         )}
       >
         <NavItem
@@ -502,8 +502,8 @@ const Sidebar = ({ onNavigate }) => {
           }
           disabled={!isDesktopWide}
           className={cn(
-            'touch-target mt-1 inline-flex items-center justify-center rounded-md text-ink-3 hover:text-ink hover:bg-white/[0.04] focus-ring',
-            expanded ? 'mx-1 h-10' : 'mx-auto h-11 w-11',
+            'touch-target inline-flex items-center justify-center rounded-md text-ink-3 hover:text-ink hover:bg-white/[0.04] focus-ring',
+            expanded ? 'mx-1 mt-1 h-10' : 'mx-auto h-12 w-12',
             !isDesktopWide && 'opacity-45 cursor-not-allowed hover:bg-transparent hover:text-ink-3',
           )}
         >

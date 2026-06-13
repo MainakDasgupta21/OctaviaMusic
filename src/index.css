@@ -1139,6 +1139,7 @@
     letter-spacing: 0.06em;
     color: hsl(var(--ink-secondary));
     text-transform: uppercase;
+    white-space: nowrap;
   }
 
   /* Vintage x GenZ surface language for now-playing pages. */

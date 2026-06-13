@@ -33,12 +33,12 @@ const FilterPillGroup = ({
   );
 
   return (
-    <div className="flex min-w-0 items-center gap-1.5 xs:gap-2">
-      <span className="issue-pill hidden md:inline-flex">{label}</span>
+    <div className="flex min-w-0 items-center gap-2 xs:gap-3">
+      <span className="issue-pill hidden shrink-0 whitespace-nowrap md:inline-flex">{label}</span>
       <div
         role="tablist"
         aria-label={ariaLabel}
-        className="flex min-w-0 w-full flex-nowrap items-center gap-1.5 overflow-x-auto pb-1 pr-2 no-scrollbar [scrollbar-width:none] xs:gap-2 xs:pr-1"
+        className="flex min-w-0 w-full flex-nowrap items-center gap-1.5 overflow-x-auto py-1 pr-2 no-scrollbar [scrollbar-width:none] xs:gap-2 xs:pr-1"
         onKeyDown={(event) => {
           const idx = normalizedOptions.findIndex((item) => item.id === value);
           const nextIdx = nextIndexFromKey(event.key, idx, normalizedOptions.length);
