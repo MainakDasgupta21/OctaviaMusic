@@ -40,7 +40,25 @@ const settingsSchema = z
     displayName: z.string().trim().min(1).max(80).optional(),
     email: z.string().trim().email().optional(),
     sidebarExpanded: z.boolean().optional(),
-    theme: z.enum(['dark', 'oled', 'light', 'hicontrast']).optional(),
+    theme: z
+      .enum(['dark', 'oled', 'light', 'hicontrast', 'midnight', 'sepia', 'forest', 'slate'])
+      .optional(),
+    accentColor: z
+      .enum([
+        'dynamic',
+        'ember',
+        'rose',
+        'amber',
+        'lime',
+        'emerald',
+        'teal',
+        'azure',
+        'indigo',
+        'violet',
+        'magenta',
+      ])
+      .optional(),
+    textSize: z.enum(['sm', 'md', 'lg']).optional(),
     vimNavigation: z.boolean().optional(),
     soundEffects: z.boolean().optional(),
   })

@@ -8,6 +8,7 @@ import {
   useState,
 } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import api from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -157,7 +158,10 @@ export const SettingsProvider = ({ children }) => {
     const optimistic = { ...previous, [key]: value };
     queryClient.setQueryData(SETTINGS_QUERY_KEY, optimistic);
     updateSettingsMutation.mutate({ [key]: value }, {
-      onError: () => queryClient.setQueryData(SETTINGS_QUERY_KEY, previous),
+      onError: () => {
+        queryClient.setQueryData(SETTINGS_QUERY_KEY, previous);
+        toast.error("Couldn't save that change. Please try again.");
+      },
     });
   }, [isAuthenticated, queryClient, updateSettingsMutation]);
 
@@ -172,7 +176,10 @@ export const SettingsProvider = ({ children }) => {
     };
     queryClient.setQueryData(SETTINGS_QUERY_KEY, { ...settingsDefaults });
     updateSettingsMutation.mutate({ ...settingsDefaults }, {
-      onError: () => queryClient.setQueryData(SETTINGS_QUERY_KEY, previous),
+      onError: () => {
+        queryClient.setQueryData(SETTINGS_QUERY_KEY, previous);
+        toast.error("Couldn't reset settings. Please try again.");
+      },
     });
   }, [isAuthenticated, queryClient, updateSettingsMutation]);
 
@@ -196,7 +203,10 @@ export const SettingsProvider = ({ children }) => {
     };
     queryClient.setQueryData(SETTINGS_QUERY_KEY, { ...previous, ...clean });
     updateSettingsMutation.mutate(clean, {
-      onError: () => queryClient.setQueryData(SETTINGS_QUERY_KEY, previous),
+      onError: () => {
+        queryClient.setQueryData(SETTINGS_QUERY_KEY, previous);
+        toast.error("Couldn't import settings. Please try again.");
+      },
     });
   }, [isAuthenticated, queryClient, updateSettingsMutation]);
 
