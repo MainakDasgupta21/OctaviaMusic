@@ -17,7 +17,7 @@ describe('error middleware db mapping', () => {
     };
     const result = errorToResponse(error);
     expect(result.statusCode).toBe(503);
-    expect(result.payload).toMatchObject({
+    expect(result.payload).toEqual({
       error: 'ServiceUnavailableError',
       message: 'Authentication is temporarily unavailable. Please try again shortly.',
     });

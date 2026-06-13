@@ -83,23 +83,13 @@ const errorToResponse = (error) => {
     );
     return {
       statusCode: wrapped.statusCode,
-      payload: {
-        error: wrapped.name,
-        message: wrapped.message,
-        // TEMP DIAGNOSTIC: surface the real DB error. Remove after root-cause is captured.
-        debug: { name: error?.name, message: error?.message, code: error?.code },
-      },
+      payload: { error: wrapped.name, message: wrapped.message },
     };
   }
 
   return {
     statusCode: 500,
-    payload: {
-      error: 'InternalServerError',
-      message: 'Something went wrong',
-      // TEMP DIAGNOSTIC: surface the real error. Remove after root-cause is captured.
-      debug: { name: error?.name, message: error?.message, code: error?.code },
-    },
+    payload: { error: 'InternalServerError', message: 'Something went wrong' },
   };
 };
 
@@ -107,7 +97,8 @@ const errorHandler = (error, _req, res, _next) => {
   const { statusCode, payload } = errorToResponse(error);
 
   if (statusCode >= 500) {
-    // TEMP DIAGNOSTIC: always log full stack while we capture the production cause.
+    console.error('[error]', error?.stack || error?.message || 'Unhandled server error');
+  } else if (process.env.NODE_ENV !== 'production') {
     console.error('[error]', error?.stack || error?.message || error);
   }
 

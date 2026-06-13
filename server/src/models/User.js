@@ -112,18 +112,13 @@ const userSchema = new mongoose.Schema(
   },
 );
 
-userSchema.pre('save', async function hashPassword(next) {
-  if (!this.isModified('passwordHash')) return next();
+userSchema.pre('save', async function hashPassword() {
+  if (!this.isModified('passwordHash')) return;
   const raw = String(this.passwordHash || '');
-  if (!raw) return next(new Error('passwordHash is required'));
-  if (BCRYPT_HASH_RE.test(raw)) return next();
+  if (!raw) throw new Error('passwordHash is required');
+  if (BCRYPT_HASH_RE.test(raw)) return;
 
-  try {
-    this.passwordHash = await bcrypt.hash(raw, authConfig.bcryptRounds);
-    next();
-  } catch (error) {
-    next(error);
-  }
+  this.passwordHash = await bcrypt.hash(raw, authConfig.bcryptRounds);
 });
 
 userSchema.methods.comparePassword = function comparePassword(rawPassword) {
