@@ -161,10 +161,13 @@ export const AuthProvider = ({ children }) => {
       if (response?.data?.user) {
         setUser(response.data.user);
         setStatus('authenticated');
+        // Identity changes (name/email) are mirrored into the server settings
+        // doc; refresh the cached settings so every surface stays in sync.
+        queryClient.invalidateQueries({ queryKey: ['me', 'settings'] });
       }
       return response.data?.user || null;
     },
-    [],
+    [queryClient],
   );
 
   const value = useMemo(

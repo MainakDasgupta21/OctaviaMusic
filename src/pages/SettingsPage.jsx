@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import {
@@ -16,6 +17,7 @@ import {
   Download,
   Upload,
   Database,
+  ExternalLink,
 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
@@ -23,6 +25,7 @@ import Input from '@/components/ui-v2/Input';
 import Button from '@/components/ui-v2/Button';
 import Kbd from '@/components/ui-v2/Kbd';
 import { useSettings } from '@/contexts/SettingsContext';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   ACCENT_PRESETS,
   DYNAMIC_ACCENT,
@@ -193,10 +196,12 @@ const EditableField = ({ label, value, onSave, type = 'text', validate }) => {
   const fieldId = useId();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => setDraft(value), [value]);
 
-  const commit = () => {
+  const commit = async () => {
+    if (saving) return;
     const trimmed = (draft || '').trim();
     if (!trimmed) {
       setDraft(value);
@@ -207,14 +212,26 @@ const EditableField = ({ label, value, onSave, type = 'text', validate }) => {
       toast.error(`That doesn't look like a valid ${label.toLowerCase()}`);
       return;
     }
-    if (trimmed !== value) {
-      onSave(trimmed);
-      toast.success(`${label} updated`);
+    if (trimmed === value) {
+      setEditing(false);
+      return;
     }
-    setEditing(false);
+    setSaving(true);
+    try {
+      await onSave(trimmed);
+      toast.success(`${label} updated`);
+      setEditing(false);
+    } catch (error) {
+      toast.error(
+        readFriendlyError(error, `Couldn't update ${label.toLowerCase()}`, `${label} update`),
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   const cancel = () => {
+    if (saving) return;
     setDraft(value);
     setEditing(false);
   };
@@ -236,6 +253,7 @@ const EditableField = ({ label, value, onSave, type = 'text', validate }) => {
               autoFocus
               type={type}
               value={draft}
+              disabled={saving}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') commit();
@@ -254,7 +272,8 @@ const EditableField = ({ label, value, onSave, type = 'text', validate }) => {
           <button
             type="button"
             onClick={commit}
-            className="touch-target p-2 rounded-sharp text-accent hover:bg-track/15 focus-ring"
+            disabled={saving}
+            className="touch-target p-2 rounded-sharp text-accent hover:bg-track/15 focus-ring disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label="Save"
           >
             <Check className="w-4 h-4" />
@@ -262,7 +281,8 @@ const EditableField = ({ label, value, onSave, type = 'text', validate }) => {
           <button
             type="button"
             onClick={cancel}
-            className="touch-target p-2 rounded-sharp text-ink-3 hover:bg-white/5 focus-ring"
+            disabled={saving}
+            className="touch-target p-2 rounded-sharp text-ink-3 hover:bg-white/5 focus-ring disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label="Cancel"
           >
             <XIcon className="w-4 h-4" />
@@ -283,8 +303,22 @@ const EditableField = ({ label, value, onSave, type = 'text', validate }) => {
 
 const isValidEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 
+// Mirrors the AccountPage error mapping: hide 5xx internals, surface the
+// server's friendly message (e.g. "That email is already in use") otherwise.
+const readFriendlyError = (error, fallback, scope) => {
+  const status = error?.response?.status;
+  if (status >= 500) {
+    if (import.meta.env?.DEV) {
+      console.error(`[settings] ${scope} failed`, error);
+    }
+    return 'Something went wrong. Please try again.';
+  }
+  return error?.response?.data?.message || fallback;
+};
+
 const SettingsPage = () => {
   const { settings, updateSetting, resetSettings, importSettings } = useSettings();
+  const { user, updateProfile } = useAuth();
   const masthead = useMemo(() => formatMasthead(), []);
   const fileInputRef = useRef(null);
   const navRailRef = useRef(null);
@@ -351,11 +385,15 @@ const SettingsPage = () => {
 
   const handleExport = () => {
     try {
+      // Identity (name/email) belongs to the account, not a portable backup.
+      const preferences = { ...settings };
+      delete preferences.displayName;
+      delete preferences.email;
       const payload = {
         app: 'octavia',
         version: 1,
         exportedAt: new Date().toISOString(),
-        settings,
+        settings: preferences,
       };
       const blob = new Blob([JSON.stringify(payload, null, 2)], {
         type: 'application/json',
@@ -820,17 +858,29 @@ const SettingsPage = () => {
           <div className="space-y-6">
             <EditableField
               label="Display name"
-              value={settings.displayName}
-              onSave={(v) => updateSetting('displayName', v)}
+              value={user?.displayName ?? settings.displayName}
+              onSave={(v) => updateProfile({ displayName: v })}
             />
             <div className="editorial-rule" />
             <EditableField
               label="Email"
               type="email"
-              value={settings.email}
+              value={user?.email ?? settings.email}
               validate={isValidEmail}
-              onSave={(v) => updateSetting('email', v)}
+              onSave={(v) => updateProfile({ email: v })}
             />
+            <div className="editorial-rule" />
+            <Row
+              title="Avatar & password"
+              description="Update your photo or change your password on the full account page."
+            >
+              <Button asChild variant="editorial" size="sm">
+                <Link to="/account">
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Open account
+                </Link>
+              </Button>
+            </Row>
           </div>
         </SectionCard>
 

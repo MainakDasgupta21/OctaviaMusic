@@ -31,6 +31,16 @@ export const settingsDefaults = Object.freeze({
   vimNavigation: false,
   soundEffects: false,
 });
+// Account identity lives on the user record (PATCH /users/me), not in the
+// preference store. We keep these keys in settingsDefaults for back-compat but
+// never reset or import them here, so a "reset to defaults" or a shared backup
+// file can't clobber the real account name/email.
+const IDENTITY_KEYS = Object.freeze(['displayName', 'email']);
+const preferenceDefaults = Object.freeze(
+  Object.fromEntries(
+    Object.entries(settingsDefaults).filter(([key]) => !IDENTITY_KEYS.includes(key)),
+  ),
+);
 const SETTINGS_QUERY_KEY = ['me', 'settings'];
 
 const readFromStorage = () => {
@@ -166,16 +176,18 @@ export const SettingsProvider = ({ children }) => {
   }, [isAuthenticated, queryClient, updateSettingsMutation]);
 
   const resetSettings = useCallback(() => {
+    // Restore preference defaults only — the real account name/email (identity)
+    // is managed via the profile endpoint and must survive a reset.
     if (!isAuthenticated) {
-      setGuestSettings({ ...settingsDefaults });
+      setGuestSettings((prev) => ({ ...prev, ...preferenceDefaults }));
       return;
     }
 
     const previous = queryClient.getQueryData(SETTINGS_QUERY_KEY) || {
       ...settingsDefaults,
     };
-    queryClient.setQueryData(SETTINGS_QUERY_KEY, { ...settingsDefaults });
-    updateSettingsMutation.mutate({ ...settingsDefaults }, {
+    queryClient.setQueryData(SETTINGS_QUERY_KEY, { ...previous, ...preferenceDefaults });
+    updateSettingsMutation.mutate({ ...preferenceDefaults }, {
       onError: () => {
         queryClient.setQueryData(SETTINGS_QUERY_KEY, previous);
         toast.error("Couldn't reset settings. Please try again.");
@@ -183,12 +195,13 @@ export const SettingsProvider = ({ children }) => {
     });
   }, [isAuthenticated, queryClient, updateSettingsMutation]);
 
-  // Bulk-apply a patch (used by Settings import). Only known keys are kept so
-  // an imported file can never inject arbitrary fields into storage / server.
+  // Bulk-apply a patch (used by Settings import). Only known preference keys are
+  // kept so an imported file can never inject arbitrary fields into storage /
+  // server — and identity (name/email) is non-portable, so it's ignored here.
   const importSettings = useCallback((patch) => {
     if (!patch || typeof patch !== 'object') return;
     const clean = {};
-    Object.keys(settingsDefaults).forEach((key) => {
+    Object.keys(preferenceDefaults).forEach((key) => {
       if (patch[key] !== undefined) clean[key] = patch[key];
     });
     if (Object.keys(clean).length === 0) return;

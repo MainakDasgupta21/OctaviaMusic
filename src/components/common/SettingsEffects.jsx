@@ -54,6 +54,21 @@ const SettingsEffects = () => {
     }
   }, [accentColor]);
 
+  // Cache the effective appearance so the next boot can pre-apply it before
+  // React mounts — for signed-in users too, whose server settings would
+  // otherwise load a beat late and flash the default theme.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(
+        'octavia.appearance.v1',
+        JSON.stringify({ theme, accentColor, textSize, reduceMotion }),
+      );
+    } catch {
+      /* storage unavailable / private mode — ignore */
+    }
+  }, [theme, accentColor, textSize, reduceMotion]);
+
   return null;
 };
 

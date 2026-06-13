@@ -6,7 +6,7 @@ const { Playlist } = require('../models/Playlist');
 const { ListeningHistory } = require('../models/ListeningHistory');
 const { SearchHistory } = require('../models/SearchHistory');
 const { User, USER_SETTINGS_DEFAULTS } = require('../models/User');
-const { NotFoundError, ValidationError } = require('../utils/app-errors');
+const { NotFoundError, ValidationError, ConflictError } = require('../utils/app-errors');
 
 const SEARCH_HISTORY_CAP = 50;
 
@@ -327,11 +327,18 @@ const createLibraryService = ({
       user.avatarUrl = payload.avatarUrl || null;
     }
     if (typeof payload.email === 'string') {
-      user.email = payload.email.trim().toLowerCase();
+      const nextEmail = payload.email.trim().toLowerCase();
+      if (nextEmail !== user.email) {
+        const taken = await UserModel.findOne({ email: nextEmail, _id: { $ne: user._id } })
+          .select('_id')
+          .lean();
+        if (taken) throw new ConflictError('That email is already in use');
+      }
+      user.email = nextEmail;
       user.settings = {
         ...USER_SETTINGS_DEFAULTS,
         ...(user.settings?.toObject?.() || user.settings || {}),
-        email: payload.email.trim().toLowerCase(),
+        email: nextEmail,
       };
     }
     if (payload.settings && typeof payload.settings === 'object') {

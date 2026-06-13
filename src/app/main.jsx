@@ -5,6 +5,7 @@ import { getAccentPreset } from '@/lib/accent-presets';
 import { lockPalette } from '@/hooks/use-color-extraction';
 
 const SETTINGS_KEY = 'octavia.settings.v1';
+const APPEARANCE_KEY = 'octavia.appearance.v1';
 const VALID_THEMES = new Set([
   'dark',
   'oled',
@@ -18,10 +19,13 @@ const VALID_THEMES = new Set([
 const VALID_TEXT_SIZES = new Set(['sm', 'md', 'lg']);
 
 // Apply persisted appearance prefs before React mounts so there's no flash of
-// the default theme/scale/accent on first paint (guest path; signed-in users
-// are reconciled by SettingsEffects once their server settings load).
+// the default theme/scale/accent on first paint. We prefer the dedicated
+// appearance cache (written by SettingsEffects for guests AND signed-in users)
+// and fall back to the guest settings blob; SettingsEffects reconciles both
+// once the live settings resolve.
 try {
-  const raw = localStorage.getItem(SETTINGS_KEY);
+  const appearanceRaw = localStorage.getItem(APPEARANCE_KEY);
+  const raw = appearanceRaw || localStorage.getItem(SETTINGS_KEY);
   if (raw) {
     const settings = JSON.parse(raw);
     if (settings && VALID_THEMES.has(settings.theme)) {
