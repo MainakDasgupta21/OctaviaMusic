@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
 import SmartImage from '@/components/SmartImage';
+import { cn } from '@/lib/utils';
 
-const ArtistCircle = ({ artist, sample, slug }) => {
+const ArtistCircle = ({ artist, sample, slug, fluid = false, className }) => {
   const content = (
     <>
       <div className="aspect-square rounded-full overflow-hidden ring-1 ring-white/[0.08] bg-surface-2 group-hover:ring-track/50 transition-all duration-short shadow-elev-1 group-hover:shadow-elev-3">
@@ -25,10 +26,16 @@ const ArtistCircle = ({ artist, sample, slug }) => {
     </>
   );
 
+  const rootClass = cn(
+    'text-center group rounded-sharp',
+    fluid ? 'w-full min-w-0' : 'flex-shrink-0 w-36 snap-start',
+    className,
+  );
+
   if (!slug) {
     return (
       <div
-        className="flex-shrink-0 w-36 text-center group snap-start rounded-sharp opacity-80"
+        className={cn(rootClass, 'opacity-80')}
         aria-disabled="true"
       >
         {content}
@@ -39,7 +46,7 @@ const ArtistCircle = ({ artist, sample, slug }) => {
   return (
     <Link
       to={`/artist/${encodeURIComponent(slug)}`}
-      className="flex-shrink-0 w-36 text-center group snap-start focus-ring rounded-sharp lift press"
+      className={cn(rootClass, 'focus-ring lift press')}
     >
       {content}
     </Link>

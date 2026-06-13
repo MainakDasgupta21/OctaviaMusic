@@ -10,19 +10,28 @@ export default {
   prefix: "",
   theme: {
     screens: {
+      watch: "280px",
+      tiny: "320px",
       xs: "480px",
+      phablet: "600px",
       sm: "640px",
       md: "768px",
       lg: "1024px",
       xl: "1280px",
+      hd: "1440px",
       "2xl": "1536px",
       "3xl": "1680px",
       "4xl": "1920px",
+      qhd: "2560px",
+      uhd: "3840px",
+      "8k": "7680px",
     },
     container: {
       center: true,
       padding: "1rem",
       screens: {
+        watch: "280px",
+        tiny: "320px",
         sm: "640px",
         md: "768px",
         lg: "1024px",
@@ -30,6 +39,9 @@ export default {
         "2xl": "1440px",
         "3xl": "1680px",
         "4xl": "1920px",
+        qhd: "1800px",
+        uhd: "1800px",
+        "8k": "1800px",
       },
     },
     extend: {

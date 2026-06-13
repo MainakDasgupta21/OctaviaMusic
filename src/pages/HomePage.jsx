@@ -547,7 +547,7 @@ const HomePage = () => {
             variants={staggerChildren(0.05)}
             initial="initial"
             animate="animate"
-            className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4"
+            className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-4"
           >
             {dailyMixes.map((mix, index) => (
               <motion.div variants={fadeUp} key={mix.id} className="relative">
@@ -598,16 +598,35 @@ const HomePage = () => {
             title="The voices in your year"
             subtitle="Aggregated from your recent listening history."
           />
-          <HorizontalRail ariaLabel="Your top artists">
+          <div className="md:hidden">
+            <HorizontalRail ariaLabel="Your top artists">
+              {topArtists.map((artist) => (
+                <ArtistCircle
+                  key={artist.key}
+                  artist={artist.artist}
+                  sample={artist.sample}
+                  slug={artist.slug}
+                />
+              ))}
+            </HorizontalRail>
+          </div>
+          <motion.div
+            variants={staggerChildren(0.04)}
+            initial="initial"
+            animate="animate"
+            className="hidden md:grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-4"
+          >
             {topArtists.map((artist) => (
-              <ArtistCircle
-                key={artist.key}
-                artist={artist.artist}
-                sample={artist.sample}
-                slug={artist.slug}
-              />
+              <motion.div key={artist.key} variants={fadeUp}>
+                <ArtistCircle
+                  artist={artist.artist}
+                  sample={artist.sample}
+                  slug={artist.slug}
+                  fluid
+                />
+              </motion.div>
             ))}
-          </HorizontalRail>
+          </motion.div>
         </section>
       )}
 
@@ -615,7 +634,7 @@ const HomePage = () => {
         onPlayTracks={(tracks, opts) => playTracksInOrder(tracks, opts)}
       />
 
-      <div className="mt-16 pt-6 border-t border-white/[0.06] flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.2em] text-ink-4">
+      <div className="mt-16 pt-6 border-t border-white/[0.06] flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-[10px] font-mono uppercase tracking-[0.2em] text-ink-4">
         <span>End of feed · {masthead}</span>
         <span className="hidden md:inline">Octavia · An editorial product</span>
       </div>
@@ -727,7 +746,7 @@ const GenresRail = ({ genres = [], isLoading, isError, onRetry }) => {
         variants={staggerChildren(0.04)}
         initial="initial"
         animate="animate"
-        className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3"
+        className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3"
       >
         {isLoading
           ? Array.from({ length: 6 }).map((_, i) => (

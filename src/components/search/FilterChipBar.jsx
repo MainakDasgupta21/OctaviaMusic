@@ -206,7 +206,7 @@ const FilterChip = ({ dimension, filters, onFiltersChange }) => {
 // stack.
 // =============================================================================
 
-const MENU_WIDTH = 'w-[280px]';
+const MENU_WIDTH = 'w-[min(280px,calc(100vw-1.5rem))]';
 
 const AddFilterPalette = ({
   filters,

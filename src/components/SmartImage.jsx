@@ -43,14 +43,28 @@ const buildFallbackChain = (rawSrc, kind, explicitFallback) => {
 // the full =w544-h544 variant because they're rendered large.
 // Returns null when the URL doesn't match the pattern (e.g. ytimg .jpg, local
 // placeholders) — the consumer falls back to a single-src render.
-const buildSrcSet = (url) => {
+const buildSrcSet = (url, { hero = false } = {}) => {
   if (typeof url !== 'string' || !url) return null;
+
+  // YouTube artwork variants: mqdefault (low), hqdefault (medium),
+  // sd/maxresdefault (high). We expose width descriptors so the browser
+  // can pick the lightest acceptable source per viewport.
+  const ytMatch = url.match(/(https?:\/\/[^/]*ytimg\.com\/vi\/[^/]+)\/(maxresdefault|sddefault|hqdefault|mqdefault)\.jpg/i);
+  if (ytMatch) {
+    const base = ytMatch[1];
+    const low = `${base}/mqdefault.jpg`;
+    const medium = `${base}/hqdefault.jpg`;
+    const high = `${base}/${hero ? 'maxresdefault' : 'sddefault'}.jpg`;
+    return `${low} 320w, ${medium} 640w, ${high} 1280w`;
+  }
+
   const sizeMatch = url.match(/=w(\d+)-h(\d+)/);
   if (!sizeMatch) return null;
   const small = url.replace(/=w\d+-h\d+/, '=w272-h272');
-  const large = url.replace(/=w\d+-h\d+/, '=w544-h544');
-  if (small === large) return null;
-  return `${small} 1x, ${large} 2x`;
+  const medium = url.replace(/=w\d+-h\d+/, hero ? '=w544-h544' : '=w400-h400');
+  const large = url.replace(/=w\d+-h\d+/, hero ? '=w816-h816' : '=w544-h544');
+  if (small === medium && medium === large) return null;
+  return `${small} 320w, ${medium} 640w, ${large} 960w`;
 };
 
 const SmartImage = ({
@@ -79,9 +93,9 @@ const SmartImage = ({
   interactive = false,
   ...rest
 }) => {
-  // Hero images (`fetchpriority="high"`) skip the small-variant srcset and
-  // load the largest variant directly — they're rendered big enough that the
-  // CSS `1x` size would just blur on retina displays.
+  // Hero images (`fetchpriority="high"`) keep responsive sources enabled, but
+  // opt into larger `sizes` defaults so they can still request a high-quality
+  // source on larger viewports.
   const isHero = rest?.fetchpriority === 'high' || rest?.fetchPriority === 'high';
   const [loaded, setLoaded] = useState(false);
 
@@ -115,11 +129,14 @@ const SmartImage = ({
   };
 
   const currentSrc = chain[chainIndex] || pickPlaceholder(kind);
-  const srcSet = isHero ? null : buildSrcSet(currentSrc);
+  const srcSet = buildSrcSet(currentSrc, { hero: isHero });
   // Only attach `sizes` when we actually have a srcSet — otherwise it's
   // ignored by the browser anyway and creates noise in the DOM.
   const resolvedSizes = srcSet
-    ? sizes || '(max-width: 639px) 42vw, (max-width: 1023px) 240px, 272px'
+    ? sizes
+      || (isHero
+        ? '(max-width: 599px) 100vw, (max-width: 1023px) 92vw, (max-width: 1919px) 780px, 960px'
+        : '(max-width: 639px) 42vw, (max-width: 1023px) 240px, 272px')
     : undefined;
 
   return (

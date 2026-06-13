@@ -397,7 +397,7 @@ const TopBar = () => {
     <TooltipProvider delayDuration={250}>
       <header
         className={cn(
-          'sticky top-0 z-40 h-[60px] flex items-center gap-2 sm:gap-3 px-2.5 sm:px-3 md:px-5 xl:px-6',
+          'app-topbar sticky top-0 z-40 h-[var(--topbar-height)] flex items-center gap-2 sm:gap-3 px-2 tiny:px-2.5 sm:px-3 md:px-5 xl:px-6',
           'bg-background/80 backdrop-blur-2xl border-b border-white/[0.07] relative',
           // Subtle inset top-light gives the chrome a premium "lifted" feel
           // without changing layout. Pairs with the bottom hairline.
@@ -422,7 +422,7 @@ const TopBar = () => {
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="md:hidden touch-target w-11 h-11 inline-flex items-center justify-center rounded-full text-ink-3 hover:text-ink hover:bg-white/[0.06] transition-colors focus-ring"
+            className="lg:hidden touch-target w-11 h-11 inline-flex items-center justify-center rounded-full text-ink-3 hover:text-ink hover:bg-white/[0.06] transition-colors focus-ring"
             aria-label="Back"
           >
             <ChevronLeft className="w-5 h-5" />
@@ -431,14 +431,14 @@ const TopBar = () => {
           <button
             type="button"
             onClick={openMobileDrawer}
-            className="md:hidden touch-target w-11 h-11 inline-flex items-center justify-center rounded-full text-ink-3 hover:text-ink hover:bg-white/[0.06] transition-colors focus-ring"
+            className="lg:hidden touch-target w-11 h-11 inline-flex items-center justify-center rounded-full text-ink-3 hover:text-ink hover:bg-white/[0.06] transition-colors focus-ring"
             aria-label="Open navigation"
           >
             <Menu className="w-5 h-5" />
           </button>
         )}
 
-        <div className="hidden md:flex items-center">
+        <div className="hidden lg:flex items-center">
           {/* Back/forward grouped inside a single hairline pill so they
               read as one navigation control rather than two loose icons. */}
           <div className="inline-flex items-center p-0.5 rounded-full border border-white/[0.06] bg-white/[0.02]">
@@ -482,12 +482,12 @@ const TopBar = () => {
         <form
           onSubmit={handleSubmit}
           role="search"
-          className="flex-1 min-w-0 max-w-xl lg:max-w-2xl mx-auto lg:mx-0"
+          className="flex-1 min-w-0 max-w-[min(100%,46rem)] lg:max-w-[min(100%,52rem)] mx-auto lg:mx-0"
         >
           <button
             type="button"
             onClick={() => navigate('/search')}
-            className="md:hidden w-full flex items-center justify-center gap-2 h-11 rounded-full border border-white/10 text-ink-3 hover:text-ink hover:bg-white/[0.06] transition-colors focus-ring"
+            className="phablet:hidden w-full flex items-center justify-center gap-2 h-11 rounded-full border border-white/10 text-ink-3 hover:text-ink hover:bg-white/[0.06] transition-colors focus-ring"
             aria-label="Go to search"
           >
             <SearchIcon className="w-4 h-4" />
@@ -499,7 +499,7 @@ const TopBar = () => {
             onOpenChange={(open) => setSearchOpen(open)}
           >
             <PopoverTrigger asChild>
-              <div className="hidden md:block relative group">
+              <div className="hidden phablet:block relative group">
                 <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3 pointer-events-none transition-colors duration-short group-focus-within:text-accent" />
                 <input
                   ref={searchInputRef}
@@ -913,7 +913,7 @@ const TopBar = () => {
           </Popover>
         </form>
 
-        <div className="flex-1 md:hidden" />
+        <div className="flex-1 lg:hidden" />
 
         <div className="flex items-center ml-auto">
           {/* Glass cluster — Favorites + Notifications grouped inside a
@@ -1099,18 +1099,18 @@ const TopBar = () => {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 phablet:gap-2">
               <button
                 type="button"
                 onClick={() => navigate('/login')}
-                className="h-9 px-3 rounded-full border border-white/[0.12] text-[12px] text-ink-2 hover:text-ink hover:bg-white/[0.05] transition-colors focus-ring"
+                className="h-9 px-2.5 phablet:px-3 rounded-full border border-white/[0.12] text-[11.5px] phablet:text-[12px] text-ink-2 hover:text-ink hover:bg-white/[0.05] transition-colors focus-ring"
               >
                 Sign in
               </button>
               <button
                 type="button"
                 onClick={() => navigate('/register')}
-                className="h-9 px-3 rounded-full text-[12px] text-track-fg bg-[radial-gradient(circle_at_30%_25%,hsl(var(--ink-primary)/0.22),transparent_55%),linear-gradient(135deg,hsl(var(--track-accent)),hsl(var(--track-accent-strong)))] ring-1 ring-white/20 hover:brightness-[1.06] transition-colors focus-ring"
+                className="hidden phablet:inline-flex h-9 px-3 rounded-full text-[12px] text-track-fg bg-[radial-gradient(circle_at_30%_25%,hsl(var(--ink-primary)/0.22),transparent_55%),linear-gradient(135deg,hsl(var(--track-accent)),hsl(var(--track-accent-strong)))] ring-1 ring-white/20 hover:brightness-[1.06] transition-colors focus-ring"
               >
                 Create account
               </button>

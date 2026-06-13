@@ -62,7 +62,7 @@ const FieldLabel = ({ children }) => (
 // shell is rendered inside the Add-filter palette so we don't stack two
 // fixed-width surfaces and create a visual seam.
 export const EditorShell = ({ title, hint, children, footer, embedded = false }) => (
-  <div className={cn(embedded ? 'w-full' : 'w-[300px]')}>
+  <div className={cn(embedded ? 'w-full' : 'w-[min(300px,calc(100vw-1.5rem))]')}>
     <div className="px-4 pt-3 pb-2.5 border-b border-white/[0.04]">
       <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-3">
         {title}

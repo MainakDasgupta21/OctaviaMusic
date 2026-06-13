@@ -53,16 +53,26 @@ const MainLayout = () => {
   // sidebar expanded on desktop, preventing md->lg crowding.
   useEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return undefined;
+    const desktopVisible = window.matchMedia('(min-width: 1024px)');
     const desktopWide = window.matchMedia('(min-width: 1280px)');
     const applySidebarWidth = () => {
+      if (!desktopVisible.matches) {
+        document.documentElement.style.setProperty('--sidebar-w', '0px');
+        return;
+      }
       const expandedOnViewport = settings.sidebarExpanded && desktopWide.matches;
-      document.documentElement.style.setProperty('--sidebar-w', expandedOnViewport ? '260px' : '80px');
+      document.documentElement.style.setProperty(
+        '--sidebar-w',
+        expandedOnViewport ? 'clamp(15rem, 16vw, 17rem)' : 'clamp(4.5rem, 5.2vw, 5rem)',
+      );
     };
 
     applySidebarWidth();
+    desktopVisible.addEventListener('change', applySidebarWidth);
     desktopWide.addEventListener('change', applySidebarWidth);
 
     return () => {
+      desktopVisible.removeEventListener('change', applySidebarWidth);
       desktopWide.removeEventListener('change', applySidebarWidth);
     };
   }, [settings.sidebarExpanded]);
@@ -82,7 +92,7 @@ const MainLayout = () => {
   return (
     <div
       className={cn(
-        'relative overflow-x-clip',
+        'relative overflow-x-clip app-layout-shell',
         isPlayerRoute ? 'h-screen overflow-hidden' : 'min-h-screen',
       )}
     >
@@ -103,7 +113,7 @@ const MainLayout = () => {
 
       <div
         className={cn(
-          'flex min-h-0 min-w-0 flex-col transition-[padding] duration-med ease-emphasis md:pl-[var(--sidebar-w,80px)]',
+          'grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] transition-[padding] duration-med ease-emphasis lg:pl-[var(--sidebar-w,0px)]',
           isPlayerRoute ? 'h-full overflow-hidden' : 'min-h-screen',
         )}
       >

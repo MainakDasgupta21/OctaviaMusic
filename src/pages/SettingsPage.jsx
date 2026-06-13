@@ -565,7 +565,7 @@ const SettingsPage = () => {
       </div>
 
       {/* Footer */}
-      <div className="mt-14 pt-5 border-t border-white/[0.06] flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.2em] text-ink-4">
+      <div className="mt-14 pt-5 border-t border-white/[0.06] flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-[10px] font-mono uppercase tracking-[0.2em] text-ink-4">
         <span>End of preferences</span>
         <span>v1.0.0</span>
       </div>

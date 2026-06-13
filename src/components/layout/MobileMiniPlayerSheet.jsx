@@ -86,7 +86,7 @@ const MobileMiniPlayerSheet = ({ open, onClose }) => {
             exit={{ opacity: 0 }}
             transition={{ duration: reduceMotion ? 0 : durations.short }}
             onClick={onClose}
-            className="md:hidden fixed inset-0 z-[60] bg-bg/75 backdrop-blur-sm"
+            className="phablet:hidden fixed inset-0 z-[60] bg-bg/75 backdrop-blur-sm"
             aria-hidden="true"
           />
           <motion.div
@@ -99,7 +99,7 @@ const MobileMiniPlayerSheet = ({ open, onClose }) => {
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={reduceMotion ? { duration: 0 } : springs.overlay}
-            className="md:hidden fixed inset-x-2 bottom-[calc(var(--mobile-nav-offset)+env(safe-area-inset-bottom,0px))] z-[61] flex max-h-[min(82dvh,560px)] flex-col rounded-soft glass-strong ring-1 ring-white/[0.08] overflow-hidden"
+            className="phablet:hidden fixed inset-x-2 bottom-[calc(var(--mobile-nav-offset)+env(safe-area-inset-bottom,0px))] z-[61] flex max-h-[min(82dvh,560px)] flex-col rounded-soft glass-strong ring-1 ring-white/[0.08] overflow-hidden"
             style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
           >
             <div className="flex justify-center pt-2">

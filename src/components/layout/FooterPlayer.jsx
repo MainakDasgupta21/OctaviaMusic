@@ -376,7 +376,7 @@ const FooterPlayer = () => {
           initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 100, opacity: 0 }}
-          className="fixed inset-x-2 bottom-[calc(var(--mobile-nav-height)+var(--mobile-nav-offset)+env(safe-area-inset-bottom)+0.5rem)] md:inset-x-auto md:bottom-0 md:left-[var(--sidebar-w,80px)] md:right-0 h-[68px] z-40 glass-strong border border-warning/30 md:border-x-0 md:border-b-0 flex items-center px-4 md:px-5 gap-3 md:gap-4 rounded-soft md:rounded-none"
+          className="fixed inset-x-2 bottom-[calc(var(--mobile-nav-height)+var(--mobile-nav-offset)+env(safe-area-inset-bottom)+0.5rem)] phablet:inset-x-auto phablet:bottom-[calc(var(--mobile-nav-height)+var(--mobile-nav-offset)+env(safe-area-inset-bottom)+0.5rem)] lg:bottom-0 phablet:left-[var(--sidebar-w,0px)] phablet:right-0 h-[68px] z-40 glass-strong border border-warning/30 phablet:border-x-0 phablet:border-b-0 flex items-center px-4 phablet:px-5 gap-3 phablet:gap-4 rounded-soft phablet:rounded-none"
           role="alert"
         >
           <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
@@ -434,9 +434,9 @@ const FooterPlayer = () => {
           initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 100, opacity: 0 }}
-          className="hidden md:flex fixed bottom-0 right-0 h-[var(--desktop-footer-height)] glass-strong z-40 transition-[left] duration-med ease-emphasis border-t border-white/[0.06]"
+          className="player-footer-desktop hidden phablet:flex fixed bottom-[calc(var(--mobile-nav-height)+var(--mobile-nav-offset)+env(safe-area-inset-bottom,0px)+0.5rem)] lg:bottom-0 right-0 h-[var(--desktop-footer-height)] glass-strong z-40 transition-[left,bottom] duration-med ease-emphasis border-t border-white/[0.06]"
           style={{
-            left: 'var(--sidebar-w, 80px)',
+            left: 'var(--sidebar-w, 0px)',
             // Rim-light along the top edge so the footer reads as a
             // physical surface lifting off the page, not a flat band.
             boxShadow:
@@ -464,8 +464,8 @@ const FooterPlayer = () => {
                 'linear-gradient(90deg, transparent 0%, hsl(var(--track-accent) / 0.55) 25%, hsl(var(--track-accent-2) / 0.7) 50%, hsl(var(--track-accent-3) / 0.55) 75%, transparent 100%)',
             }}
           />
-          <div className="relative flex h-full w-full items-center gap-2.5 px-3 md:gap-3 md:px-4 lg:gap-7 lg:px-7">
-            <div className="flex min-w-0 shrink items-center gap-2 md:basis-[38%] lg:basis-auto lg:gap-4 lg:w-72">
+          <div className="player-footer-inner relative flex h-full w-full items-center gap-2.5 px-3 md:gap-3 md:px-4 lg:gap-7 lg:px-7">
+            <div className="player-desktop-left flex min-w-0 shrink items-center gap-2 md:basis-[38%] lg:basis-auto lg:gap-4 lg:w-72">
               <button
                 type="button"
                 onClick={() => navigate('/player')}
@@ -526,7 +526,7 @@ const FooterPlayer = () => {
               />
             </div>
 
-            <div className="flex min-w-0 flex-col items-center gap-1.5 md:basis-[44%] lg:flex-1 lg:basis-auto">
+            <div className="player-desktop-center flex min-w-0 flex-col items-center gap-1.5 md:basis-[44%] lg:flex-1 lg:basis-auto">
               <div className="flex items-center gap-2.5 lg:gap-4">
                 <motion.button
                   type="button"
@@ -657,7 +657,7 @@ const FooterPlayer = () => {
               </div>
             </div>
 
-            <div className="flex min-w-0 items-center justify-end gap-1 md:basis-[18%] lg:basis-auto lg:gap-3 lg:w-48">
+            <div className="player-desktop-right flex min-w-0 items-center justify-end gap-1 md:basis-[18%] lg:basis-auto lg:gap-3 lg:w-48">
               <button
                 onClick={toggleMute}
                 className="touch-target text-ink-3 hover:text-ink transition-colors focus-ring rounded-full p-1"
@@ -731,7 +731,7 @@ const FooterPlayer = () => {
             initial={{ y: 100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 100, opacity: 0 }}
-            className="md:hidden fixed inset-x-2 z-40 h-[var(--mobile-mini-height)] rounded-soft glass-strong overflow-hidden ring-1 ring-white/[0.06]"
+            className="player-footer-mobile phablet:hidden fixed inset-x-2 z-40 h-[var(--mobile-mini-height)] rounded-soft glass-strong overflow-hidden ring-1 ring-white/[0.06]"
             style={{
               bottom:
                 'calc(var(--mobile-nav-height) + var(--mobile-nav-offset) + env(safe-area-inset-bottom, 0px) + var(--mobile-mini-gap))',

@@ -283,7 +283,7 @@ const Sidebar = ({ onNavigate }) => {
       initial={false}
       animate={{ width: expanded ? EXPANDED_W : COLLAPSED_W }}
       transition={springs.sheet}
-      className="hidden md:flex fixed left-0 top-0 h-dvh min-h-screen flex-col py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] z-50 overflow-hidden border-r border-white/[0.08] backdrop-blur-xl"
+      className="hidden lg:flex fixed left-0 top-0 h-dvh min-h-screen flex-col py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] z-50 overflow-hidden border-r border-white/[0.08] backdrop-blur-xl"
       style={{
         background:
           'linear-gradient(180deg, hsl(var(--surface-1) / 0.97), hsl(var(--surface-0) / 0.98))',

@@ -73,7 +73,7 @@ const MobileDrawer = () => {
     >
       <SheetContent
         side="left"
-        className="bg-surface-1/95 backdrop-blur-xl border-white/[0.08] w-72 p-0 flex flex-col"
+        className="mobile-drawer-shell bg-surface-1/95 backdrop-blur-xl border-white/[0.08] p-0 flex flex-col lg:hidden"
       >
         <SheetTitle className="sr-only">Navigation</SheetTitle>
 

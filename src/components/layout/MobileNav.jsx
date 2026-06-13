@@ -68,7 +68,7 @@ const MobileNav = () => {
       animate={{ y: 0, opacity: 1 }}
       transition={{ delay: 0.1 }}
       className={cn(
-        'md:hidden fixed inset-x-2 bottom-[var(--mobile-nav-offset)] z-40 h-[var(--mobile-nav-height)] rounded-soft',
+        'mobile-nav-shell lg:hidden fixed inset-x-2 bottom-[var(--mobile-nav-offset)] z-40 h-[var(--mobile-nav-height)] rounded-soft',
         'bg-surface-1/85 backdrop-blur-xl border border-white/[0.08] shadow-elev-4',
         'px-2',
       )}
