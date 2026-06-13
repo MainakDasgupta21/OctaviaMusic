@@ -42,6 +42,7 @@ const authConfig = {
     process.env.COOKIE_SECURE == null
       ? process.env.NODE_ENV === 'production'
       : parseBoolean(process.env.COOKIE_SECURE, process.env.NODE_ENV === 'production'),
+  cookieSameSite: process.env.COOKIE_SAMESITE || '',
   authRateLimitWindowMs: parsePositiveInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS, 60000),
   authRateLimitMax: parsePositiveInt(process.env.AUTH_RATE_LIMIT_MAX, 10),
 };

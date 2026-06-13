@@ -33,11 +33,28 @@ const createCsrfToken = () => randomBytes(24).toString('hex');
 
 const createJti = () => randomUUID();
 
+const SAME_SITE_VALUES = ['lax', 'strict', 'none'];
+
+// When the frontend and API live on different sites (e.g. separate
+// *.onrender.com subdomains, which are cross-site because onrender.com is a
+// public suffix), the browser only sends auth cookies if they are
+// `SameSite=None; Secure`. Default to `none` whenever cookies are secure, and
+// fall back to `lax` for local http dev (where `None` would be rejected).
+const resolveSameSite = (authConfig) => {
+  const configured = String(authConfig.cookieSameSite || '').trim().toLowerCase();
+  const requested = SAME_SITE_VALUES.includes(configured)
+    ? configured
+    : (authConfig.cookieSecure ? 'none' : 'lax');
+  if (requested === 'none' && !authConfig.cookieSecure) return 'lax';
+  return requested;
+};
+
 const buildAuthCookieOptions = (authConfig) => {
+  const sameSite = resolveSameSite(authConfig);
   const base = {
     httpOnly: true,
     secure: authConfig.cookieSecure,
-    sameSite: 'lax',
+    sameSite,
     ...(authConfig.cookieDomain ? { domain: authConfig.cookieDomain } : {}),
   };
 
@@ -55,7 +72,7 @@ const buildAuthCookieOptions = (authConfig) => {
     csrf: {
       httpOnly: false,
       secure: authConfig.cookieSecure,
-      sameSite: 'lax',
+      sameSite,
       path: '/',
       ...(authConfig.cookieDomain ? { domain: authConfig.cookieDomain } : {}),
       maxAge: parseDurationToMs(authConfig.jwtRefreshTtl, 30 * 24 * 60 * 60000),
@@ -69,5 +86,6 @@ module.exports = {
   compareTokenHash,
   createCsrfToken,
   createJti,
+  resolveSameSite,
   buildAuthCookieOptions,
 };
