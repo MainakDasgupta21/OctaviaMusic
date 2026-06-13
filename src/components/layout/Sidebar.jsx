@@ -341,8 +341,12 @@ const Sidebar = ({ onNavigate }) => {
       <nav
         data-lenis-prevent
         className={cn(
-          'relative z-10 min-h-0 flex-1 flex flex-col overflow-y-auto custom-scrollbar pb-8',
-          expanded ? 'gap-5 px-3' : 'gap-2 px-2',
+          'relative z-10 min-h-0 flex-1 flex flex-col overflow-y-auto pb-8',
+          // Collapsed is a narrow icon-only rail (~76px). Showing the 8px
+          // scrollbar there crowds the centered icons (they appear to touch
+          // the scroll line on shorter screens where the nav overflows), so
+          // hide it when collapsed — the bottom fade-mask still hints scroll.
+          expanded ? 'gap-5 px-3 custom-scrollbar' : 'gap-2 px-2 no-scrollbar',
         )}
         // Fade-out mask along the bottom so a long playlist list feels
         // infinite rather than abruptly cut. The mask is purely cosmetic;
