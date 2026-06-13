@@ -1,0 +1,23 @@
+# Render Blueprint (Infrastructure as Code) for the Octavia frontend.
+#
+# The key part for the "Not Found on refresh" bug is the `routes` rewrite:
+# the app uses React Router's BrowserRouter (HTML5 history), so paths like
+# /login or /register only exist client-side. A static host must serve
+# index.html for every path and let the router resolve the route. Without
+# this, refreshing or deep-linking any non-root URL returns Render's 404.
+services:
+  - type: web
+    runtime: static
+    name: octaviamusicfrontend
+    branch: main
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      # Build-time API base read by src/lib/api.js. Managed in the dashboard;
+      # `sync: false` keeps the blueprint from overwriting the existing value.
+      - key: VITE_API_BASE
+        sync: false
