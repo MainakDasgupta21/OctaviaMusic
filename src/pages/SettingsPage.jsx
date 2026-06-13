@@ -287,11 +287,16 @@ const SettingsPage = () => {
   const { settings, updateSetting, resetSettings, importSettings } = useSettings();
   const masthead = useMemo(() => formatMasthead(), []);
   const fileInputRef = useRef(null);
+  const navRailRef = useRef(null);
   const [activeSection, setActiveSection] = useState(SECTIONS[0].id);
 
   const accentMode = settings.accentColor || DYNAMIC_ACCENT;
   const activeAccentPreset = getAccentPreset(accentMode);
   const textSize = settings.textSize || 'md';
+  const reduceMotion = settings.reduceMotion === true;
+  const navPillTransition = reduceMotion
+    ? { duration: 0 }
+    : { type: 'spring', stiffness: 460, damping: 38, mass: 0.8 };
 
   // Scroll-spy: highlight the quick-nav chip for the section nearest the top.
   useEffect(() => {
@@ -314,6 +319,22 @@ const SettingsPage = () => {
     els.forEach((el) => observer.observe(el));
     return () => observer.disconnect();
   }, []);
+
+  // Keep the active chip centered within the (horizontally scrollable) rail on
+  // narrow viewports as the user scrolls through sections.
+  useEffect(() => {
+    const rail = navRailRef.current;
+    if (!rail) return;
+    const btn = rail.querySelector(`[data-section="${activeSection}"]`);
+    if (!btn) return;
+    const railRect = rail.getBoundingClientRect();
+    const btnRect = btn.getBoundingClientRect();
+    const delta = btnRect.left - railRect.left - (rail.clientWidth - btn.clientWidth) / 2;
+    rail.scrollTo({
+      left: rail.scrollLeft + delta,
+      behavior: reduceMotion ? 'auto' : 'smooth',
+    });
+  }, [activeSection, reduceMotion]);
 
   const scrollToSection = (sectionId) => {
     const el = document.getElementById(sectionId);
@@ -407,28 +428,59 @@ const SettingsPage = () => {
         </p>
       </motion.div>
 
-      {/* Sticky quick-nav — scrollable chips on mobile, inline on desktop */}
+      {/* Sticky quick-nav — a glass segmented rail with a sliding accent pill */}
       <nav
         aria-label="Settings sections"
-        className="sticky top-0 z-20 -mx-3 sm:mx-0 mb-6 px-3 sm:px-0 py-2 bg-surface-1/80 backdrop-blur-md border-b border-white/[0.06]"
+        className="sticky top-0 z-20 -mx-3 sm:-mx-4 md:-mx-6 mb-6 px-3 sm:px-4 md:px-6 pt-3 pb-3.5 bg-gradient-to-b from-surface-1 via-surface-1/90 to-surface-1/0 backdrop-blur-xl"
       >
-        <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {SECTIONS.map((s) => {
+        <div
+          ref={navRailRef}
+          className={cn(
+            'flex w-max max-w-full items-center gap-0.5 overflow-x-auto rounded-full p-1',
+            'border border-white/[0.08] bg-surface-2/60 backdrop-blur-md',
+            'shadow-[inset_0_1px_0_hsl(var(--ink-primary)/0.06),0_10px_30px_-14px_rgba(0,0,0,0.7)]',
+            '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+          )}
+        >
+          {SECTIONS.map((s, i) => {
             const active = activeSection === s.id;
             return (
               <button
                 key={s.id}
                 type="button"
+                data-section={s.id}
                 onClick={() => scrollToSection(s.id)}
                 aria-current={active ? 'true' : undefined}
                 className={cn(
-                  'shrink-0 rounded-full px-3 py-1.5 text-[11px] font-mono uppercase tracking-[0.14em] transition-colors focus-ring',
-                  active
-                    ? 'bg-track text-track-fg'
-                    : 'text-ink-3 hover:text-ink hover:bg-white/[0.06]',
+                  'group relative shrink-0 rounded-full px-3 sm:px-3.5 py-1.5 focus-ring',
+                  'text-[11px] font-mono uppercase tracking-[0.16em] transition-colors duration-200',
+                  active ? 'text-track-fg' : 'text-ink-3 hover:text-ink',
                 )}
               >
-                {s.label}
+                {active ? (
+                  <motion.span
+                    layoutId="settings-nav-pill"
+                    transition={navPillTransition}
+                    aria-hidden="true"
+                    className="absolute inset-0 rounded-full ring-1 ring-white/15 shadow-[0_3px_12px_-2px_hsl(var(--track-accent)/0.6)]"
+                    style={{
+                      backgroundImage:
+                        'radial-gradient(circle at 30% 20%, hsl(var(--ink-primary) / 0.24), transparent 55%), linear-gradient(135deg, hsl(var(--track-accent)), hsl(var(--track-accent-strong)))',
+                    }}
+                  />
+                ) : null}
+                <span className="relative z-10 flex items-center gap-1.5">
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      'font-mono text-[8.5px] tabular-nums transition-colors',
+                      active ? 'text-track-fg/65' : 'text-ink-4 group-hover:text-ink-3',
+                    )}
+                  >
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+                  {s.label}
+                </span>
               </button>
             );
           })}
