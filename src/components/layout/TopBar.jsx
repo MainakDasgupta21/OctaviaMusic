@@ -397,7 +397,7 @@ const TopBar = () => {
     <TooltipProvider delayDuration={250}>
       <header
         className={cn(
-          'app-topbar sticky top-0 z-40 h-[var(--topbar-height)] flex items-center gap-2 sm:gap-3 px-2 tiny:px-2.5 sm:px-3 md:px-5 xl:px-6',
+          'app-topbar sticky top-0 z-40 h-[var(--topbar-height)] flex items-center gap-2 sm:gap-3 px-2 tiny:px-2.5 sm:px-3 md:px-8 lg:px-5 xl:px-6',
           'bg-background/80 backdrop-blur-2xl border-b border-white/[0.07] relative',
           // Subtle inset top-light gives the chrome a premium "lifted" feel
           // without changing layout. Pairs with the bottom hairline.
