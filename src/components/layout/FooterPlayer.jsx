@@ -526,7 +526,7 @@ const FooterPlayer = () => {
               />
             </div>
 
-            <div className="player-desktop-center flex min-w-0 flex-col items-center gap-1.5 md:basis-[44%] lg:flex-1 lg:basis-auto">
+            <div className="player-desktop-center relative flex h-full min-w-0 items-center justify-center md:basis-[44%] lg:flex-1 lg:basis-auto">
               <div className="flex items-center gap-2.5 lg:gap-4">
                 <motion.button
                   type="button"
@@ -628,7 +628,7 @@ const FooterPlayer = () => {
                   palette as the ring and the play button. */}
               <div
                 className={cn(
-                  'flex w-full max-w-[460px] items-center gap-2.5 lg:max-w-[520px] xl:max-w-[620px]',
+                  'absolute bottom-0 left-1/2 flex w-full max-w-[460px] -translate-x-1/2 items-center gap-2.5 lg:max-w-[520px] xl:max-w-[620px]',
                   isBuffering && 'animate-pulse',
                 )}
               >
