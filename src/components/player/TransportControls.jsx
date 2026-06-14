@@ -65,7 +65,7 @@ const TransportControls = () => {
         className={skipBtn(!canGoPrevious)}
         aria-label={labels.previous}
       >
-        <SkipBack className="h-[21px] w-[21px] fill-current" />
+        <SkipBack className="h-[21px] w-[21px] -translate-x-[2px] fill-current" />
       </motion.button>
 
       <motion.button
@@ -100,7 +100,7 @@ const TransportControls = () => {
         className={skipBtn(!canGoNext)}
         aria-label={labels.next}
       >
-        <SkipForward className="h-[21px] w-[21px] fill-current" />
+        <SkipForward className="h-[21px] w-[21px] translate-x-[2px] fill-current" />
       </motion.button>
 
       <motion.button
