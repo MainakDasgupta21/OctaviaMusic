@@ -33,7 +33,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import HeartButton from '@/components/HeartButton';
 import AddToPlaylistButton from '@/components/playlist/AddToPlaylistButton';
 import { useColorExtraction } from '@/hooks/use-color-extraction';
-import { formatTime } from '@/lib/player-format';
+import { formatTime, cleanTrackTitle, cleanArtistName } from '@/lib/player-format';
 import { pickPlaceholder, sanitizeImageUrl, sanitizeVideoId } from '@/lib/media-sanitize';
 import { isReducedMotion } from '@/design/motion';
 import { cn } from '@/lib/utils';
@@ -313,6 +313,15 @@ const FooterPlayer = () => {
   const liveProgressRef = useRef(0);
   const liveDurationRef = useRef(0);
 
+  // Mirror the user's *intended* play state synchronously (in render, before any
+  // child effect/media event fires). The background keep-alive below reads this
+  // to tell "the user paused" apart from "the browser auto-paused us".
+  const wantPlayingRef = useRef(isPlaying);
+  wantPlayingRef.current = isPlaying;
+  // Throttle background resume attempts so a browser that flat-out refuses
+  // background playback can't trap us in a tight play/pause loop.
+  const lastResumeAttemptRef = useRef(0);
+
   // Crossfade gain (0..1) multiplies the user's volume so the controller can
   // ramp the track in/out without clobbering the user's slider position.
   const [fadeGain, setFadeGain] = useState(1);
@@ -436,6 +445,58 @@ const FooterPlayer = () => {
     }
     handleTrackEnded();
   }, [playerRef, reportProgress, handleTrackEnded]);
+
+  // Mobile browsers (especially Chrome/Safari on Android/iOS) suspend the
+  // hidden YouTube iframe when the app is sent to the background, which stalls
+  // playback until the user taps play again. react-player only re-issues
+  // `play()` on re-render — and a backgrounded tab never re-renders — so we
+  // resume it ourselves whenever it gets auto-paused while the page is hidden.
+  const resumeBackgroundPlayback = useCallback(() => {
+    const media = playerRef.current;
+    if (!media) return;
+    // Only fight pauses we didn't ask for. If the user paused (UI button or the
+    // lock-screen / notification controls), `wantPlayingRef` is already false
+    // and we leave it paused.
+    if (!wantPlayingRef.current) return;
+    // The underlying youtube-video-element fires `pause` for BOTH a genuine
+    // pause (YT state 2) and the end of a track (state 0). Only resume genuine
+    // pauses — otherwise a finished track would restart from 0 here instead of
+    // advancing through `handleEnded`. State numbers: -1 unstarted, 0 ended,
+    // 1 playing, 2 paused, 3 buffering, 5 cued.
+    const playerState = media.api?.getPlayerState?.();
+    if (typeof playerState === 'number' && playerState !== 2) return;
+    const now = Date.now();
+    if (now - lastResumeAttemptRef.current < 600) return;
+    lastResumeAttemptRef.current = now;
+    try {
+      const result = media.play?.();
+      if (result && typeof result.catch === 'function') {
+        result.catch(() => {});
+      }
+    } catch {
+      /* play() can throw if the element isn't ready yet */
+    }
+  }, [playerRef]);
+
+  const handlePause = useCallback(() => {
+    // A pause while the page is hidden is the browser backgrounding us, not the
+    // user — re-issue play so audio keeps running in the background.
+    if (typeof document !== 'undefined' && document.hidden) {
+      resumeBackgroundPlayback();
+    }
+  }, [resumeBackgroundPlayback]);
+
+  // Belt-and-braces: some browsers fire `visibilitychange` (and only then pause)
+  // — nudge playback on the way out too.
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+    const handleVisibilityChange = () => {
+      if (document.hidden) resumeBackgroundPlayback();
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [resumeBackgroundPlayback]);
+
   const playerConfig = useMemo(
     () => ({
       youtube: {
@@ -496,10 +557,14 @@ const FooterPlayer = () => {
       return;
     }
     try {
+      // Scrub the YouTube-sourced title/artist so the lock screen + notification
+      // shade read like a real music app ("Song" / "Artist") instead of a raw
+      // video title ("Song (Official Video) - Artist").
+      const cleanArtist = cleanArtistName(currentTrack.artist);
       navigator.mediaSession.metadata = new window.MediaMetadata({
-        title: currentTrack.title || 'Untitled',
-        artist: currentTrack.artist || 'Unknown artist',
-        album: 'Octavia',
+        title: cleanTrackTitle(currentTrack.title, cleanArtist) || 'Untitled',
+        artist: cleanArtist || 'Unknown artist',
+        album: currentTrack.album || 'Octavia',
         artwork: safeThumbnail
           ? [
               { src: safeThumbnail, sizes: '96x96', type: 'image/jpeg' },
@@ -537,22 +602,17 @@ const FooterPlayer = () => {
     safe('pause', () => togglePlay());
     safe('previoustrack', () => playPrevious());
     safe('nexttrack', () => playNext());
-    safe('seekbackward', (details) => {
-      const step = details?.seekOffset || 10;
-      seekTo(Math.max(0, (liveProgressRef.current || 0) - step));
-    });
-    safe('seekforward', (details) => {
-      const step = details?.seekOffset || 10;
-      seekTo(Math.min(liveDurationRef.current || 0, (liveProgressRef.current || 0) + step));
-    });
+    // Intentionally NOT registering `seekbackward`/`seekforward`: on Android,
+    // Chrome promotes those into the compact notification as rewind/forward
+    // buttons and demotes prev/next. Leaving them off keeps the standard,
+    // premium music-app transport (previous · play/pause · next). `seekto`
+    // stays so the progress bar in the notification is still draggable.
     safe('seekto', (details) => {
       if (typeof details?.seekTime === 'number') seekTo(details.seekTime);
     });
 
     return () => {
-      ['play', 'pause', 'previoustrack', 'nexttrack', 'seekbackward', 'seekforward', 'seekto'].forEach(
-        (a) => safe(a, null),
-      );
+      ['play', 'pause', 'previoustrack', 'nexttrack', 'seekto'].forEach((a) => safe(a, null));
     };
   }, [togglePlay, playPrevious, playNext, seekTo]);
 
@@ -619,6 +679,7 @@ const FooterPlayer = () => {
           onTimeUpdate={handleTimeUpdate}
           onDurationChange={handleDurationChange}
           onLoadedMetadata={handleLoadedMetadata}
+          onPause={handlePause}
           onEnded={handleEnded}
           width="0"
           height="0"

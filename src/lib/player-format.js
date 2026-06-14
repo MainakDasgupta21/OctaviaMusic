@@ -54,6 +54,58 @@ export const splitHeadline = (title) => {
   };
 };
 
+// =============================================================================
+// OS media-notification formatting.
+// YouTube-sourced titles carry noise ("(Official Video)", "[Lyric Video]",
+// trailing channel tags, a duplicated "Artist - " prefix). The lock screen /
+// notification-shade player reads better when it shows a clean "Song" + "Artist"
+// the way Spotify / Apple Music / YT Music do, so we scrub the metadata we hand
+// to the Media Session API here. This intentionally only affects the OS media
+// UI — in-app surfaces keep the original title.
+// =============================================================================
+
+// Bracketed descriptors we want to drop from a media title. Deliberately keeps
+// "(feat. …)" / "(with …)" since those are part of the song, not video noise.
+const TITLE_NOISE_RE =
+  /\s*[([][^)\]]*\b(?:official|oficial|video|v[ií]deo|audio|[áa]udio|lyrics?|letra|visuali[sz]er|m\/?v|hd|4k|hq|explicit|clean|radio edit|remaster(?:ed)?|colou?r\s*coded|performance|live)\b[^)\]]*[)\]]/gi;
+
+export const cleanTrackTitle = (rawTitle, artist = '') => {
+  const original = String(rawTitle || '').trim();
+  if (!original) return '';
+
+  let t = original.replace(TITLE_NOISE_RE, '');
+
+  // Drop trailing "| channel / extra" segments.
+  t = t.replace(/\s*\|\s*.*$/, '');
+
+  // "Artist - Song" / "Song - Artist": when we already know the artist (shown
+  // on its own line in the notification), strip the duplicated half.
+  const a = String(artist || '').trim().toLowerCase();
+  if (a) {
+    const parts = t.split(/\s+[-–—]\s+/);
+    if (parts.length === 2) {
+      const [left, right] = parts.map((p) => p.trim());
+      if (left.toLowerCase() === a) t = right;
+      else if (right.toLowerCase() === a) t = left;
+    }
+  }
+
+  // Tidy leftover whitespace and dangling separators.
+  t = t.replace(/\s{2,}/g, ' ').replace(/^\s*[-–—|]\s*|\s*[-–—|]\s*$/g, '').trim();
+
+  return t || original;
+};
+
+export const cleanArtistName = (rawArtist) => {
+  const original = String(rawArtist || '').trim();
+  if (!original) return '';
+  const cleaned = original
+    .replace(/\s*-\s*topic$/i, '') // YouTube auto-generated artist channels
+    .replace(/\s*VEVO$/i, '')
+    .trim();
+  return cleaned || original;
+};
+
 // Mirrors the slug rule used across the app for artist routes.
 export const artistSlug = (track) =>
   track?.artistSlug ||
