@@ -2107,13 +2107,13 @@
 
 /* =========================================================================
    Scroll-activity guards
-   While the page scroller (`#main-content`) is actively moving, MainLayout
-   sets `data-scrolling` on <html>. The flag clears ~120ms after scrolling
-   stops, so everything below applies only for the duration of a scroll and
-   resting visuals are completely unchanged.
+   While any scroller is actively moving, MainLayout sets `data-scrolling` on
+   <html>. The flag clears ~150ms after scrolling stops, so everything below
+   applies only for the duration of a scroll and resting visuals are
+   completely unchanged.
    ========================================================================= */
 
-/* 1. The real cause of "cards float/ghost/lag then snap" during fast scroll:
+/* 1. One half of the "cards float/ghost/lag then snap" jank during fast scroll:
    the grain overlay below is a viewport-sized `position: fixed` element painted
    ON TOP of all content with `mix-blend-mode`. To keep the blend correct, the
    browser must re-composite the entire screen against the scrolling content on
@@ -2126,7 +2126,22 @@
   display: none;
 }
 
-/* 2. Cursor-parked hover guard. Scrolling slides cards under a stationary
+/* 2. `backdrop-filter` (frosted glass) on the top bar, footer player, mobile
+   nav and various chips overlaps the scroll area. An overlapping backdrop
+   filter forces the browser to re-rasterize the scroller on the MAIN thread
+   every frame (composited/fast scrolling is disabled), which is the other half
+   of the lag/ghost/snap jank. Turning the blur off for the length of a scroll
+   restores fast scrolling; the surfaces are mostly opaque so the missing blur
+   is not noticeable while the page is moving. `!important` so it also beats
+   inline `style` blurs. */
+:root[data-scrolling='true'] .glass,
+:root[data-scrolling='true'] .glass-strong,
+:root[data-scrolling='true'] [class*='backdrop-blur'] {
+  -webkit-backdrop-filter: none !important;
+          backdrop-filter: none !important;
+}
+
+/* 3. Cursor-parked hover guard. Scrolling slides cards under a stationary
    pointer; without this each card would briefly enter `:hover` and fire its
    lift / magnetic-glow / reveal transition. Disabling pointer events on the
    scroller's content kills every hover / group-hover effect at once. The

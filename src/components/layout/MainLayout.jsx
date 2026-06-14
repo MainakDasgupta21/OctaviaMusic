@@ -43,8 +43,6 @@ const MainLayout = () => {
   const paletteEverOpened = useStickyTrue(paletteOpen);
   const drawerEverOpened = useStickyTrue(mobileDrawerOpen);
 
-  const mainRef = useRef(null);
-
   useKeyboardShortcuts();
   useFirstRunHints();
 
@@ -96,37 +94,52 @@ const MainLayout = () => {
     resetPageScroll();
   }, [location.pathname]);
 
-  // Flag <html> with `data-scrolling` while the page scroller is moving; the
-  // flag clears ~120ms after the last scroll event. CSS uses it to fix the
-  // "cards float/ghost/lag then snap" jank: the fixed, full-viewport grain
-  // overlay (`body::before`) is blended over all content with `mix-blend-mode`,
-  // which forces the browser to re-composite the whole screen every scroll
-  // frame and knocks scrolling off the GPU fast-path. Dropping that overlay
-  // for the duration of a scroll restores smooth scrolling (it's barely
-  // visible at ~0.045 opacity, so the user never notices). The same flag also
-  // suppresses pointer-hover lift on cards that slide under a parked cursor.
-  // Scoped to `#main-content`, so nested rails and the /player route (scroll
-  // locked) never trip it.
+  // Flag <html> with `data-scrolling` while ANY scroller is moving; the flag
+  // clears ~150ms after the last scroll event. CSS uses it to disable the GPU
+  // scroll slow-path triggers for the duration of a scroll, which fixes the
+  // "cards float/ghost/lag then snap" jank:
+  //   - the fixed, full-viewport grain overlay (`body::before`) blended over
+  //     all content with `mix-blend-mode`, and
+  //   - `backdrop-filter` (frosted glass) on the bars/chips that overlap the
+  //     scroller.
+  // Both force the browser to repaint the scroll region on the main thread
+  // every frame, so the content trails the scroll and snaps into place.
+  // Dropping them only while scrolling restores composited (smooth) scrolling
+  // and is imperceptible (the grain is ~0.045 opacity; the glass is mostly
+  // opaque). A document-level CAPTURE listener is used so it fires no matter
+  // which element is the real scroller (#main-content, the document, or a
+  // nested rail) — that robustness matters because the page scroller differs
+  // across breakpoints.
   useEffect(() => {
-    const scroller = mainRef.current;
-    if (!scroller || typeof document === 'undefined') return undefined;
+    if (typeof document === 'undefined') return undefined;
 
     const root = document.documentElement;
     let idleTimer = null;
 
-    const handleScroll = () => {
-      root.dataset.scrolling = 'true';
+    const markScrolling = () => {
+      if (root.dataset.scrolling !== 'true') {
+        root.dataset.scrolling = 'true';
+      }
       if (idleTimer) clearTimeout(idleTimer);
       idleTimer = setTimeout(() => {
         delete root.dataset.scrolling;
         idleTimer = null;
-      }, 120);
+      }, 150);
     };
 
-    scroller.addEventListener('scroll', handleScroll, { passive: true });
+    // `scroll` fires for any scroller (capture catches non-bubbling events from
+    // descendants). `wheel` / `touchmove` set the flag on the very first input,
+    // before the first scroll frame paints, so the slow-path effects are gone
+    // even for the opening frame of a fast flick.
+    const opts = { capture: true, passive: true };
+    document.addEventListener('scroll', markScrolling, opts);
+    window.addEventListener('wheel', markScrolling, { passive: true });
+    window.addEventListener('touchmove', markScrolling, { passive: true });
 
     return () => {
-      scroller.removeEventListener('scroll', handleScroll);
+      document.removeEventListener('scroll', markScrolling, { capture: true });
+      window.removeEventListener('wheel', markScrolling);
+      window.removeEventListener('touchmove', markScrolling);
       if (idleTimer) clearTimeout(idleTimer);
       delete root.dataset.scrolling;
     };
@@ -164,7 +177,6 @@ const MainLayout = () => {
 
         <main
           id="main-content"
-          ref={mainRef}
           className={cn(
             'relative flex-1 min-h-0 min-w-0 custom-scrollbar overscroll-contain',
             // The Now Playing screen is a single, locked viewport on desktop:
