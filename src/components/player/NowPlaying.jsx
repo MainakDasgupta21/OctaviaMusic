@@ -196,9 +196,9 @@ const NowPlaying = () => {
         />
 
         <div className="relative flex h-full min-h-0 flex-col p-3 sm:p-5 lg:p-6">
-          <div className="grid gap-4 sm:gap-5 lg:grid-cols-[minmax(220px,320px)_minmax(0,1fr)] lg:items-center xl:h-full xl:min-h-0">
-            <motion.div variants={fadeUp} className="mx-auto w-full max-w-[min(360px,58vh)] sm:max-w-[min(360px,52vh)] lg:max-w-[360px]">
-              <div className="mx-auto aspect-square w-full -translate-y-2 sm:-translate-y-3 p-[11.5%]">
+          <div className="grid gap-2 sm:gap-5 lg:grid-cols-[minmax(220px,320px)_minmax(0,1fr)] lg:items-center xl:h-full xl:min-h-0">
+            <motion.div variants={fadeUp} className="mx-auto w-full max-w-[min(208px,26vh)] xs:max-w-[min(232px,30vh)] phablet:max-w-[min(280px,38vh)] sm:max-w-[min(320px,44vh)] lg:max-w-[360px]">
+              <div className="mx-auto aspect-square w-full -translate-y-1 p-[8%] sm:-translate-y-2 sm:p-[11.5%]">
                 <div className="np-vinyl-art relative h-full w-full rounded-full overflow-hidden">
                   <div
                     aria-hidden="true"
@@ -229,7 +229,7 @@ const NowPlaying = () => {
               </div>
             </motion.div>
 
-            <motion.div variants={fadeUp} className="min-w-0 space-y-3.5 sm:space-y-4 xl:max-w-[640px]">
+            <motion.div variants={fadeUp} className="min-w-0 space-y-2.5 sm:space-y-4 xl:max-w-[640px]">
               <TrackHeadline />
               <div className="rounded-panel border border-white/[0.08] bg-surface-0/46 px-3 py-4 shadow-elev-2 sm:p-5">
                 <TransportControls />

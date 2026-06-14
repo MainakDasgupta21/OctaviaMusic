@@ -53,7 +53,7 @@ const TrackHeadline = () => {
               ease: easings.accel,
             },
           }}
-          className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+          className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between"
         >
           <div className="min-w-0 flex-1 max-w-[48ch]">
             <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-4/90">
@@ -61,8 +61,8 @@ const TrackHeadline = () => {
             </p>
 
             <h1
-              className="np-title mt-2 font-display font-semibold leading-[1.05] tracking-tightest text-ink [text-wrap:balance]"
-              style={{ fontSize: 'clamp(30px, min(4.2vw, 5.2vh), 44px)' }}
+              className="np-title mt-1.5 font-display font-semibold leading-[1.05] tracking-tightest text-ink [text-wrap:balance] sm:mt-2"
+              style={{ fontSize: 'clamp(26px, min(4.4vw, 5vh), 44px)' }}
             >
               <span className="block">{split.headline}</span>
               {split.subhead ? (
@@ -72,7 +72,7 @@ const TrackHeadline = () => {
               ) : null}
             </h1>
 
-            <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-body text-ink-2">
+            <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-body text-ink-2 sm:mt-3">
               <Link
                 to={slug ? `/artist/${slug}` : '#'}
                 className="rounded-sm font-medium text-track underline decoration-1 decoration-white/15 underline-offset-[6px] transition-colors hover:decoration-accent focus-ring"
