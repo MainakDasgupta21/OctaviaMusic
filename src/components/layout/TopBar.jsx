@@ -918,7 +918,7 @@ const TopBar = () => {
               single hairline pill so the chrome reads as one action region
               rather than two loose icons. Matches the back/forward pill on
               the left for vocabulary symmetry. */}
-          <div className="hidden sm:inline-flex items-center p-0.5 rounded-full border border-white/[0.06] bg-white/[0.03]">
+          <div className="hidden tiny:inline-flex items-center p-0.5 rounded-full border border-white/[0.06] bg-white/[0.03]">
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -1022,7 +1022,7 @@ const TopBar = () => {
           </div>
 
           {/* Hairline divider between the action cluster and the avatar pill. */}
-          <span aria-hidden="true" className="hidden sm:inline-block mx-2 h-5 w-px bg-white/[0.06]" />
+          <span aria-hidden="true" className="hidden tiny:inline-block mx-2 h-5 w-px bg-white/[0.06]" />
 
           {isAuthenticated ? (
             <DropdownMenu>

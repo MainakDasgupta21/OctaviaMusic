@@ -98,7 +98,7 @@ const MainLayout = () => {
     <div
       className={cn(
         'relative overflow-x-clip app-layout-shell',
-        isPlayerRoute ? 'h-screen overflow-hidden' : 'min-h-screen',
+        isPlayerRoute ? 'h-screen overflow-hidden' : 'h-[100dvh] overflow-hidden',
       )}
     >
       <RouteProgress />
@@ -119,7 +119,7 @@ const MainLayout = () => {
       <div
         className={cn(
           'grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] transition-[padding] duration-med ease-emphasis lg:pl-[var(--sidebar-w,0px)]',
-          isPlayerRoute ? 'h-full overflow-hidden' : 'min-h-screen',
+          isPlayerRoute ? 'h-full overflow-hidden' : 'h-[100dvh] overflow-hidden',
         )}
       >
         <TopBar />
@@ -127,7 +127,7 @@ const MainLayout = () => {
         <main
           id="main-content"
           className={cn(
-            'relative flex-1 min-h-0 min-w-0 custom-scrollbar overscroll-x-contain',
+            'relative flex-1 min-h-0 min-w-0 custom-scrollbar overscroll-contain',
             // The Now Playing screen is a single, locked viewport on desktop:
             // no page scroll, and no footer-player gutter (the page reserves
             // that space itself). Smaller breakpoints keep normal scrolling.
