@@ -401,6 +401,10 @@ export const PlayerProvider = ({ children }) => {
     setIsPlaying((previous) => !previous);
   }, []);
 
+  const pause = useCallback(() => {
+    setIsPlaying(false);
+  }, []);
+
   const setVolume = useCallback((nextVolume) => {
     const clamped = Math.max(0, Math.min(1, nextVolume));
     setVolumeState(clamped);
@@ -811,6 +815,7 @@ export const PlayerProvider = ({ children }) => {
       repeat,
       playTrack,
       togglePlay,
+      pause,
       setVolume,
       toggleMute,
       seekTo,
@@ -845,6 +850,7 @@ export const PlayerProvider = ({ children }) => {
       repeat,
       playTrack,
       togglePlay,
+      pause,
       setVolume,
       toggleMute,
       seekTo,

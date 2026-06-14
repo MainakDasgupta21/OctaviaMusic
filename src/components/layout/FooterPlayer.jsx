@@ -283,6 +283,7 @@ const FooterPlayer = () => {
     volume,
     isMuted,
     togglePlay,
+    pause,
     setVolume,
     toggleMute,
     seekTo,
@@ -321,6 +322,8 @@ const FooterPlayer = () => {
   // Throttle background resume attempts so a browser that flat-out refuses
   // background playback can't trap us in a tight play/pause loop.
   const lastResumeAttemptRef = useRef(0);
+  // Pending timer for the foreground-pause reconciliation in handlePause below.
+  const foregroundPauseCheckRef = useRef(null);
 
   // Crossfade gain (0..1) multiplies the user's volume so the controller can
   // ramp the track in/out without clobbering the user's slider position.
@@ -393,6 +396,10 @@ const FooterPlayer = () => {
   );
 
   useEffect(() => clearLongPressTimer, [clearLongPressTimer]);
+  // Clear any pending foreground-pause reconciliation timer on unmount.
+  useEffect(() => () => {
+    if (foregroundPauseCheckRef.current) clearTimeout(foregroundPauseCheckRef.current);
+  }, []);
   const isPlayerRoute = location.pathname.startsWith('/player');
 
   useEffect(() => {
@@ -483,8 +490,28 @@ const FooterPlayer = () => {
     // user — re-issue play so audio keeps running in the background.
     if (typeof document !== 'undefined' && document.hidden) {
       resumeBackgroundPlayback();
+      return;
     }
-  }, [resumeBackgroundPlayback]);
+    // Foreground pause we didn't initiate (e.g. YouTube's "Video paused.
+    // Continue watching?" prompt, an autoplay/stall pause). The icon is driven
+    // by `isPlaying` (intent), so without this the button stays stuck on ‖ while
+    // the audio is actually stopped. Re-check after a short delay so transient
+    // pauses during track switches / seeks / rapid toggles don't wrongly flip
+    // the icon.
+    if (foregroundPauseCheckRef.current) clearTimeout(foregroundPauseCheckRef.current);
+    foregroundPauseCheckRef.current = setTimeout(() => {
+      foregroundPauseCheckRef.current = null;
+      if (!wantPlayingRef.current) return; // user already paused — nothing to fix
+      if (typeof document !== 'undefined' && document.hidden) return; // backgrounded
+      const media = playerRef.current;
+      const playerState = media?.api?.getPlayerState?.();
+      // YT states: -1 unstarted, 0 ended, 1 playing, 2 paused, 3 buffering, 5 cued.
+      // Only a sustained, genuine paused (2) reconciles; everything else is a
+      // transition we must not treat as a user-visible pause.
+      if (playerState !== 2) return;
+      pause();
+    }, 280);
+  }, [resumeBackgroundPlayback, pause, playerRef]);
 
   // Belt-and-braces: some browsers fire `visibilitychange` (and only then pause)
   // — nudge playback on the way out too.
