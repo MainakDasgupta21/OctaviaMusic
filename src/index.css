@@ -905,13 +905,14 @@
        inner list is `position: fixed`, but a min-height here would inflate
        them and push the whole app down, opening a gap above the header. */
     :where(
-      button,
+      button:not([role='switch']),
       [role='button'],
       [role='tab'],
-      [type='button'],
+      [type='button']:not([role='switch']),
       [type='submit'],
       [aria-label]:not(:where(
         div, section, nav, header, footer, main, aside, ol, ul, form,
+        [role='switch'],
         [role='region'], [role='status'], [role='log'], [role='alert'], [role='navigation']
       )),
       input[type='range']

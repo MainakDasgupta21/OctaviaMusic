@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 const Switch = React.forwardRef(({ className, ...props }, ref) => (
   <SwitchPrimitives.Root
     className={cn(
-      "group peer relative inline-flex h-[26px] w-[46px] shrink-0 cursor-pointer items-center rounded-full",
+      "group peer relative inline-flex h-[26px] min-h-[26px] max-h-[26px] w-[46px] shrink-0 cursor-pointer items-center rounded-full",
       "transition-colors duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
       "border border-white/[0.12]",
       "data-[state=unchecked]:bg-white/[0.06] data-[state=unchecked]:hover:bg-white/[0.10]",
