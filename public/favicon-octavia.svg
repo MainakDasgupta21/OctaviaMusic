@@ -1,14 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <defs>
-    <linearGradient id="chip" x1="0" y1="0" x2="0.42" y2="0.91">
-      <stop offset="0%" stop-color="#EB6433" />
-      <stop offset="100%" stop-color="#DA481B" />
-    </linearGradient>
-  </defs>
-  <rect width="64" height="64" rx="14" fill="url(#chip)" />
+  <!-- Octavia bullseye. Orange ring + orange centre dot; the gap between them
+       is transparent so the tab background shows through (white in light mode,
+       dark in dark mode). Mirrors the in-app LogoMark
+       (src/components/brand/Logo.jsx). -->
   <path
-    fill="#ffffff"
+    fill="#e85d2c"
     fill-rule="evenodd"
-    d="M 9 32 A 23 23 0 1 0 55 32 A 23 23 0 1 0 9 32 Z M 18.5 31 A 13.5 13.5 0 1 0 45.5 31 A 13.5 13.5 0 1 0 18.5 31 Z"
+    d="M 9 32 A 23 23 0 1 0 55 32 A 23 23 0 1 0 9 32 Z M 15.5 32 A 16.5 16.5 0 1 0 48.5 32 A 16.5 16.5 0 1 0 15.5 32 Z M 21.5 32 A 10.5 10.5 0 1 0 42.5 32 A 10.5 10.5 0 1 0 21.5 32 Z"
   />
 </svg>

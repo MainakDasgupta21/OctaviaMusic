@@ -1,14 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
-  <defs>
-    <linearGradient id="chip" x1="0" y1="0" x2="0.42" y2="0.91">
-      <stop offset="0%" stop-color="#EB6433" />
-      <stop offset="100%" stop-color="#DA481B" />
-    </linearGradient>
-  </defs>
-  <rect width="180" height="180" rx="40" fill="url(#chip)" />
+  <!-- Octavia bullseye on a solid dark background. iOS home-screen icons can't
+       be transparent (a transparent gap becomes solid black), so the gap is
+       painted with the app theme colour (#0a0907) and reads dark. Mirrors the
+       in-app LogoMark (src/components/brand/Logo.jsx); path scaled 64 -> 180. -->
+  <rect width="180" height="180" rx="40" fill="#0a0907" />
   <path
-    fill="#ffffff"
+    fill="#e85d2c"
     fill-rule="evenodd"
-    d="M 25.31 90 A 64.69 64.69 0 1 0 154.69 90 A 64.69 64.69 0 1 0 25.31 90 Z M 52.03 87.19 A 37.97 37.97 0 1 0 127.97 87.19 A 37.97 37.97 0 1 0 52.03 87.19 Z"
+    d="M 25.31 90 A 64.69 64.69 0 1 0 154.69 90 A 64.69 64.69 0 1 0 25.31 90 Z M 43.59 90 A 46.41 46.41 0 1 0 136.41 90 A 46.41 46.41 0 1 0 43.59 90 Z M 60.47 90 A 29.53 29.53 0 1 0 119.53 90 A 29.53 29.53 0 1 0 60.47 90 Z"
   />
 </svg>
