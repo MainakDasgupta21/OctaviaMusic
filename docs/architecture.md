@@ -1,182 +1,246 @@
 # Architecture
 
-This document explains how Octavia is split, how requests flow, and how the
-system maintains UX quality when upstream providers are slow or unavailable.
+> **What you'll learn here:** the overall design pattern, a full diagram of how the frontend, backend, database, and external services connect, what each layer is responsible for, the complete request lifecycle from app open to data on screen, and the *why* behind the big technical decisions.
 
-## System Overview
+---
 
-Octavia has two runtime applications:
+## Summary
 
-- **Frontend (`src/`)**: React SPA (Vite) that renders all pages and playback UI.
-- **Backend (`server/`)**: Express API that aggregates catalog/discovery/lyrics
-  data from external services.
+Octavia is a **client–server web application** split into:
 
-Core boundary:
+- A **component-based React single-page application (SPA)** that runs entirely in the browser.
+- A **layered (MVC-style) Express REST API** that serves catalog metadata, charts, lyrics, and the user's personal library.
+- A **MongoDB database** that stores only user-owned data (accounts, favorites, playlists, history, settings).
+- A set of **external data providers** (YouTube Music, Last.fm, MusicBrainz, LRCLib) and **YouTube itself** for audio playback.
 
-- Metadata and discovery come from backend API endpoints (`/api/...`).
-- Actual media streaming is **not** proxied by backend; the browser plays
-  YouTube directly via `react-player`.
+It is **not** microservices and **not** serverless — it's two cooperating monolithic apps (one SPA, one API server) in a single repository.
 
-## High-Level Architecture
+---
 
-```mermaid
-flowchart LR
-  subgraph browserApp [BrowserApp]
-    reactApp[ReactApp]
-    playerContext[PlayerContext]
-    apiClient[AxiosApiClient]
-    searchWorker[SearchRankWorker]
-    reactPlayer[ReactPlayerYouTube]
-  end
+## 1. The architecture pattern
 
-  subgraph serverApp [ExpressServer]
-    routeLayer[Routes]
-    controllerLayer[Controllers]
-    serviceLayer[Services]
-    clientLayer[Clients]
-    libLayer[ServerLib]
-    fallbackCatalog[FallbackCatalog]
-  end
+### Frontend: component-based SPA
+The frontend is a **Single-Page Application**. The browser loads one HTML file (`index.html`) and a JavaScript bundle, and from then on React swaps the page contents in place when you navigate — no full page reloads. The UI is built from **composable components** (small, reusable building blocks) organized by feature.
 
-  subgraph externals [ExternalProviders]
-    ytm[YouTubeMusic]
-    lastfm[Lastfm]
-    musicbrainz[MusicBrainz]
-    lrclib[LRCLib]
-    youtubePlayback[YouTubePlayback]
-  end
+*Why this pattern?* Music apps need instant, fluid navigation (the player must keep playing while you browse). An SPA keeps the audio element mounted and avoids reloads, which is exactly what a streaming app needs.
 
-  reactApp --> apiClient
-  reactApp --> playerContext
-  reactApp --> searchWorker
-  playerContext --> reactPlayer
-  apiClient --> routeLayer
-  routeLayer --> controllerLayer
-  controllerLayer --> serviceLayer
-  serviceLayer --> clientLayer
-  clientLayer --> libLayer
-  serviceLayer --> fallbackCatalog
-  libLayer --> ytm
-  libLayer --> lastfm
-  libLayer --> musicbrainz
-  libLayer --> lrclib
-  reactPlayer --> youtubePlayback
+### Backend: layered (MVC-like) REST API
+The backend follows a **layered architecture**, a close cousin of MVC:
+
+```
+Route → Controller → Service → Client/Library → External API or Database
 ```
 
-## Frontend Runtime Model
+- **Routes** declare URLs and attach middleware (auth, validation, rate limits).
+- **Controllers** translate HTTP requests/responses (the "C" in MVC).
+- **Services** hold business logic.
+- **Clients/Libraries** talk to external APIs and the database (the "M").
+- The **frontend is the "V"** (view) — there are no server-rendered HTML views.
 
-Entry sequence:
+*Why this pattern?* Each layer has one job, so the code is easy to test and change. For example, you can swap the chart data source (Last.fm → something else) by editing one library file without touching routes or controllers.
 
-1. `index.html`
-2. `src/main.jsx`
-3. `src/app/main.jsx`
-4. `src/app/App.jsx`
+### Overall: a monorepo of two cooperating monoliths
+Both apps live in one Git repo but run as separate processes. This keeps deployment simple (no service mesh, no orchestration) while still separating concerns cleanly.
 
-App-level providers are assembled in `src/app/providers.jsx`:
+---
 
-- `QueryClientProvider` for server-state fetching/caching
-- context providers for player, favorites, playlists, settings, notifications,
-  followed artists, liked albums, UI, and sound
-
-Route tree is defined in `src/app/App.jsx` and lazy-loads feature pages under
-`src/features/*/pages/*` (which often re-export from `src/pages/*`).
-
-## Backend Runtime Model
-
-Startup:
-
-- `server/index.js` creates app via `server/src/app.js` and listens on `PORT`
-  (default `5000`).
-- On startup (unless disabled), it warms up YouTube Music integration and primes
-  charts/trending caches.
-
-Request pipeline:
-
-1. route file (`server/src/routes/*.routes.js`)
-2. controller (`server/src/controllers/*.controller.js`)
-3. service (`server/src/services/*.service.js`)
-4. clients (`server/src/clients/*.client.js`)
-5. integration libraries (`server/lib/*.js`)
-
-This layering keeps HTTP concerns in controllers and provider-specific logic in
-`server/lib`.
-
-## Data Flow By Concern
-
-### Search / Detail / Home
-
-- Frontend calls backend endpoint through `src/lib/api.js`.
-- Service attempts a live provider call first.
-- If live result fails or is empty, `liveOrFallback(...)` can return static
-  catalog data (`server/src/data/catalog.js`) to keep the UI functional.
-
-### Charts
-
-Charts pipeline combines:
-
-- Last.fm: ranking, listener/play metrics, genre signals
-- MusicBrainz: artist country + release date enrichment
-- YouTube Music: playable `videoId`, thumbnails, durations
-
-If Last.fm-based pipeline fails, a YouTube Music fallback payload can still be
-returned so charts remain available with reduced metadata richness.
-
-### Explore
-
-Explore endpoints (`/api/explore/...`) are served via `server/lib/explore-service.js`
-using a mix of:
-
-- chart data
-- YTM searches/trending
-- Last.fm similar-track lookups
-
-### Lyrics
-
-Lyrics endpoint (`/api/lyrics`) uses `server/lib/lyrics.js`:
-
-- strict LRCLib lookup first
-- relaxed fallback search variants
-- optional YouTube oEmbed metadata extraction when only `videoId` is known
-
-## Playback Flow (Important Boundary)
+## 2. Full architecture diagram
 
 ```mermaid
-flowchart LR
-  uiTrackSelect[UserSelectsTrack] --> apiResult[BackendReturnsTrackDtoWithVideoId]
-  apiResult --> playerState[PlayerContextState]
-  playerState --> footerPlayer[FooterPlayerReactPlayer]
-  footerPlayer --> youtubeStream[YouTubeStreamInBrowser]
+flowchart TB
+    subgraph Browser["🌐 Browser (Frontend SPA)"]
+        direction TB
+        Pages["Pages<br/>(Home, Search, Player, Charts...)"]
+        Components["Components<br/>(layout, player, rails...)"]
+        Contexts["React Context<br/>(Auth, Player, Settings, Library)"]
+        RQ["React Query<br/>(server-state cache)"]
+        ApiClient["api.js (axios)<br/>CSRF + auth refresh"]
+        RP["react-player<br/>(hidden YouTube iframe)"]
+
+        Pages --> Components
+        Components --> Contexts
+        Components --> RQ
+        Contexts --> ApiClient
+        RQ --> ApiClient
+        Contexts --> RP
+    end
+
+    subgraph Server["🖥️ Express API (server/, port 5000)"]
+        direction TB
+        MW["Middleware<br/>CORS · helmet · cookies · rate-limit · auth · CSRF · validate"]
+        Routes["Routes (/api/*)"]
+        Controllers["Controllers"]
+        Services["Services"]
+        Libs["lib/ clients<br/>(ytmusic, lastfm, musicbrainz, lyrics)"]
+        MemCache["In-memory LRU cache<br/>+ request coalescing"]
+
+        MW --> Routes --> Controllers --> Services --> Libs
+        Libs --> MemCache
+    end
+
+    DB[("MongoDB<br/>Users · Favorites · Playlists<br/>LikedAlbums · FollowedArtists<br/>History · SearchHistory")]
+
+    subgraph Ext["☁️ External Providers"]
+        YTM["YouTube Music<br/>(ytmusic-api)"]
+        LFM["Last.fm API"]
+        MB["MusicBrainz API"]
+        LRC["LRCLib"]
+        YT["YouTube<br/>(audio stream)"]
+    end
+
+    ApiClient -->|"HTTPS REST + cookies"| MW
+    Services --> DB
+    Libs --> YTM
+    Libs --> LFM
+    Libs --> MB
+    Libs --> LRC
+    RP -->|"streams audio directly"| YT
 ```
 
-Backend responsibility ends at delivering metadata (`videoId`, title, artist,
-thumbnail, etc.). It does not stream audio/video.
+**The most important arrow:** `react-player → YouTube`. Audio bytes flow directly from YouTube to the browser. The Octavia server is never in the audio path — it only tells the browser *which* `videoId` to play.
 
-## Caching And Resilience Strategy
+---
 
-Caching exists on multiple levels:
+## 3. Each layer explained
 
-- frontend query caching: React Query defaults + query-key factory
-- backend route responses: HTTP cache headers (`Cache-Control`)
-- backend integration caches: in-memory TTL and in-flight dedupe in libraries
-  (`ytmusic`, `charts-service`, `explore-service`, `lyrics`, `lastfm`, `musicbrainz`)
+### The frontend handles
+- **Rendering the UI** — every screen, animation, and interaction.
+- **Client state** — what's playing, the queue, volume, theme, open dialogs (React Context).
+- **Server-state caching** — fetched catalog data, deduped and cached (React Query).
+- **Playback** — embedding YouTube and controlling play/pause/seek (`react-player`).
+- **Routing** — mapping URLs to pages and guarding protected routes.
+- **Optimistic updates** — when you favorite a track, the UI updates instantly and reconciles with the server in the background.
 
-Resilience rules:
+### The backend handles
+- **Aggregating external data** — combining YouTube Music + Last.fm + MusicBrainz into a single clean response shape (a DTO) the frontend can render directly.
+- **Caching + coalescing** — external APIs are slow and rate-limited, so the server caches responses in memory and collapses concurrent identical requests into one upstream call.
+- **Authentication** — registering/logging in users, issuing JWTs, managing sessions.
+- **Personal library** — CRUD for favorites, playlists, liked albums, followed artists, listening/search history, and settings.
+- **Authorization** — protecting `/me/*` (logged-in users) and `/admin/*` (admins only).
+- **Resilience** — falling back to a built-in static catalog when a live source fails, so the UI never goes blank.
 
-- route-level fallbacks return useful data instead of blank responses
-- stale-cache-with-refresh behavior for charts when data is old
-- bounded in-memory caches to avoid unbounded process growth
+### The database stores
+Only **user-owned data**. Catalog data (songs, albums, artists) is **never** stored — it's fetched live and cached in memory. The collections are:
 
-## Architecture Constraints
+| Collection | Stores |
+|------------|--------|
+| `users` | Account, password hash, role, settings, refresh-token hashes |
+| `favorites` | Liked tracks (with a snapshot of track metadata) |
+| `likedalbums` | Saved albums |
+| `followedartists` | Followed artists |
+| `playlists` | User playlists (track snapshots embedded) |
+| `listeninghistories` | Recently played (capped at 20) |
+| `searchhistories` | Recent searches (capped at 50) |
 
-- no server-side media proxy (client-side playback only)
-- no persistent server database (runtime cache + static fallback catalog)
-- single backend process model (no separate worker service)
-- external API reliability directly affects freshness, but fallback logic
-  protects baseline UX
+See [database.md](./database.md) for full schemas.
 
-## Where To Go Next
+---
 
-- [Frontend Guide](./frontend-guide.md)
-- [Backend Guide](./backend-guide.md)
-- [API Reference](./api-reference.md)
-- [Data Models and Config](./data-models-and-config.md)
+## 4. The request lifecycle
+
+Here's what happens from the moment a user opens the app to seeing playable music on screen.
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant B as Browser (React SPA)
+    participant Q as React Query
+    participant A as api.js (axios)
+    participant S as Express API
+    participant X as External (YTM/Last.fm)
+    participant DB as MongoDB
+
+    U->>B: Opens https://octavia.app/
+    B->>B: Load index.html + JS bundle
+    B->>B: AppProviders mount (Auth, Player, Settings...)
+    B->>A: AuthContext bootstrap → GET /auth/me
+    A->>S: GET /api/auth/me (cookies attached)
+    alt Has valid session
+        S->>DB: Look up user by token
+        DB-->>S: User
+        S-->>B: { user, csrfToken } → status "authenticated"
+    else No/expired session
+        S-->>B: 401 → status "guest"
+    end
+
+    Note over B: HomePage renders (lazy-loaded)
+    B->>Q: useQuery(['home', {limit}])
+    Q->>A: getHomeFeed()
+    A->>S: GET /api/home?limit=20
+    S->>X: Fetch featured + trending (if cache cold)
+    X-->>S: Raw data
+    S->>S: Map to DTO + cache in memory
+    S-->>Q: Clean JSON { featured, trending, ... }
+    Q-->>B: Cached data → UI renders rails
+
+    U->>B: Clicks a track to play
+    B->>B: PlayerContext.playTrack(track)
+    B->>RP: react-player loads YouTube videoId
+    RP->>YT: Streams audio directly
+    Note over B: Player keeps playing while user navigates
+```
+
+**Step by step in words:**
+
+1. **Boot.** The browser downloads `index.html` and the JS bundle. React mounts and wraps the app in a stack of Context providers (`src/app/providers.jsx`).
+2. **Auth check.** `AuthContext` immediately calls `GET /api/auth/me`. If cookies contain a valid session, the user is "authenticated"; otherwise "guest". If the access token is expired, axios automatically tries `POST /api/auth/refresh` once.
+3. **Route render.** react-router matches the URL and lazy-loads the matching page component (code-splitting keeps the initial bundle small).
+4. **Data fetch.** The page uses React Query hooks (e.g. `getHomeFeed()`), which call the backend through `api.js` (axios).
+5. **Backend work.** Express runs the request through middleware (CORS, auth, rate-limit, validation), then the controller → service → external client. The first request after a cold cache hits the live source; subsequent ones are served from the in-memory cache.
+6. **Render.** React Query caches the response and the page renders. While playback happens, the audio streams directly from YouTube and persists across navigation because the player lives in the always-mounted layout, not in any page.
+
+---
+
+## 5. Important architectural decisions (and why)
+
+### Why React + Vite (not Next.js / CRA)?
+The app is a **pure SPA** with no need for server-side rendering of dynamic content (audio playback is client-only anyway). **Vite** gives near-instant dev startup and HMR, and a fast Rollup production build. This keeps the developer feedback loop tight.
+
+### Why stream audio from YouTube directly?
+Licensing a music catalog is prohibitively expensive. YouTube already hosts the audio/video and allows embedded playback. By handing the browser a `videoId` and letting `react-player` stream directly, Octavia gets a huge catalog with **zero streaming cost** and **no bandwidth on Octavia's servers**.
+
+### Why a separate Express backend (not call APIs from the browser)?
+Three reasons:
+1. **Secrets stay server-side** — the Last.fm API key never reaches the browser.
+2. **Aggregation + shaping** — the backend merges several messy upstream shapes into one clean DTO, so the frontend doesn't juggle four APIs.
+3. **Caching + rate-limit protection** — upstream APIs are slow and rate-limited; the server caches and coalesces requests to stay fast and avoid bans.
+
+### Why MongoDB (document database)?
+User library data (playlists with embedded track snapshots, flexible settings objects) is naturally **document-shaped**. Embedding a track snapshot inside a playlist avoids joins and means a playlist still renders even if the live catalog is unreachable. Mongoose adds schema validation on top.
+
+### Why React Query for server state + Context for client state?
+- **React Query** specializes in fetching, caching, deduping, and revalidating *server* data. Using it removes a ton of manual loading/error/cache boilerplate.
+- **React Context** is perfect for *client* state that many components read (current track, theme, auth). Mixing the two — Context as a friendly facade over React Query for library data — gives both ergonomics and a robust cache.
+
+See [state-management.md](./state-management.md) for the full split.
+
+### Why JWT-in-cookies + CSRF (not localStorage tokens)?
+Storing tokens in **HttpOnly cookies** means JavaScript (and therefore XSS attacks) can't read them. The trade-off is CSRF risk, which Octavia mitigates with a **double-submit CSRF token**. Because the frontend and API can live on different subdomains (where the CSRF cookie isn't readable by JS), the CSRF token is also returned in auth response bodies and echoed back in a header. See [authentication.md](./authentication.md).
+
+### Why an in-memory cache (not Redis)?
+The catalog data is non-critical and identical for all users, so a simple per-process LRU cache with TTLs is enough and adds **zero infrastructure**. The trade-off (cache isn't shared across multiple server instances) is acceptable because a cold cache just means one slightly slower request. Request **coalescing** ensures a thundering herd on a cold key still results in a single upstream call.
+
+### Why a static fallback catalog?
+External providers occasionally fail or rate-limit. A built-in static catalog (`server/data/catalog.js`) lets search/detail/charts degrade gracefully instead of showing an empty screen.
+
+---
+
+## 6. Cross-cutting concerns
+
+| Concern | How it's handled |
+|---------|------------------|
+| **Performance** | Route-level code splitting (`React.lazy`), route prefetching on hover, React Query caching, in-memory backend cache + coalescing, pre-compressed gzip/brotli assets, split player-progress context to avoid re-renders. |
+| **Accessibility** | `prefers-reduced-motion` + user "reduce motion" setting, ARIA live regions (`PlayerAnnouncer`), keyboard navigation + shortcuts, focus-visible ring system, 44px touch targets. |
+| **Resilience** | Static catalog fallback, error boundaries, React Query retries, graceful empty/error states per page. |
+| **Security** | Helmet headers, CORS allowlist, rate limiting per route family, JWT rotation + reuse detection, bcrypt password hashing, Zod input validation, CSRF protection. |
+| **SEO/meta** | `react-helmet-async` (`RouteHead`) sets per-route titles + OG tags; structured data in `index.html`. |
+
+---
+
+## Key things to remember
+
+- The system is **three tiers**: React SPA → Express API → (MongoDB + external providers). Audio is a **fourth, separate path** straight from YouTube to the browser.
+- The backend is **layered MVC-style**: Route → Controller → Service → Client/Lib.
+- **Catalog data is fetched + cached, never persisted.** Only user-owned data is in MongoDB.
+- The biggest cost-saving decision is **direct YouTube streaming** — internalize this, because it explains a lot of the app's design (e.g., the player is a hidden YouTube iframe, the visualizer is fake because the audio can't be tapped, thumbnails come from `ytimg.com`).
+- Most major decisions trade infrastructure simplicity for a small amount of resilience complexity (in-memory cache + fallback catalog).
