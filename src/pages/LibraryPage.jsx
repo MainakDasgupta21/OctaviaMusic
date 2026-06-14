@@ -1,5 +1,6 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
   Library as LibraryIcon,
@@ -30,6 +31,9 @@ import Tabs from '@/components/ui-v2/Tabs';
 import SectionHeader from '@/components/ui-v2/SectionHeader';
 import EmptyState from '@/components/ui-v2/EmptyState';
 import SmartImage from '@/components/SmartImage';
+import { getAlbum } from '@/lib/api';
+import { queryKeys, cachePolicy } from '@/lib/query-keys';
+import notify from '@/lib/notify';
 import { fadeUp, staggerChildren } from '@/design/motion';
 import { artistSlugOf, isUsableArtistSlug } from '@/lib/slug';
 import { cn } from '@/lib/utils';
@@ -70,6 +74,7 @@ const NowPlayingBars = () => (
 
 const LibraryPage = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { history, playTrack, playTracksInOrder, currentTrack, isPlaying } = usePlayer();
   const { list: favorites } = useFavorites();
   const { list: followedArtists, unfollow } = useFollowedArtists();
@@ -114,6 +119,30 @@ const LibraryPage = () => {
       forceSequential: true,
     });
   };
+
+  // Liked albums are stored without their tracklist, so fetch the album detail
+  // (cache-shared with the album page) before starting playback.
+  const handlePlayAlbum = useCallback(
+    async (album) => {
+      if (!album?.id) return;
+      try {
+        const data = await queryClient.fetchQuery({
+          queryKey: queryKeys.album(album.id),
+          queryFn: () => getAlbum(album.id),
+          ...cachePolicy.album,
+        });
+        const started = playTracksInOrder(data?.tracks || [], {
+          replaceQueue: true,
+          startIndex: 0,
+          forceSequential: true,
+        });
+        if (!started) notify.error('No playable tracks in this album');
+      } catch {
+        notify.error("Couldn't load this album");
+      }
+    },
+    [queryClient, playTracksInOrder],
+  );
 
   const handleClearSearches = () => {
     clearSearches();
@@ -215,7 +244,7 @@ const LibraryPage = () => {
       ) : tab === 'artists' ? (
         <FollowedArtistList artists={followedArtists} onUnfollow={unfollow} />
       ) : tab === 'albums' ? (
-        <LikedAlbumGrid albums={likedAlbums} onRemove={removeLiked} />
+        <LikedAlbumGrid albums={likedAlbums} onRemove={removeLiked} onPlay={handlePlayAlbum} />
       ) : (
         <RecentSearches
           searches={recentSearches}
@@ -812,7 +841,7 @@ const FollowedArtistList = ({ artists, onUnfollow }) => {
 // Liked albums tab
 // ============================================================================
 
-const LikedAlbumGrid = ({ albums, onRemove }) => {
+const LikedAlbumGrid = ({ albums, onRemove, onPlay }) => {
   if (!albums.length) {
     return (
       <EmptyState
@@ -835,29 +864,53 @@ const LikedAlbumGrid = ({ albums, onRemove }) => {
           key={a.id}
           className="group relative rounded-soft border border-white/[0.06] bg-surface-2/40 backdrop-blur-md p-3 hover:border-white/20 transition-colors"
         >
+          <div className="relative mb-2">
+            <Link
+              to={`/album/${a.id}`}
+              className="block focus-ring rounded-sharp"
+              aria-label={`Open ${a.title}`}
+            >
+              <SmartImage
+                src={a.cover || a.thumbnail}
+                alt={a.title}
+                kind="album"
+                rounded="rounded-sharp"
+                className="aspect-square ring-1 ring-white/10"
+                imgClassName="object-cover"
+              />
+            </Link>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onPlay?.(a);
+              }}
+              aria-label={`Play ${a.title}`}
+              className="touch-action-visible absolute bottom-2 right-2 w-10 h-10 rounded-full bg-accent text-bg shadow-elev-3 flex items-center justify-center hover:scale-105 active:scale-95 focus-ring transition-all opacity-100 md:opacity-0 md:translate-y-1 md:group-hover:opacity-100 md:group-hover:translate-y-0 md:group-focus-within:opacity-100 md:group-focus-within:translate-y-0"
+            >
+              <Play className="w-4 h-4 fill-current" />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onRemove?.(a.id);
+              }}
+              aria-label={`Unlike ${a.title}`}
+              className="touch-action-visible absolute top-2 right-2 p-1.5 rounded-full text-ink-3 hover:text-danger hover:bg-danger/15 focus-ring transition-colors bg-bg/60 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
+          </div>
           <Link to={`/album/${a.id}`} className="block focus-ring rounded-sharp">
-            <SmartImage
-              src={a.cover || a.thumbnail}
-              alt={a.title}
-              kind="album"
-              rounded="rounded-sharp"
-              className="aspect-square ring-1 ring-white/10 mb-2"
-              imgClassName="object-cover"
-            />
             <p className="text-[13.5px] font-medium text-ink truncate">{a.title}</p>
             <p className="font-editorial text-[11.5px] text-ink-3 truncate mt-0.5">
               {a.artist || 'Unknown artist'}
               {a.year ? ` · ${a.year}` : ''}
             </p>
           </Link>
-          <button
-            type="button"
-            onClick={() => onRemove?.(a.id)}
-            aria-label={`Unlike ${a.title}`}
-            className="touch-action-visible absolute top-2 right-2 p-1.5 rounded-full text-ink-3 hover:text-danger hover:bg-danger/15 focus-ring transition-colors bg-bg/60 opacity-100 md:opacity-0 md:group-hover:opacity-100"
-          >
-            <Trash2 className="w-3 h-3" />
-          </button>
         </motion.div>
       ))}
     </motion.div>

@@ -29,7 +29,13 @@ const likedAlbumItemSchema = z
     artist: z.string().trim().max(240).optional().default(''),
     artistSlug: z.string().trim().max(200).optional().nullable(),
     thumbnail: z.string().trim().max(500).optional().nullable(),
-    year: z.string().trim().max(40).optional().nullable(),
+    // Upstream album DTOs ship `year` as a number; accept either and normalize
+    // to a string so it persists in the String-typed `year` column.
+    year: z
+      .union([z.string().trim().max(40), z.number().int()])
+      .nullable()
+      .optional()
+      .transform((v) => (v == null ? null : String(v))),
   })
   // Tolerate client display-only fields (e.g. `likedAt`) by stripping them.
   .strip();

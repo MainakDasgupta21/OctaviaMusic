@@ -22,7 +22,7 @@ const toLikedShape = (album) => ({
   artist: album.artist || '',
   artistSlug: album.artistSlug || null,
   thumbnail: album.thumbnail || album.cover || null,
-  year: album.year || null,
+  year: album.year != null ? String(album.year) : null,
   likedAt: Number.isFinite(album.likedAt) ? album.likedAt : Date.now(),
 });
 
