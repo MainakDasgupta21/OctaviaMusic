@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 
 const skipBtn = (disabled) =>
   cn(
-    'touch-target inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/[0.07] bg-white/[0.02] transition-[background-color,color,border-color,transform] duration-short ease-emphasis focus-ring',
+    'touch-target inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/[0.07] bg-white/[0.02] transition-[background-color,color,border-color,transform] duration-short ease-emphasis focus-ring',
     disabled
       ? 'cursor-not-allowed text-ink-4 opacity-70'
       : 'text-ink-2 hover:border-white/[0.14] hover:bg-white/[0.08] hover:text-ink active:scale-95',
@@ -22,7 +22,7 @@ const skipBtn = (disabled) =>
 
 const toggleBtn = (active) =>
   cn(
-    'touch-target relative inline-flex h-10 w-10 items-center justify-center rounded-full transition-[background-color,color] duration-short ease-emphasis focus-ring',
+    'touch-target relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-[background-color,color] duration-short ease-emphasis focus-ring',
     active
       ? 'bg-track/[0.12] text-accent ring-1 ring-track/35'
       : 'text-ink-3 hover:bg-white/[0.05] hover:text-ink',
@@ -45,7 +45,7 @@ const TransportControls = () => {
   const reduceMotion = isReducedMotion();
 
   return (
-    <div className="flex w-full items-center justify-center gap-2 py-1 sm:gap-2.5">
+    <div className="flex w-full items-center justify-center gap-1.5 py-1 xs:gap-2 sm:gap-2.5">
       <motion.button
         type="button"
         whileTap={reduceMotion ? undefined : { scale: 0.92 }}
@@ -74,7 +74,7 @@ const TransportControls = () => {
         whileTap={reduceMotion ? undefined : { scale: 0.94 }}
         onClick={onTogglePlay}
         className={cn(
-          'relative flex h-[60px] w-[60px] items-center justify-center rounded-full text-track-fg ring-1 ring-white/20 focus-ring transition-transform duration-short ease-emphasis',
+          'relative flex h-14 w-14 shrink-0 xs:h-[60px] xs:w-[60px] items-center justify-center rounded-full text-track-fg ring-1 ring-white/20 focus-ring transition-transform duration-short ease-emphasis',
         )}
         style={{
           backgroundImage:

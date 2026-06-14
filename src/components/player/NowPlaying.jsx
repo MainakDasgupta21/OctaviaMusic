@@ -231,7 +231,7 @@ const NowPlaying = () => {
 
             <motion.div variants={fadeUp} className="min-w-0 space-y-3.5 sm:space-y-4 xl:max-w-[640px]">
               <TrackHeadline />
-              <div className="rounded-panel border border-white/[0.08] bg-surface-0/46 p-4 shadow-elev-2 sm:p-5">
+              <div className="rounded-panel border border-white/[0.08] bg-surface-0/46 px-3 py-4 shadow-elev-2 sm:p-5">
                 <TransportControls />
               </div>
               <div className="w-full space-y-2.5 rounded-panel border border-white/[0.06] bg-surface-0/34 px-3.5 py-3 sm:px-4 sm:py-3.5">
