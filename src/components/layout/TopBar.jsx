@@ -1108,7 +1108,7 @@ const TopBar = () => {
               <button
                 type="button"
                 onClick={() => navigate('/register')}
-                className="hidden phablet:inline-flex h-9 px-3 rounded-full text-[12px] text-track-fg bg-[radial-gradient(circle_at_30%_25%,hsl(var(--ink-primary)/0.22),transparent_55%),linear-gradient(135deg,hsl(var(--track-accent)),hsl(var(--track-accent-strong)))] ring-1 ring-white/20 hover:brightness-[1.06] transition-colors focus-ring"
+                className="hidden phablet:inline-flex items-center justify-center h-9 px-4 rounded-full text-[12px] font-semibold text-surface-0 bg-bone ring-1 ring-black/10 shadow-elev-2 hover:bg-white transition-colors duration-short focus-ring"
               >
                 Create account
               </button>
