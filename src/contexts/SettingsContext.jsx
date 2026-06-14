@@ -149,9 +149,16 @@ export const SettingsProvider = ({ children }) => {
     };
   }, [isAuthenticated, queryClient, settingsQuery.data, settingsQuery.isSuccess, user?.id, user?._id]);
 
-  const settings = isAuthenticated
-    ? { ...settingsDefaults, ...(settingsQuery.data || {}) }
-    : guestSettings;
+  // Memoize so authenticated users get a stable `settings` reference between
+  // renders. Without this, every render allocated a fresh object, invalidating
+  // the context `value` memo below and re-rendering every consumer in the app.
+  const settings = useMemo(
+    () =>
+      isAuthenticated
+        ? { ...settingsDefaults, ...(settingsQuery.data || {}) }
+        : guestSettings,
+    [isAuthenticated, settingsQuery.data, guestSettings],
+  );
 
   const updateSetting = useCallback((key, value) => {
     if (!isAuthenticated) {

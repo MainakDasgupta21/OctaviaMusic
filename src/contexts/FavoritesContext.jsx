@@ -30,6 +30,10 @@ const toFavoriteShape = (track, addedAt) => ({
 
 const FavoritesContext = createContext(undefined);
 
+// Stable empty reference for the loading/guest state. Returning a literal `{}`
+// each render would change identity every time and re-render every consumer.
+const EMPTY_FAVORITES = Object.freeze({});
+
 const mapFavoritesList = (items) => {
   if (!Array.isArray(items)) return {};
   return items.reduce((acc, raw) => {
@@ -71,7 +75,7 @@ export const FavoritesProvider = ({ children }) => {
     },
   });
 
-  const favorites = userId ? favoritesQuery.data || {} : {};
+  const favorites = userId ? favoritesQuery.data || EMPTY_FAVORITES : EMPTY_FAVORITES;
 
   const toggleFavorite = useCallback((track) => {
     const safeTrack = sanitizeTrack(track);

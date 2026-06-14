@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Play, Clock, TrendingUp, Sparkles } from 'lucide-react';
@@ -48,6 +49,92 @@ const TrendingRowSkeleton = () => (
     <Skeleton className="w-12 h-3" />
   </div>
 );
+
+// Memoized row so a play/pause toggle (or any TrendingPage re-render) only
+// re-renders the row whose props actually changed, not all 40 rows. onPlay is
+// the stable `playTrack`; isPlaying is pre-narrowed to the current row.
+const TrendingRow = memo(({ track, index, isCurrent, isPlaying, onPlay }) => (
+  <motion.div
+    variants={fadeUp}
+    onClick={() => onPlay(track)}
+    className={cn(
+      'group grid gap-2.5 sm:gap-4 px-3 sm:px-4 py-3.5',
+      TRENDING_ROW_GRID,
+      'items-center cursor-pointer transition-colors border-b border-white/[0.05] last:border-0',
+      isCurrent ? 'bg-track/[0.08]' : 'hover:bg-white/[0.035]',
+    )}
+  >
+    {/* Ordinal number — italic serif, editorial */}
+    <span className="flex justify-center items-center">
+      {isCurrent && isPlaying ? (
+        <NowPlayingBars />
+      ) : (
+        <span
+          className={cn(
+            'font-display italic text-xl sm:text-2xl leading-none tabular-nums',
+            isCurrent ? 'text-accent' : 'text-ink-3 group-hover:text-ink',
+          )}
+        >
+          {String(index + 1).padStart(2, '0')}
+        </span>
+      )}
+    </span>
+
+    {/* Artwork */}
+    <div className="relative">
+      <SmartImage
+        src={track.thumbnail}
+        alt={track.title}
+        kind="track"
+        rounded="rounded-sharp"
+        className="w-10 h-10 sm:w-12 sm:h-12 ring-1 ring-white/10"
+        imgClassName="object-cover"
+      />
+      <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-sharp">
+        <Play className="w-4 h-4 text-white fill-current" />
+      </div>
+    </div>
+
+    {/* Title + artist */}
+    <div className="min-w-0">
+      <h4
+        className={cn(
+          'text-[14px] font-medium truncate',
+          isCurrent ? 'text-accent' : 'text-ink',
+        )}
+      >
+        {track.title}
+      </h4>
+      <p className="font-editorial text-[12.5px] text-ink-3 truncate mt-0.5">
+        by {track.artist || 'Unknown artist'}
+      </p>
+    </div>
+
+    {/* Plays */}
+    <span className="hidden lg:block w-20 text-right font-mono text-[12px] text-ink-3 tabular-nums tracking-tight">
+      {formatPlays(track.plays)}
+    </span>
+
+    {/* Heart */}
+    <div
+      className="touch-action-visible hidden sm:flex opacity-0 group-hover:opacity-100 transition-opacity items-center gap-1"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <AddToPlaylistButton
+        track={track}
+        className="p-1.5"
+        buttonLabel={`Add ${track.title || 'track'} to playlist`}
+      />
+      <HeartButton track={track} size="sm" />
+    </div>
+
+    {/* Duration */}
+    <span className="w-12 text-right font-mono text-[12px] text-ink-4 tabular-nums tracking-tight">
+      {track.duration}
+    </span>
+  </motion.div>
+));
+TrendingRow.displayName = 'TrendingRow';
 
 const TrendingPage = () => {
   const { playTrack, playTracksInOrder, currentTrack, isPlaying } = usePlayer();
@@ -162,86 +249,14 @@ const TrendingPage = () => {
             : trending.map((track, index) => {
                 const isCurrent = currentTrack?.id === track.id;
                 return (
-                  <motion.div
-                    variants={fadeUp}
+                  <TrendingRow
                     key={track.id}
-                    onClick={() => playTrack(track)}
-                    className={cn(
-                      'group grid gap-2.5 sm:gap-4 px-3 sm:px-4 py-3.5',
-                      TRENDING_ROW_GRID,
-                      'items-center cursor-pointer transition-colors border-b border-white/[0.05] last:border-0',
-                      isCurrent ? 'bg-track/[0.08]' : 'hover:bg-white/[0.035]',
-                    )}
-                  >
-                    {/* Ordinal number — italic serif, editorial */}
-                    <span className="flex justify-center items-center">
-                      {isCurrent && isPlaying ? (
-                        <NowPlayingBars />
-                      ) : (
-                        <span
-                          className={cn(
-                            'font-display italic text-xl sm:text-2xl leading-none tabular-nums',
-                            isCurrent ? 'text-accent' : 'text-ink-3 group-hover:text-ink',
-                          )}
-                        >
-                          {String(index + 1).padStart(2, '0')}
-                        </span>
-                      )}
-                    </span>
-
-                    {/* Artwork */}
-                    <div className="relative">
-                      <SmartImage
-                        src={track.thumbnail}
-                        alt={track.title}
-                        kind="track"
-                        rounded="rounded-sharp"
-                        className="w-10 h-10 sm:w-12 sm:h-12 ring-1 ring-white/10"
-                        imgClassName="object-cover"
-                      />
-                      <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-sharp">
-                        <Play className="w-4 h-4 text-white fill-current" />
-                      </div>
-                    </div>
-
-                    {/* Title + artist */}
-                    <div className="min-w-0">
-                      <h4
-                        className={cn(
-                          'text-[14px] font-medium truncate',
-                          isCurrent ? 'text-accent' : 'text-ink',
-                        )}
-                      >
-                        {track.title}
-                      </h4>
-                      <p className="font-editorial text-[12.5px] text-ink-3 truncate mt-0.5">
-                        by {track.artist || 'Unknown artist'}
-                      </p>
-                    </div>
-
-                    {/* Plays */}
-                    <span className="hidden lg:block w-20 text-right font-mono text-[12px] text-ink-3 tabular-nums tracking-tight">
-                      {formatPlays(track.plays)}
-                    </span>
-
-                    {/* Heart */}
-                    <div
-                      className="touch-action-visible hidden sm:flex opacity-0 group-hover:opacity-100 transition-opacity items-center gap-1"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <AddToPlaylistButton
-                        track={track}
-                        className="p-1.5"
-                        buttonLabel={`Add ${track.title || 'track'} to playlist`}
-                      />
-                      <HeartButton track={track} size="sm" />
-                    </div>
-
-                    {/* Duration */}
-                    <span className="w-12 text-right font-mono text-[12px] text-ink-4 tabular-nums tracking-tight">
-                      {track.duration}
-                    </span>
-                  </motion.div>
+                    track={track}
+                    index={index}
+                    isCurrent={isCurrent}
+                    isPlaying={isCurrent && isPlaying}
+                    onPlay={playTrack}
+                  />
                 );
               })}
         </motion.div>

@@ -1,3 +1,4 @@
+import { memo, useCallback } from 'react';
 import {
   Play,
   Check,
@@ -94,7 +95,7 @@ const SortableQueueItem = ({
       />
       <button
         type="button"
-        onClick={onPlay}
+        onClick={() => onPlay(index, track)}
         className="flex-1 min-w-0 text-left focus-ring rounded-md"
       >
         <p
@@ -120,7 +121,7 @@ const SortableQueueItem = ({
       </button>
       <button
         type="button"
-        onClick={onRemove}
+        onClick={() => onRemove(index, track)}
         disabled={isCurrent}
         className={cn(
           'touch-target p-1.5 rounded-md text-ink-4 transition-opacity focus-ring',
@@ -135,6 +136,8 @@ const SortableQueueItem = ({
     </li>
   );
 };
+
+const MemoSortableQueueItem = memo(SortableQueueItem);
 
 const QueuePanel = () => {
   const {
@@ -161,6 +164,20 @@ const QueuePanel = () => {
     reorderQueue(oldIdx, newIdx);
   };
 
+  // Stable per-item handlers (receive the index + track) so the memoized rows
+  // don't re-render just because QueuePanel re-rendered.
+  const handlePlayItem = useCallback(
+    (index, track) => playTrack(track, { queueBehavior: 'queue', queueIndex: index }),
+    [playTrack],
+  );
+  const handleRemoveItem = useCallback(
+    (index, track) => {
+      if (removeFromQueueAt) removeFromQueueAt(index);
+      else removeFromQueue(track.id);
+    },
+    [removeFromQueueAt, removeFromQueue],
+  );
+
   return (
     <div className="h-full flex flex-col pr-0.5">
       <div className="mb-3 flex items-center justify-between border-b border-white/[0.06] px-1.5 sm:px-2 pb-2">
@@ -186,18 +203,15 @@ const QueuePanel = () => {
             >
               <ul className="space-y-1">
                 {queue.map((t, i) => (
-                  <SortableQueueItem
+                  <MemoSortableQueueItem
                     key={itemIds[i]}
                     itemId={itemIds[i]}
                     track={t}
                     index={i}
                     isCurrent={queueIndex === i}
                     isPlayed={queueIndex > i}
-                    onPlay={() => playTrack(t, { queueBehavior: 'queue', queueIndex: i })}
-                    onRemove={() => {
-                      if (removeFromQueueAt) removeFromQueueAt(i);
-                      else removeFromQueue(t.id);
-                    }}
+                    onPlay={handlePlayItem}
+                    onRemove={handleRemoveItem}
                   />
                 ))}
               </ul>

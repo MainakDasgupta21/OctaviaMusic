@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Heart, Play, Clock, X, Shuffle } from 'lucide-react';
 import { usePlayer } from '@/contexts/PlayerContext';
@@ -35,6 +35,113 @@ const NowPlayingBars = () => (
     />
   </span>
 );
+
+// Memoized row so hover/keyboard selection and play/pause only re-render the
+// rows whose props change, not the entire favorites list. All callbacks passed
+// in are stable, and isPlaying is pre-narrowed to the current row.
+const FavoritesRow = memo(({
+  track,
+  index,
+  isCurrentTrack,
+  isPlaying,
+  isSelected,
+  onPlay,
+  setSelectedIndex,
+  removeFavorite,
+}) => (
+  <TrackContextMenu track={track}>
+    <motion.div
+      variants={fadeUp}
+      onClick={() => onPlay(track)}
+      onMouseEnter={() => setSelectedIndex(index)}
+      onFocus={() => setSelectedIndex(index)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onPlay(track);
+        }
+      }}
+      role="option"
+      tabIndex={0}
+      aria-selected={isSelected}
+      className={cn(
+        'group row-hover grid gap-2.5 sm:gap-4 px-3 sm:px-4 py-3.5',
+        FAVORITES_ROW_GRID,
+        'items-center cursor-pointer transition-colors border-b border-white/[0.05] last:border-0',
+        isCurrentTrack && 'bg-track/[0.10]',
+        isSelected && !isCurrentTrack && 'bg-white/[0.05]',
+        !isSelected && !isCurrentTrack && 'hover:bg-white/[0.035]',
+      )}
+    >
+      <span className="flex justify-center">
+        {isCurrentTrack && isPlaying ? (
+          <NowPlayingBars />
+        ) : (
+          <span
+            className={cn(
+              'font-display italic text-xl sm:text-2xl leading-none tabular-nums',
+              isCurrentTrack ? 'text-accent' : 'text-ink-3 group-hover:text-ink',
+            )}
+          >
+            {String(index + 1).padStart(2, '0')}
+          </span>
+        )}
+      </span>
+
+      <div className="relative">
+        <SmartImage
+          src={track.thumbnail}
+          alt=""
+          kind="track"
+          rounded="rounded-sharp"
+          className="w-10 h-10 sm:w-12 sm:h-12 ring-1 ring-white/10"
+          imgClassName="object-cover"
+        />
+        <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex items-center justify-center rounded-sharp">
+          <Play className="w-4 h-4 text-white fill-current" />
+        </div>
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <h4
+          className={cn(
+            'text-[14px] font-medium truncate',
+            isCurrentTrack ? 'text-accent' : 'text-ink',
+          )}
+        >
+          {track.title}
+        </h4>
+        <p className="font-editorial text-[12.5px] text-ink-3 truncate mt-0.5">
+          by {track.artist || 'Unknown artist'}
+        </p>
+      </div>
+
+      <div onClick={(e) => e.stopPropagation()} className="hidden sm:block">
+        <HeartButton track={track} size="sm" />
+      </div>
+
+      <div className="hidden lg:flex items-center justify-end gap-2 text-ink-4">
+        <span className="font-mono text-[12px] tabular-nums tracking-tight">
+          {track.duration || '\u2014'}
+        </span>
+      </div>
+
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          removeFavorite(track.id);
+          notify.unliked(track.title);
+        }}
+        className="touch-action-visible opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 p-2 rounded-sharp text-ink-3 hover:text-danger hover:bg-danger/10 transition-all focus-ring"
+        aria-label="Remove from favorites"
+      >
+        <X className="w-4 h-4" />
+      </button>
+    </motion.div>
+  </TrackContextMenu>
+));
+FavoritesRow.displayName = 'FavoritesRow';
 
 const FavoritesPage = () => {
   const { playTrack, playTracksInOrder, currentTrack, isPlaying, addToQueue } = usePlayer();
@@ -150,99 +257,18 @@ const FavoritesPage = () => {
 
             {sorted.map((track, index) => {
               const isCurrentTrack = currentTrack?.id === track.id;
-              const isSelected = selectedIndex === index;
               return (
-                <TrackContextMenu key={track.id} track={track}>
-                  <motion.div
-                    variants={fadeUp}
-                    onClick={() => playTrack(track)}
-                    onMouseEnter={() => setSelectedIndex(index)}
-                    onFocus={() => setSelectedIndex(index)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        playTrack(track);
-                      }
-                    }}
-                    role="option"
-                    tabIndex={0}
-                    aria-selected={isSelected}
-                    className={cn(
-                      'group row-hover grid gap-2.5 sm:gap-4 px-3 sm:px-4 py-3.5',
-                      FAVORITES_ROW_GRID,
-                      'items-center cursor-pointer transition-colors border-b border-white/[0.05] last:border-0',
-                      isCurrentTrack && 'bg-track/[0.10]',
-                      isSelected && !isCurrentTrack && 'bg-white/[0.05]',
-                      !isSelected && !isCurrentTrack && 'hover:bg-white/[0.035]',
-                    )}
-                  >
-                    <span className="flex justify-center">
-                      {isCurrentTrack && isPlaying ? (
-                        <NowPlayingBars />
-                      ) : (
-                        <span
-                          className={cn(
-                            'font-display italic text-xl sm:text-2xl leading-none tabular-nums',
-                            isCurrentTrack ? 'text-accent' : 'text-ink-3 group-hover:text-ink',
-                          )}
-                        >
-                          {String(index + 1).padStart(2, '0')}
-                        </span>
-                      )}
-                    </span>
-
-                    <div className="relative">
-                      <SmartImage
-                        src={track.thumbnail}
-                        alt=""
-                        kind="track"
-                        rounded="rounded-sharp"
-                        className="w-10 h-10 sm:w-12 sm:h-12 ring-1 ring-white/10"
-                        imgClassName="object-cover"
-                      />
-                      <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex items-center justify-center rounded-sharp">
-                        <Play className="w-4 h-4 text-white fill-current" />
-                      </div>
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <h4
-                        className={cn(
-                          'text-[14px] font-medium truncate',
-                          isCurrentTrack ? 'text-accent' : 'text-ink',
-                        )}
-                      >
-                        {track.title}
-                      </h4>
-                      <p className="font-editorial text-[12.5px] text-ink-3 truncate mt-0.5">
-                        by {track.artist || 'Unknown artist'}
-                      </p>
-                    </div>
-
-                    <div onClick={(e) => e.stopPropagation()} className="hidden sm:block">
-                      <HeartButton track={track} size="sm" />
-                    </div>
-
-                    <div className="hidden lg:flex items-center justify-end gap-2 text-ink-4">
-                      <span className="font-mono text-[12px] tabular-nums tracking-tight">
-                        {track.duration || '\u2014'}
-                      </span>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeFavorite(track.id);
-                        notify.unliked(track.title);
-                      }}
-                      className="touch-action-visible opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 p-2 rounded-sharp text-ink-3 hover:text-danger hover:bg-danger/10 transition-all focus-ring"
-                      aria-label="Remove from favorites"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </motion.div>
-                </TrackContextMenu>
+                <FavoritesRow
+                  key={track.id}
+                  track={track}
+                  index={index}
+                  isCurrentTrack={isCurrentTrack}
+                  isPlaying={isCurrentTrack && isPlaying}
+                  isSelected={selectedIndex === index}
+                  onPlay={playTrack}
+                  setSelectedIndex={setSelectedIndex}
+                  removeFavorite={removeFavorite}
+                />
               );
             })}
           </motion.div>

@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { memo, useCallback } from 'react';
 import { Play } from 'lucide-react';
 import Skeleton from '@/components/ui-v2/Skeleton';
 import SmartImage from '@/components/SmartImage';
@@ -25,16 +25,16 @@ const TileCard = ({ track, onPlay, isCurrent, index }) => {
   // tick on mobile (SoundContext falls back to navigator.vibrate when SFX are
   // muted). The view-transition-name on the cover lets the thumbnail morph
   // smoothly into the player hero on the next page.
-  const handleClick = useCallback(
-    (event) => {
-      playSfx('pop');
-      if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
-        try { navigator.vibrate(6); } catch { /* noop */ }
-      }
-      if (typeof onPlay === 'function') onPlay(event);
-    },
-    [onPlay, playSfx],
-  );
+  // onPlay receives the track so callers can pass a stable handler (e.g.
+  // `playTrack`) instead of a per-render `() => playTrack(track)` closure —
+  // that keeps React.memo below effective across parent re-renders.
+  const handleClick = useCallback(() => {
+    playSfx('pop');
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      try { navigator.vibrate(6); } catch { /* noop */ }
+    }
+    if (typeof onPlay === 'function') onPlay(track);
+  }, [onPlay, playSfx, track]);
 
   return (
   <button
@@ -97,6 +97,8 @@ const TileCard = ({ track, onPlay, isCurrent, index }) => {
   );
 };
 
+const MemoTileCard = memo(TileCard);
+
 export const TileSkeleton = () => (
   <div className="flex-shrink-0 w-36 xs:w-40 sm:w-44 lg:w-48">
     <Skeleton className="aspect-square rounded-sharp" />
@@ -105,4 +107,4 @@ export const TileSkeleton = () => (
   </div>
 );
 
-export default TileCard;
+export default MemoTileCard;

@@ -63,6 +63,9 @@ const DEFAULT_VALUE = {
   clearSearches: NOOP,
 };
 
+// Stable empty reference for the authenticated loading state (avoids `[]`).
+const EMPTY_SEARCHES = Object.freeze([]);
+
 const SearchHistoryContext = createContext(DEFAULT_VALUE);
 
 export const SearchHistoryProvider = ({ children }) => {
@@ -101,7 +104,7 @@ export const SearchHistoryProvider = ({ children }) => {
     },
   });
 
-  const searches = userId ? searchesQuery.data || [] : guestSearches;
+  const searches = userId ? searchesQuery.data || EMPTY_SEARCHES : guestSearches;
 
   const recordSearch = useCallback(
     (term) => {

@@ -1,4 +1,5 @@
 import {
+  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -62,6 +63,10 @@ import { cn } from '@/lib/utils';
 
 const RECENTS_DISPLAY_LIMIT = 8;
 
+// Stable empty token list so `highlightTokens` keeps a constant reference when a
+// query has no tokens — that keeps the memoized SearchSongRow from re-rendering.
+const EMPTY_TOKENS = Object.freeze([]);
+
 // Debounced state hook — used by the input to avoid a fetch per keystroke.
 const useDebouncedValue = (value, delay) => {
   const [debounced, setDebounced] = useState(value);
@@ -93,6 +98,116 @@ const resultKind = (item) => {
 };
 
 const VALID_FILTERS = new Set(['all', 'song', 'album', 'artist', 'playlist']);
+
+// Memoized search result row. Hover/keyboard selection re-renders only the row
+// whose `isSelected` flips instead of the entire result list (up to ~120 rows).
+// All callbacks/highlightTokens passed in are stable across hover, so non-active
+// rows are skipped by memo.
+const SearchSongRow = memo(({
+  track,
+  globalIndex,
+  isSelected,
+  highlightTokens,
+  userText,
+  playTrack,
+  commitRecent,
+  setSelectedIdx,
+}) => (
+  <motion.div
+    variants={fadeUp}
+    id={`search-result-${globalIndex}`}
+    role="option"
+    aria-selected={isSelected}
+    onClick={() => { playTrack(toTrack(track)); commitRecent(userText); }}
+    onMouseEnter={() => setSelectedIdx(globalIndex)}
+    className={cn(
+      'group relative flex min-w-0 items-center gap-3 sm:gap-4 p-3 sm:p-3.5 cursor-pointer border-b border-white/[0.05] last:border-0',
+      // Active row keeps its accent fill; idle rows pick up the
+      // universal `.row-hover` slide-in.
+      isSelected
+        ? "bg-track/[0.10] before:content-[''] before:absolute before:left-0 before:inset-y-2 before:w-0.5 before:bg-track before:rounded-full"
+        : "row-hover hover:before:content-[''] hover:before:absolute hover:before:left-0 hover:before:inset-y-2 hover:before:w-0.5 hover:before:bg-track/40 hover:before:rounded-full",
+    )}
+  >
+    <span
+      aria-hidden="true"
+      className={cn(
+        'hidden md:inline-flex w-7 shrink-0 justify-end font-mono text-[10px] tabular-nums transition-colors',
+        isSelected
+          ? 'text-accent'
+          : 'text-ink-4 group-hover:text-ink-3',
+      )}
+    >
+      {String(globalIndex + 1).padStart(2, '0')}
+    </span>
+    <div className="relative w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0">
+      <SmartImage
+        src={track.thumbnail}
+        alt=""
+        kind="track"
+        rounded="rounded-sharp"
+        className="w-10 h-10 sm:w-12 sm:h-12 ring-1 ring-white/10"
+        imgClassName="object-cover"
+      />
+      <div className="absolute inset-0 bg-gradient-to-br from-black/65 via-black/45 to-black/65 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-sharp">
+        <Play className="w-5 h-5 text-white fill-current" />
+      </div>
+    </div>
+    <div className="flex-1 min-w-0">
+      <p
+        className={cn(
+          'text-[14px] font-medium truncate inline-flex items-center gap-2 w-full',
+          isSelected ? 'text-accent' : 'text-ink',
+        )}
+      >
+        <span className="truncate">
+          <SearchHighlight text={track.title} tokens={highlightTokens} />
+        </span>
+        <KindBadge kind={track.kind} />
+      </p>
+      <p className="font-editorial text-[12.5px] text-ink-3 truncate mt-0.5">
+        by{' '}
+        {(() => {
+          const slug = artistSlugOf(track);
+          const artistName = track.artist || 'Unknown artist';
+          return isUsableArtistSlug(slug) ? (
+            <Link
+              to={`/artist/${slug}`}
+              onClick={(e) => e.stopPropagation()}
+              className="hover:text-ink hover:underline underline-offset-2 focus-ring rounded-sharp"
+            >
+              <SearchHighlight text={artistName} tokens={highlightTokens} />
+            </Link>
+          ) : (
+            <SearchHighlight text={artistName} tokens={highlightTokens} />
+          );
+        })()}
+      </p>
+    </div>
+    {isSelected ? (
+      <span className="hidden md:inline-flex items-center gap-1 text-[10px] text-ink-3">
+        <CornerDownLeft className="w-3 h-3" />
+      </span>
+    ) : null}
+    <div
+      onClick={(e) => e.stopPropagation()}
+      className="touch-action-visible opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200 delay-75 flex items-center gap-1"
+    >
+      <AddToPlaylistButton
+        track={toTrack(track)}
+        className="p-1.5"
+        buttonLabel={`Add ${track.title} to playlist`}
+      />
+      <HeartButton track={toTrack(track)} size="sm" />
+    </div>
+    {track.duration ? (
+      <span className="font-mono text-[12px] text-ink-4 tabular-nums hidden sm:inline tracking-tight min-w-[44px] text-right">
+        {track.duration}
+      </span>
+    ) : null}
+  </motion.div>
+));
+SearchSongRow.displayName = 'SearchSongRow';
 
 const SearchPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -207,7 +322,7 @@ const SearchPage = () => {
   }, [searchParams.get('type')]);
 
   const parsedQuery = useMemo(() => parseQuery(debouncedQuery), [debouncedQuery]);
-  const highlightTokens = parsedQuery.tokens || [];
+  const highlightTokens = parsedQuery.tokens || EMPTY_TOKENS;
   const chipType = filter === 'playlist' ? null : filter;
   const operatorType = parsedQuery.filters?.type || null;
   const serverType = chipType === null ? null : operatorType || chipType;
@@ -463,100 +578,17 @@ const SearchPage = () => {
   };
 
   const renderSongRow = (track, globalIndex) => (
-    <motion.div
-      variants={fadeUp}
+    <SearchSongRow
       key={`${track.id || track.videoId || globalIndex}-${globalIndex}`}
-      id={`search-result-${globalIndex}`}
-      role="option"
-      aria-selected={selectedIdx === globalIndex}
-      onClick={() => { playTrack(toTrack(track)); commitRecent(userText); }}
-      onMouseEnter={() => setSelectedIdx(globalIndex)}
-      className={cn(
-        'group relative flex min-w-0 items-center gap-3 sm:gap-4 p-3 sm:p-3.5 cursor-pointer border-b border-white/[0.05] last:border-0',
-        // Active row keeps its accent fill; idle rows pick up the
-        // universal `.row-hover` slide-in.
-        selectedIdx === globalIndex
-          ? "bg-track/[0.10] before:content-[''] before:absolute before:left-0 before:inset-y-2 before:w-0.5 before:bg-track before:rounded-full"
-          : "row-hover hover:before:content-[''] hover:before:absolute hover:before:left-0 hover:before:inset-y-2 hover:before:w-0.5 hover:before:bg-track/40 hover:before:rounded-full",
-      )}
-    >
-      <span
-        aria-hidden="true"
-        className={cn(
-          'hidden md:inline-flex w-7 shrink-0 justify-end font-mono text-[10px] tabular-nums transition-colors',
-          selectedIdx === globalIndex
-            ? 'text-accent'
-            : 'text-ink-4 group-hover:text-ink-3',
-        )}
-      >
-        {String(globalIndex + 1).padStart(2, '0')}
-      </span>
-      <div className="relative w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0">
-        <SmartImage
-          src={track.thumbnail}
-          alt=""
-          kind="track"
-          rounded="rounded-sharp"
-          className="w-10 h-10 sm:w-12 sm:h-12 ring-1 ring-white/10"
-          imgClassName="object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-br from-black/65 via-black/45 to-black/65 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-sharp">
-          <Play className="w-5 h-5 text-white fill-current" />
-        </div>
-      </div>
-      <div className="flex-1 min-w-0">
-        <p
-          className={cn(
-            'text-[14px] font-medium truncate inline-flex items-center gap-2 w-full',
-            selectedIdx === globalIndex ? 'text-accent' : 'text-ink',
-          )}
-        >
-          <span className="truncate">
-            <SearchHighlight text={track.title} tokens={highlightTokens} />
-          </span>
-          <KindBadge kind={track.kind} />
-        </p>
-        <p className="font-editorial text-[12.5px] text-ink-3 truncate mt-0.5">
-          by{' '}
-          {(() => {
-            const slug = artistSlugOf(track);
-            const artistName = track.artist || 'Unknown artist';
-            return isUsableArtistSlug(slug) ? (
-              <Link
-                to={`/artist/${slug}`}
-                onClick={(e) => e.stopPropagation()}
-                className="hover:text-ink hover:underline underline-offset-2 focus-ring rounded-sharp"
-              >
-                <SearchHighlight text={artistName} tokens={highlightTokens} />
-              </Link>
-            ) : (
-              <SearchHighlight text={artistName} tokens={highlightTokens} />
-            );
-          })()}
-        </p>
-      </div>
-      {selectedIdx === globalIndex ? (
-        <span className="hidden md:inline-flex items-center gap-1 text-[10px] text-ink-3">
-          <CornerDownLeft className="w-3 h-3" />
-        </span>
-      ) : null}
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="touch-action-visible opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200 delay-75 flex items-center gap-1"
-      >
-        <AddToPlaylistButton
-          track={toTrack(track)}
-          className="p-1.5"
-          buttonLabel={`Add ${track.title} to playlist`}
-        />
-        <HeartButton track={toTrack(track)} size="sm" />
-      </div>
-      {track.duration ? (
-        <span className="font-mono text-[12px] text-ink-4 tabular-nums hidden sm:inline tracking-tight min-w-[44px] text-right">
-          {track.duration}
-        </span>
-      ) : null}
-    </motion.div>
+      track={track}
+      globalIndex={globalIndex}
+      isSelected={selectedIdx === globalIndex}
+      highlightTokens={highlightTokens}
+      userText={userText}
+      playTrack={playTrack}
+      commitRecent={commitRecent}
+      setSelectedIdx={setSelectedIdx}
+    />
   );
 
   return (

@@ -24,6 +24,9 @@ const STORAGE_KEY = 'octavia.player.v1';
 const HISTORY_MAX = 24;
 const SMART_QUEUE_LIMIT = 24;
 const SMART_REMOTE_LIMIT = 30;
+// Seconds into a track past which "previous" restarts the current song rather
+// than skipping to the prior one. Used by playPrevious + the canGoPrevious flag.
+const PREV_RESTART_THRESHOLD = 3;
 
 const normalizeQueueMode = (value) =>
   ['manual', 'collection', 'smart'].includes(value) ? value : 'manual';
@@ -161,6 +164,23 @@ export const PlayerProvider = ({ children }) => {
   const lastVolumeRef = useRef(volume || 0.7);
   const playerRef = useRef(null);
   const progressRef = useRef(0);
+  // Holds a pending requestAnimationFrame id so high-frequency playhead ticks
+  // collapse into at most one React state update per frame (see reportProgress).
+  const progressRafRef = useRef(null);
+  // "Played past the restart threshold" — drives canGoPrevious. Kept as a
+  // coarse boolean (flips only when crossing PREV_RESTART_THRESHOLD) so it lives
+  // on the durable PlayerContext instead of the per-tick progress slice. This
+  // stops every transport surface from re-rendering on each playhead tick.
+  const pastPrevThresholdRef = useRef(false);
+  const [pastPrevThreshold, setPastPrevThreshold] = useState(false);
+
+  const syncPrevThreshold = useCallback((seconds) => {
+    const next = Number.isFinite(seconds) && seconds > PREV_RESTART_THRESHOLD;
+    if (next !== pastPrevThresholdRef.current) {
+      pastPrevThresholdRef.current = next;
+      setPastPrevThreshold(next);
+    }
+  }, []);
   const currentTrackRef = useRef(currentTrack);
   const queueStateRef = useRef(queueState);
   const smartQueueRequestRef = useRef(0);
@@ -251,10 +271,11 @@ export const PlayerProvider = ({ children }) => {
     });
     setIsPlaying(true);
     progressRef.current = 0;
+    syncPrevThreshold(0);
     setProgress(0);
     setDuration(0);
     return track;
-  }, [pushToHistory]);
+  }, [pushToHistory, syncPrevThreshold]);
 
   const generateSmartQueue = useCallback(async (seedTrackInput, { localCandidates = [] } = {}) => {
     const seedTrack = sanitizeTrack(seedTrackInput, { requirePlayable: true });
@@ -414,8 +435,9 @@ export const PlayerProvider = ({ children }) => {
       }
     }
     progressRef.current = seconds;
+    syncPrevThreshold(seconds);
     setProgress(seconds);
-  }, []);
+  }, [syncPrevThreshold]);
 
   const addToQueue = useCallback((trackInput) => {
     const track = sanitizeTrack(trackInput, { requirePlayable: true });
@@ -598,7 +620,7 @@ export const PlayerProvider = ({ children }) => {
   }, [shuffle, repeat, startTrackPlayback]);
 
   const playPrevious = useCallback(() => {
-    if (progressRef.current > 3) {
+    if (progressRef.current > PREV_RESTART_THRESHOLD) {
       const media = playerRef.current;
       if (media) {
         try {
@@ -608,6 +630,7 @@ export const PlayerProvider = ({ children }) => {
         }
       }
       progressRef.current = 0;
+      syncPrevThreshold(0);
       setProgress(0);
       return true;
     }
@@ -639,9 +662,10 @@ export const PlayerProvider = ({ children }) => {
       }
     }
     progressRef.current = 0;
+    syncPrevThreshold(0);
     setProgress(0);
     return false;
-  }, [repeat, startTrackPlayback]);
+  }, [repeat, startTrackPlayback, syncPrevThreshold]);
 
   const toggleShuffle = useCallback(() => {
     setShuffle((previous) => !previous);
@@ -656,9 +680,29 @@ export const PlayerProvider = ({ children }) => {
   }, []);
 
   const reportProgress = useCallback((seconds) => {
-    if (Number.isFinite(seconds)) {
-      progressRef.current = seconds;
+    if (!Number.isFinite(seconds)) return;
+    // Keep the ref exact and synchronous — seek/crossfade/previous logic reads
+    // progressRef.current directly and must never see a stale value.
+    progressRef.current = seconds;
+    syncPrevThreshold(seconds);
+    // Coalesce the React state update to one per animation frame. The media
+    // element can fire timeupdate several times per frame; batching here keeps
+    // the seekbar visually smooth (<=60fps) while avoiding redundant renders.
+    if (typeof requestAnimationFrame !== 'function') {
       setProgress(seconds);
+      return;
+    }
+    if (progressRafRef.current != null) return;
+    progressRafRef.current = requestAnimationFrame(() => {
+      progressRafRef.current = null;
+      setProgress(progressRef.current);
+    });
+  }, [syncPrevThreshold]);
+
+  useEffect(() => () => {
+    if (progressRafRef.current != null && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(progressRafRef.current);
+      progressRafRef.current = null;
     }
   }, []);
 
@@ -746,6 +790,14 @@ export const PlayerProvider = ({ children }) => {
     return repeat === 'all' && queue.length > 0;
   }, [queue.length, queueIndex, shuffle, repeat]);
 
+  // Lives on the durable context (not the per-tick progress slice). The playhead
+  // contribution is the coarse `pastPrevThreshold` boolean, so this only changes
+  // when crossing the restart threshold — not on every tick.
+  const canGoPrevious = useMemo(
+    () => queueIndex > 0 || (repeat === 'all' && queue.length > 1) || pastPrevThreshold,
+    [queueIndex, repeat, queue.length, pastPrevThreshold],
+  );
+
   // Stable slice — memoized so progress ticks don't invalidate it.
   const value = useMemo(
     () => ({
@@ -780,6 +832,7 @@ export const PlayerProvider = ({ children }) => {
       reportProgress,
       reportDuration,
       canGoNext,
+      canGoPrevious,
     }),
     [
       currentTrack,
@@ -812,17 +865,18 @@ export const PlayerProvider = ({ children }) => {
       reportProgress,
       reportDuration,
       canGoNext,
+      canGoPrevious,
     ],
   );
 
-  // High-frequency slice. canGoPrevious depends on playhead + queue cursor.
+  // High-frequency slice — ONLY the raw playhead values. canGoPrevious moved to
+  // the durable context above so transport surfaces don't re-render every tick.
   const progressValue = useMemo(
     () => ({
       progress,
       duration,
-      canGoPrevious: queueIndex > 0 || (repeat === 'all' && queue.length > 1) || progress > 3,
     }),
-    [progress, duration, queueIndex, queue.length, repeat],
+    [progress, duration],
   );
 
   return (

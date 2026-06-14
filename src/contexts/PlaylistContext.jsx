@@ -13,6 +13,9 @@ const playlistsQueryKey = (userId) => ['me', 'playlists', userId];
 
 const PlaylistContext = createContext(undefined);
 
+// Stable empty reference for the loading/guest state (avoids per-render `[]`).
+const EMPTY_PLAYLISTS = Object.freeze([]);
+
 let counter = 0;
 const newId = () => `p-${Date.now().toString(36)}-${(++counter).toString(36)}`;
 
@@ -65,7 +68,7 @@ export const PlaylistProvider = ({ children }) => {
     },
   });
 
-  const playlists = userId ? playlistsQuery.data || [] : [];
+  const playlists = userId ? playlistsQuery.data || EMPTY_PLAYLISTS : EMPTY_PLAYLISTS;
 
   const updatePlaylistCollection = useCallback((updater) => {
     queryClient.setQueryData(queryKey, (current) =>

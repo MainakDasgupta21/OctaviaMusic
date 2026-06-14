@@ -115,7 +115,9 @@ const ChartsList = ({
                   key={entry.id}
                   entry={entry}
                   isCurrent={currentTrackId === entry.id}
-                  isPlaying={isPlaying}
+                  // Only the current row cares about isPlaying; giving every
+                  // other row a stable `false` lets memo skip them on play/pause.
+                  isPlaying={currentTrackId === entry.id ? isPlaying : false}
                   onPlay={onPlaySong}
                   onShare={onShareSong}
                   onAddFavorite={onFavoriteSong}

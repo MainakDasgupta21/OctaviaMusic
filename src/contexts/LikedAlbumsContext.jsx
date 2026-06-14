@@ -13,6 +13,9 @@ const likedAlbumsQueryKey = (userId) => ['me', 'liked-albums', userId];
 
 const LikedAlbumsContext = createContext(undefined);
 
+// Stable empty reference for the loading/guest state (avoids per-render `{}`).
+const EMPTY_LIKED = Object.freeze({});
+
 const toLikedShape = (album) => ({
   id: album.id,
   title: album.title || 'Untitled',
@@ -60,7 +63,7 @@ export const LikedAlbumsProvider = ({ children }) => {
     },
   });
 
-  const liked = userId ? likedQuery.data || {} : {};
+  const liked = userId ? likedQuery.data || EMPTY_LIKED : EMPTY_LIKED;
 
   const isLiked = useCallback((id) => Boolean(id && liked[id]), [liked]);
 

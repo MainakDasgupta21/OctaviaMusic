@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { usePlayer, usePlayerProgress } from '@/contexts/PlayerContext';
 import { useSettings } from '@/contexts/SettingsContext';
@@ -50,6 +50,232 @@ const QUALITY_PREFERENCE_ORDER = [
   'tiny',
 ];
 
+// =============================================================================
+// Progress-driven children
+// -----------------------------------------------------------------------------
+// The playhead updates several times a second. To keep the (large) FooterPlayer
+// chrome off that hot path, every surface that reads `progress`/`duration`
+// lives in its own small subscriber below. Each one calls usePlayerProgress()
+// itself, so only these tiny subtrees reconcile per tick — the parent does not.
+// =============================================================================
+
+// Effect-only subscriber: owns the per-tick playback side effects (crossfade
+// ramp + Media Session position). Renders nothing.
+const FooterPlaybackEffects = ({
+  crossfadeRef,
+  isPlaying,
+  crossfadeSeconds,
+  fadeGain,
+  liveProgressRef,
+  liveDurationRef,
+}) => {
+  const { progress, duration } = usePlayerProgress();
+
+  // Keep refs fresh so the parent's Media Session seek handlers + end handler
+  // can read the live playhead without subscribing to it (and re-rendering).
+  useEffect(() => {
+    liveProgressRef.current = progress;
+    liveDurationRef.current = duration;
+  }, [progress, duration, liveProgressRef, liveDurationRef]);
+
+  // Ask the controller to fade out within the last `crossfadeSeconds`. `tick`
+  // is idempotent — it only arms once per track end.
+  useEffect(() => {
+    if (!isPlaying) return;
+    if (!Number.isFinite(duration) || duration <= 0) return;
+    crossfadeRef.current?.tick({
+      progress,
+      duration,
+      fadeSec: crossfadeSeconds,
+      currentVolume: fadeGain,
+    });
+  }, [progress, duration, isPlaying, crossfadeSeconds, fadeGain, crossfadeRef]);
+
+  // Report playback position to the OS media UI (lock screen / Bluetooth).
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+    if (!Number.isFinite(duration) || duration <= 0) return;
+    try {
+      navigator.mediaSession.setPositionState?.({
+        duration,
+        position: Math.min(progress || 0, duration),
+        playbackRate: 1,
+      });
+    } catch {
+      /* noop */
+    }
+  }, [progress, duration]);
+
+  return null;
+};
+
+// Desktop left cluster: artwork progress ring + title (with buffering pulse).
+const FooterDesktopTrackButton = memo(({
+  navigate,
+  currentTrack,
+  safeThumbnail,
+  isPlaying,
+  handleArtError,
+  seekPreview,
+}) => {
+  const { progress, duration } = usePlayerProgress();
+  const displayedProgress = seekPreview ?? progress;
+  const isBuffering = usePlaybackLoading({ trackId: currentTrack?.id, progress });
+  return (
+    <button
+      type="button"
+      onClick={() => navigate('/player')}
+      className="flex min-w-0 flex-1 items-center gap-2.5 rounded-sharp p-1 text-left transition-colors focus-ring hover:bg-white/[0.04] lg:gap-3"
+      aria-label="Open now playing page"
+    >
+      {/* Album thumb wrapped in a thin progress ring — the single
+          timeline language carries from /player into the footer.
+          Scrubbing happens by tapping the thumb to open /player. */}
+      <ProgressRing
+        progress={displayedProgress}
+        duration={duration}
+        playing={isPlaying}
+        startAt="left"
+        thickness={2.2}
+        size={60}
+        className="flex-shrink-0"
+        innerClassName="p-[10%]"
+      >
+        <motion.img
+          layoutId="footer-art-desktop"
+          key={currentTrack.id}
+          initial={{ scale: 0.85, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          src={safeThumbnail}
+          alt={currentTrack.title || ''}
+          onError={handleArtError}
+          loading="eager"
+          decoding="async"
+          referrerPolicy="no-referrer"
+          style={{ viewTransitionName: 'vt-now-cover' }}
+          className="h-full w-full rounded-[28%] object-cover"
+        />
+      </ProgressRing>
+      <div className="min-w-0 flex-1">
+        <h4
+          className={cn(
+            'font-display text-[15px] leading-tight truncate text-ink tracking-tight',
+            // Pulse the title while we're waiting for the first
+            // frame so the UI clearly says "I heard you, hang on".
+            isBuffering && 'animate-pulse opacity-80',
+          )}
+        >
+          {currentTrack.title}
+        </h4>
+        <p className="text-[11.5px] text-ink-3 truncate mt-1 leading-tight">
+          <span className="font-editorial">by</span> {currentTrack.artist || 'Unknown artist'}
+        </p>
+      </div>
+    </button>
+  );
+});
+FooterDesktopTrackButton.displayName = 'FooterDesktopTrackButton';
+
+// Desktop linear seek bar — random-access scrubbing without leaving the footer.
+const FooterDesktopSeek = memo(({ currentTrackId, seekPreview, setSeekPreview, seekTo }) => {
+  const { progress, duration } = usePlayerProgress();
+  const isBuffering = usePlaybackLoading({ trackId: currentTrackId, progress });
+  const displayedProgress = seekPreview ?? progress;
+  const canSeek = Number.isFinite(duration) && duration > 0;
+  return (
+    <div
+      className={cn(
+        'absolute bottom-0 left-1/2 flex w-full max-w-[460px] -translate-x-1/2 items-center gap-2.5 lg:max-w-[520px] xl:max-w-[620px]',
+        isBuffering && 'animate-pulse',
+      )}
+    >
+      <span className="hidden w-10 shrink-0 text-right font-mono text-[10.5px] tabular tracking-tight text-ink-3 lg:block">
+        {formatTime(displayedProgress)}
+      </span>
+      <Slider
+        value={[Math.min(displayedProgress || 0, duration || 0)]}
+        max={duration > 0 ? duration : 100}
+        step={1}
+        onValueChange={(value) => setSeekPreview(value[0])}
+        onValueCommit={(value) => {
+          setSeekPreview(null);
+          seekTo(value[0]);
+        }}
+        disabled={!canSeek}
+        // Delicate-then-tactile thickness: hairline at rest,
+        // bumps to 4px on hover / focus-within so the affordance
+        // is unmistakable without crowding the footer chrome.
+        className="flex-1 [&_.slider-track]:h-[2px] [&_.slider-track]:transition-[height] [&_.slider-track]:duration-med [&_.slider-track]:ease-emphasis hover:[&_.slider-track]:h-[4px] focus-within:[&_.slider-track]:h-[4px]"
+        aria-label="Seek"
+      />
+      <span className="hidden w-10 shrink-0 font-mono text-[10.5px] tabular tracking-tight text-ink-4 lg:block">
+        {formatTime(duration)}
+      </span>
+    </div>
+  );
+});
+FooterDesktopSeek.displayName = 'FooterDesktopSeek';
+
+// Mobile mini artwork progress ring.
+const FooterMobileRing = memo(({ currentTrack, safeThumbnail, isPlaying, handleArtError }) => {
+  const { progress, duration } = usePlayerProgress();
+  return (
+    <ProgressRing
+      progress={progress}
+      duration={duration}
+      playing={isPlaying}
+      startAt="left"
+      thickness={2.2}
+      size={56}
+      className="flex-shrink-0"
+      innerClassName="p-[10%]"
+    >
+      <motion.img
+        layoutId="footer-art-mobile"
+        key={currentTrack.id}
+        src={safeThumbnail}
+        alt={currentTrack.title || ''}
+        onError={handleArtError}
+        loading="eager"
+        decoding="async"
+        referrerPolicy="no-referrer"
+        style={{ viewTransitionName: 'vt-now-cover' }}
+        className="h-full w-full rounded-[28%] object-cover"
+      />
+    </ProgressRing>
+  );
+});
+FooterMobileRing.displayName = 'FooterMobileRing';
+
+// Mobile slim progress strip along the bottom edge of the mini player.
+const FooterMobileStrip = memo(({ currentTrackId }) => {
+  const { progress, duration } = usePlayerProgress();
+  const isBuffering = usePlaybackLoading({ trackId: currentTrackId, progress });
+  return (
+    <span
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-x-0 bottom-0 h-[3px] bg-white/[0.08]"
+    >
+      <span
+        className={cn(
+          'block h-full transition-[width] duration-150 ease-linear',
+          isBuffering && 'animate-pulse',
+        )}
+        style={{
+          width: `${
+            Number.isFinite(duration) && duration > 0
+              ? Math.min(100, Math.max(0, ((progress || 0) / duration) * 100))
+              : 0
+          }%`,
+          backgroundImage:
+            'linear-gradient(90deg, hsl(var(--track-accent)), hsl(var(--track-accent-strong)))',
+        }}
+      />
+    </span>
+  );
+});
+FooterMobileStrip.displayName = 'FooterMobileStrip';
+
 const FooterPlayer = () => {
   const {
     currentTrack,
@@ -70,8 +296,8 @@ const FooterPlayer = () => {
     reportDuration,
     handleTrackEnded,
     canGoNext,
+    canGoPrevious,
   } = usePlayer();
-  const { progress, duration, canGoPrevious } = usePlayerProgress();
   const navigate = useNavigate();
   const location = useLocation();
   const { settings } = useSettings();
@@ -81,13 +307,11 @@ const FooterPlayer = () => {
   // OS-level triggers don't double up on click sounds.
   const transport = useTransportActions();
 
-  // Buffering signal — true for the first ~1.5s after a track change until
-  // playback progresses past a quarter-second. Drives a shimmer on the
-  // seekbar and a pulse on the title so users know the player heard them.
-  const isBuffering = usePlaybackLoading({
-    trackId: currentTrack?.id,
-    progress,
-  });
+  // Live playhead mirror — kept fresh by <FooterPlaybackEffects> so the seek
+  // action handlers + end handler can read the current position without the
+  // parent subscribing to (and re-rendering on) every progress tick.
+  const liveProgressRef = useRef(0);
+  const liveDurationRef = useRef(0);
 
   // Crossfade gain (0..1) multiplies the user's volume so the controller can
   // ramp the track in/out without clobbering the user's slider position.
@@ -109,19 +333,8 @@ const FooterPlayer = () => {
     return undefined;
   }, [currentTrack?.id, crossfadeSeconds]);
 
-  // While a track is playing, ask the controller to start fading out within
-  // the last `crossfadeSeconds`. `tick` is idempotent — it only arms once
-  // per track end.
-  useEffect(() => {
-    if (!isPlaying) return;
-    if (!Number.isFinite(duration) || duration <= 0) return;
-    crossfadeRef.current?.tick({
-      progress,
-      duration,
-      fadeSec: crossfadeSeconds,
-      currentVolume: fadeGain,
-    });
-  }, [progress, duration, isPlaying, crossfadeSeconds, fadeGain]);
+  // The per-tick crossfade ramp now lives in <FooterPlaybackEffects> so it no
+  // longer forces the whole footer to re-render on every progress update.
 
   useEffect(() => () => crossfadeRef.current?.dispose(), []);
 
@@ -172,8 +385,6 @@ const FooterPlayer = () => {
 
   useEffect(() => clearLongPressTimer, [clearLongPressTimer]);
   const isPlayerRoute = location.pathname.startsWith('/player');
-  const displayedProgress = seekPreview ?? progress;
-  const canSeek = Number.isFinite(duration) && duration > 0;
 
   useEffect(() => {
     setSeekPreview(null);
@@ -191,11 +402,11 @@ const FooterPlayer = () => {
     sanitizeImageUrl(currentTrack?.thumbnail, { fallback: pickPlaceholder('track') })
     || pickPlaceholder('track');
 
-  const handleArtError = (e) => {
+  const handleArtError = useCallback((e) => {
     if (e?.currentTarget && e.currentTarget.src !== window.location.origin + pickPlaceholder('track')) {
       e.currentTarget.src = pickPlaceholder('track');
     }
-  };
+  }, []);
 
   // The track-accent updates globally so even the sidebar pill and play button
   // reflect the current album art.
@@ -219,12 +430,12 @@ const FooterPlayer = () => {
     const endSeconds =
       Number.isFinite(mediaDuration) && mediaDuration > 0
         ? mediaDuration
-        : duration;
+        : liveDurationRef.current;
     if (Number.isFinite(endSeconds) && endSeconds > 0) {
       reportProgress(endSeconds);
     }
     handleTrackEnded();
-  }, [playerRef, duration, reportProgress, handleTrackEnded]);
+  }, [playerRef, reportProgress, handleTrackEnded]);
   const playerConfig = useMemo(
     () => ({
       youtube: {
@@ -328,11 +539,11 @@ const FooterPlayer = () => {
     safe('nexttrack', () => playNext());
     safe('seekbackward', (details) => {
       const step = details?.seekOffset || 10;
-      seekTo(Math.max(0, (progress || 0) - step));
+      seekTo(Math.max(0, (liveProgressRef.current || 0) - step));
     });
     safe('seekforward', (details) => {
       const step = details?.seekOffset || 10;
-      seekTo(Math.min(duration || 0, (progress || 0) + step));
+      seekTo(Math.min(liveDurationRef.current || 0, (liveProgressRef.current || 0) + step));
     });
     safe('seekto', (details) => {
       if (typeof details?.seekTime === 'number') seekTo(details.seekTime);
@@ -343,21 +554,10 @@ const FooterPlayer = () => {
         (a) => safe(a, null),
       );
     };
-  }, [togglePlay, playPrevious, playNext, seekTo, progress, duration]);
+  }, [togglePlay, playPrevious, playNext, seekTo]);
 
-  useEffect(() => {
-    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
-    if (!Number.isFinite(duration) || duration <= 0) return;
-    try {
-      navigator.mediaSession.setPositionState?.({
-        duration,
-        position: Math.min(progress || 0, duration),
-        playbackRate: 1,
-      });
-    } catch {
-      /* noop */
-    }
-  }, [progress, duration]);
+  // The Media Session position update now lives in <FooterPlaybackEffects> so it
+  // doesn't tie the parent footer to the per-tick playhead.
 
   useEffect(() => {
     applyPreferredQuality();
@@ -426,6 +626,15 @@ const FooterPlayer = () => {
         />
       </Suspense>
 
+      <FooterPlaybackEffects
+        crossfadeRef={crossfadeRef}
+        isPlaying={isPlaying}
+        crossfadeSeconds={crossfadeSeconds}
+        fadeGain={fadeGain}
+        liveProgressRef={liveProgressRef}
+        liveDurationRef={liveDurationRef}
+      />
+
       <AnimatePresence>
         {/* Desktop / tablet footer */}
         {!isPlayerRoute ? (
@@ -466,56 +675,14 @@ const FooterPlayer = () => {
           />
           <div className="player-footer-inner relative flex h-full w-full items-center gap-2.5 px-3 md:gap-3 md:px-4 lg:gap-7 lg:px-7">
             <div className="player-desktop-left flex min-w-0 shrink items-center gap-2 md:basis-[38%] lg:basis-auto lg:gap-4 lg:w-72">
-              <button
-                type="button"
-                onClick={() => navigate('/player')}
-                className="flex min-w-0 flex-1 items-center gap-2.5 rounded-sharp p-1 text-left transition-colors focus-ring hover:bg-white/[0.04] lg:gap-3"
-                aria-label="Open now playing page"
-              >
-                {/* Album thumb wrapped in a thin progress ring — the single
-                    timeline language carries from /player into the footer.
-                    Scrubbing happens by tapping the thumb to open /player. */}
-                <ProgressRing
-                  progress={displayedProgress}
-                  duration={duration}
-                  playing={isPlaying}
-                  startAt="left"
-                  thickness={2.2}
-                  size={60}
-                  className="flex-shrink-0"
-                  innerClassName="p-[10%]"
-                >
-                  <motion.img
-                    layoutId="footer-art-desktop"
-                    key={currentTrack.id}
-                    initial={{ scale: 0.85, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    src={safeThumbnail}
-                    alt={currentTrack.title || ''}
-                    onError={handleArtError}
-                    loading="eager"
-                    decoding="async"
-                    referrerPolicy="no-referrer"
-                    style={{ viewTransitionName: 'vt-now-cover' }}
-                    className="h-full w-full rounded-[28%] object-cover"
-                  />
-                </ProgressRing>
-                <div className="min-w-0 flex-1">
-                  <h4
-                    className={cn(
-                      'font-display text-[15px] leading-tight truncate text-ink tracking-tight',
-                      // Pulse the title while we're waiting for the first
-                      // frame so the UI clearly says "I heard you, hang on".
-                      isBuffering && 'animate-pulse opacity-80',
-                    )}
-                  >
-                    {currentTrack.title}
-                  </h4>
-                  <p className="text-[11.5px] text-ink-3 truncate mt-1 leading-tight">
-                    <span className="font-editorial">by</span> {currentTrack.artist || 'Unknown artist'}
-                  </p>
-                </div>
-              </button>
+              <FooterDesktopTrackButton
+                navigate={navigate}
+                currentTrack={currentTrack}
+                safeThumbnail={safeThumbnail}
+                isPlaying={isPlaying}
+                handleArtError={handleArtError}
+                seekPreview={seekPreview}
+              />
               <HeartButton track={currentTrack} size="sm" className="hidden lg:inline-flex" />
               <AddToPlaylistButton
                 track={currentTrack}
@@ -626,35 +793,12 @@ const FooterPlayer = () => {
                   the footer. The Slider's range fills with the runtime
                   --track-accent gradient, so it tracks the same chameleon
                   palette as the ring and the play button. */}
-              <div
-                className={cn(
-                  'absolute bottom-0 left-1/2 flex w-full max-w-[460px] -translate-x-1/2 items-center gap-2.5 lg:max-w-[520px] xl:max-w-[620px]',
-                  isBuffering && 'animate-pulse',
-                )}
-              >
-                <span className="hidden w-10 shrink-0 text-right font-mono text-[10.5px] tabular tracking-tight text-ink-3 lg:block">
-                  {formatTime(displayedProgress)}
-                </span>
-                <Slider
-                  value={[Math.min(displayedProgress || 0, duration || 0)]}
-                  max={duration > 0 ? duration : 100}
-                  step={1}
-                  onValueChange={(value) => setSeekPreview(value[0])}
-                  onValueCommit={(value) => {
-                    setSeekPreview(null);
-                    seekTo(value[0]);
-                  }}
-                  disabled={!canSeek}
-                  // Delicate-then-tactile thickness: hairline at rest,
-                  // bumps to 4px on hover / focus-within so the affordance
-                  // is unmistakable without crowding the footer chrome.
-                  className="flex-1 [&_.slider-track]:h-[2px] [&_.slider-track]:transition-[height] [&_.slider-track]:duration-med [&_.slider-track]:ease-emphasis hover:[&_.slider-track]:h-[4px] focus-within:[&_.slider-track]:h-[4px]"
-                  aria-label="Seek"
-                />
-                <span className="hidden w-10 shrink-0 font-mono text-[10.5px] tabular tracking-tight text-ink-4 lg:block">
-                  {formatTime(duration)}
-                </span>
-              </div>
+              <FooterDesktopSeek
+                currentTrackId={currentTrack?.id}
+                seekPreview={seekPreview}
+                setSeekPreview={setSeekPreview}
+                seekTo={seekTo}
+              />
             </div>
 
             <div className="player-desktop-right flex min-w-0 items-center justify-end gap-1 md:basis-[18%] lg:basis-auto lg:gap-3 lg:w-48">
@@ -745,26 +889,7 @@ const FooterPlayer = () => {
                 informational — interactive scrubbing lives on the full
                 player page. The fill uses the same chameleon gradient as
                 the ring and the desktop seek bar. */}
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-x-0 bottom-0 h-[3px] bg-white/[0.08]"
-            >
-              <span
-                className={cn(
-                  'block h-full transition-[width] duration-150 ease-linear',
-                  isBuffering && 'animate-pulse',
-                )}
-                style={{
-                  width: `${
-                    Number.isFinite(duration) && duration > 0
-                      ? Math.min(100, Math.max(0, ((progress || 0) / duration) * 100))
-                      : 0
-                  }%`,
-                  backgroundImage:
-                    'linear-gradient(90deg, hsl(var(--track-accent)), hsl(var(--track-accent-strong)))',
-                }}
-              />
-            </span>
+            <FooterMobileStrip currentTrackId={currentTrack?.id} />
             <button
               type="button"
               onClick={(e) => {
@@ -786,29 +911,12 @@ const FooterPlayer = () => {
               {/* Mobile mini — same ring vocabulary as desktop, just smaller.
                   Replaces the old bottom-edge progress strip; the ring IS
                   the progress now. */}
-              <ProgressRing
-                progress={progress}
-                duration={duration}
-                playing={isPlaying}
-                startAt="left"
-                thickness={2.2}
-                size={56}
-                className="flex-shrink-0"
-                innerClassName="p-[10%]"
-              >
-                <motion.img
-                  layoutId="footer-art-mobile"
-                  key={currentTrack.id}
-                  src={safeThumbnail}
-                  alt={currentTrack.title || ''}
-                  onError={handleArtError}
-                  loading="eager"
-                  decoding="async"
-                  referrerPolicy="no-referrer"
-                  style={{ viewTransitionName: 'vt-now-cover' }}
-                  className="h-full w-full rounded-[28%] object-cover"
-                />
-              </ProgressRing>
+              <FooterMobileRing
+                currentTrack={currentTrack}
+                safeThumbnail={safeThumbnail}
+                isPlaying={isPlaying}
+                handleArtError={handleArtError}
+              />
               <div className="flex-1 min-w-0">
                 <p className="font-display text-[15px] leading-tight truncate text-ink tracking-tight">
                   {currentTrack.title}

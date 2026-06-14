@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { usePlayer, usePlayerProgress } from '@/contexts/PlayerContext';
+import { usePlayer } from '@/contexts/PlayerContext';
 import { useSounds } from '@/contexts/SoundContext';
 
 const safeVibrate = (ms) => {
@@ -31,12 +31,12 @@ export const useTransportActions = () => {
     playNext,
     playPrevious,
     canGoNext,
+    canGoPrevious,
     shuffle,
     toggleShuffle,
     repeat,
     toggleRepeat,
   } = usePlayer();
-  const { canGoPrevious } = usePlayerProgress();
   const { play: playSfx } = useSounds();
 
   const onTogglePlay = useCallback(() => {

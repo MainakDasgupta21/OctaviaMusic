@@ -213,7 +213,13 @@ const HomePage = () => {
 
   const backendOffline = homeQuery.isError && isNetworkError(homeQuery.error);
   const pageError = usePageError(homeQuery.error, { resource: 'the home feed' });
-  const heroTrack = sanitizeTrack(hero?.track, { requirePlayable: true });
+  // Memoized so the hero track isn't re-sanitized (and its identity churned)
+  // on every HomePage render — e.g. play/pause toggles or progress-driven
+  // parent updates.
+  const heroTrack = useMemo(
+    () => sanitizeTrack(hero?.track, { requirePlayable: true }),
+    [hero?.track],
+  );
   const handleHomeSurprise = useCallback(async () => {
     if (homeSurpriseLoading) return;
     setHomeSurpriseLoading(true);
@@ -399,7 +405,7 @@ const HomePage = () => {
                 key={track.id}
                 track={track}
                 index={index}
-                onPlay={() => playTrack(track)}
+                onPlay={playTrack}
                 isCurrent={currentTrack?.id === track.id}
               />
             ))}
@@ -435,7 +441,7 @@ const HomePage = () => {
                       key={track.id}
                       track={track}
                       index={index}
-                      onPlay={() => playTrack(track)}
+                      onPlay={playTrack}
                       isCurrent={currentTrack?.id === track.id}
                     />
                   ))
@@ -477,7 +483,7 @@ const HomePage = () => {
                       key={track.id}
                       track={track}
                       index={index}
-                      onPlay={() => playTrack(track)}
+                      onPlay={playTrack}
                       isCurrent={currentTrack?.id === track.id}
                     />
                   ))}
@@ -501,7 +507,7 @@ const HomePage = () => {
                 key={track.id}
                 track={track}
                 index={index + 12}
-                onPlay={() => playTrack(track)}
+                onPlay={playTrack}
                 isCurrent={currentTrack?.id === track.id}
               />
             ))}
@@ -525,7 +531,7 @@ const HomePage = () => {
                 key={track.id}
                 track={track}
                 index={index + 20}
-                onPlay={() => playTrack(track)}
+                onPlay={playTrack}
                 isCurrent={currentTrack?.id === track.id}
               />
             ))}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePlayer } from '@/contexts/PlayerContext';
 import { useFavorites } from '@/contexts/FavoritesContext';
@@ -77,50 +77,53 @@ const ChartsPage = () => {
     }
   }, [thisDayDismissKey]);
 
-  const dismissThisDayCard = () => {
+  const dismissThisDayCard = useCallback(() => {
     setDismissedThisDay(true);
     try {
       window.localStorage.setItem(thisDayDismissKey, '1');
     } catch {
       // Ignore storage failures (private mode/quota).
     }
-  };
+  }, [thisDayDismissKey]);
 
-  const handlePlaySong = (song) => {
+  // These handlers are passed down to the memoized chart rows. Keeping their
+  // identity stable (useCallback) lets React.memo on ChartRowSong/Artist skip
+  // re-rendering every row when ChartsPage re-renders (e.g. on play/pause).
+  const handlePlaySong = useCallback((song) => {
     playTrack(song);
-  };
+  }, [playTrack]);
 
-  const handlePlayArtistTrack = (track) => {
+  const handlePlayArtistTrack = useCallback((track) => {
     playTrack(track);
-  };
+  }, [playTrack]);
 
-  const handleFavoriteSong = (song) => {
+  const handleFavoriteSong = useCallback((song) => {
     const added = toggleFavorite(song);
     if (added == null) return;
     if (added) notify.liked(song.title);
     else notify.unliked(song.title);
-  };
+  }, [toggleFavorite]);
 
-  const handleGoAlbum = (song) => {
+  const handleGoAlbum = useCallback((song) => {
     if (song.albumId) {
       navigate(`/album/${encodeURIComponent(song.albumId)}`);
       return;
     }
     navigate(`/search?q=${encodeURIComponent(`${song.title} ${song.artist}`)}`);
-  };
+  }, [navigate]);
 
-  const handleGoArtist = (song) => {
+  const handleGoArtist = useCallback((song) => {
     navigate(`/artist/${encodeURIComponent(song.artistId)}`);
-  };
+  }, [navigate]);
 
-  const handleToggleArtistRow = (artistRowId) => {
+  const handleToggleArtistRow = useCallback((artistRowId) => {
     setExpandedArtistRows((current) => {
       const next = new Set(current);
       if (next.has(artistRowId)) next.delete(artistRowId);
       else next.add(artistRowId);
       return next;
     });
-  };
+  }, []);
 
   return (
     <div className="page-shell pt-5 md:pt-8 pb-12">

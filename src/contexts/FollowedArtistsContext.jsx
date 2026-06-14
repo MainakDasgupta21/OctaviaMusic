@@ -13,6 +13,9 @@ const followedArtistsQueryKey = (userId) => ['me', 'followed-artists', userId];
 
 const FollowedArtistsContext = createContext(undefined);
 
+// Stable empty reference for the loading/guest state (avoids per-render `{}`).
+const EMPTY_FOLLOWED = Object.freeze({});
+
 const toFollowedShape = (artist) => ({
   slug: artist.slug || artist.id || '',
   id: artist.id || artist.slug || '',
@@ -62,7 +65,7 @@ export const FollowedArtistsProvider = ({ children }) => {
     },
   });
 
-  const followed = userId ? followedQuery.data || {} : {};
+  const followed = userId ? followedQuery.data || EMPTY_FOLLOWED : EMPTY_FOLLOWED;
 
   const isFollowing = useCallback(
     (slugOrId) => {

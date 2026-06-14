@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -266,9 +266,9 @@ const Overview = ({
               key={track.id}
               track={track}
               index={i}
-              onPlay={() => playTrack(track)}
+              onPlay={playTrack}
               isCurrent={currentTrack?.id === track.id}
-              isPlaying={isPlaying}
+              isPlaying={currentTrack?.id === track.id && isPlaying}
             />
           ))}
         </div>
@@ -333,9 +333,9 @@ const Overview = ({
               key={track.id}
               track={track}
               index={i}
-              onPlay={() => playTrack(track)}
+              onPlay={playTrack}
               isCurrent={currentTrack?.id === track.id}
-              isPlaying={isPlaying}
+              isPlaying={currentTrack?.id === track.id && isPlaying}
             />
           ))}
         </div>
@@ -355,13 +355,13 @@ const handleCardKeyActivate = (event, action) => {
   action?.();
 };
 
-const CompactTrack = ({ track, index, onPlay, isCurrent, isPlaying }) => (
+const CompactTrack = memo(({ track, index, onPlay, isCurrent, isPlaying }) => (
   <motion.div
     variants={fadeUp}
     role="button"
     tabIndex={0}
-    onClick={onPlay}
-    onKeyDown={(event) => handleCardKeyActivate(event, onPlay)}
+    onClick={() => onPlay(track)}
+    onKeyDown={(event) => handleCardKeyActivate(event, () => onPlay(track))}
     className={cn(
       'group flex min-w-0 items-center gap-2.5 sm:gap-3 p-2.5 pr-3 sm:pr-4 rounded-sharp',
       'border border-white/[0.06] bg-surface-2/50 backdrop-blur-md',
@@ -410,7 +410,89 @@ const CompactTrack = ({ track, index, onPlay, isCurrent, isPlaying }) => (
       {isCurrent && isPlaying ? <NowPlayingBars /> : <Play className="w-4 h-4 fill-current" />}
     </div>
   </motion.div>
-);
+));
+CompactTrack.displayName = 'CompactTrack';
+
+// Memoized row for the recently-played / track lists so play/pause and parent
+// re-renders only touch the affected row. onPlay is the stable playTrack and
+// isPlaying is pre-narrowed to the current row.
+const LibraryTrackRow = memo(({ track, index, isCurrent, isPlaying, onPlay }) => (
+  <motion.div
+    variants={fadeUp}
+    onClick={() => onPlay(track)}
+    onKeyDown={(event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        onPlay(track);
+      }
+    }}
+    tabIndex={0}
+    role="button"
+    className={cn(
+      'group row-hover grid grid-cols-[2rem_2.5rem_minmax(0,1fr)_auto] sm:grid-cols-[2.3rem_3rem_minmax(0,1fr)_auto_auto] gap-2.5 sm:gap-4 px-3 sm:px-4 py-3.5',
+      'items-center cursor-pointer transition-colors border-b border-white/[0.05] last:border-0',
+      isCurrent ? 'bg-track/[0.08]' : 'hover:bg-white/[0.035]',
+    )}
+  >
+    <span className="flex justify-center items-center">
+      {isCurrent && isPlaying ? (
+        <NowPlayingBars />
+      ) : (
+        <span
+          className={cn(
+            'font-display italic text-xl sm:text-2xl leading-none tabular-nums',
+            isCurrent ? 'text-accent' : 'text-ink-3 group-hover:text-ink',
+          )}
+        >
+          {String(index + 1).padStart(2, '0')}
+        </span>
+      )}
+    </span>
+    <SmartImage
+      src={track.thumbnail}
+      alt=""
+      kind="track"
+      rounded="rounded-sharp"
+      className="w-10 h-10 sm:w-12 sm:h-12 ring-1 ring-white/10"
+      imgClassName="object-cover"
+    />
+    <div className="flex-1 min-w-0">
+      <h4
+        className={cn(
+          'text-[14px] font-medium truncate',
+          isCurrent ? 'text-accent' : 'text-ink',
+        )}
+      >
+        {track.title}
+      </h4>
+      <p className="font-editorial text-[12.5px] text-ink-3 truncate mt-0.5">
+        by {track.artist || 'Unknown artist'}
+      </p>
+    </div>
+    <div
+      className="touch-action-visible opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity flex items-center gap-1"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <AddToPlaylistButton
+        track={track}
+        className="p-1.5"
+        buttonLabel={`Add ${track.title || 'track'} to playlist`}
+      />
+      <HeartButton track={track} size="sm" />
+    </div>
+    {track.duration ? (
+      <div className="hidden sm:flex items-center gap-2 text-ink-4 justify-end">
+        <Clock className="w-3.5 h-3.5" />
+        <span className="font-mono text-[12px] tabular-nums tracking-tight">
+          {track.duration}
+        </span>
+      </div>
+    ) : (
+      <span className="hidden sm:inline-block w-12" aria-hidden />
+    )}
+  </motion.div>
+));
+LibraryTrackRow.displayName = 'LibraryTrackRow';
 
 const TrackList = ({
   tracks,
@@ -449,81 +531,14 @@ const TrackList = ({
         {tracks.map((track, index) => {
           const isCurrent = currentTrack?.id === track.id;
           return (
-            <motion.div
-              variants={fadeUp}
+            <LibraryTrackRow
               key={track.id}
-              onClick={() => onPlay(track)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault();
-                  onPlay(track);
-                }
-              }}
-              tabIndex={0}
-              role="button"
-              className={cn(
-                'group row-hover grid grid-cols-[2rem_2.5rem_minmax(0,1fr)_auto] sm:grid-cols-[2.3rem_3rem_minmax(0,1fr)_auto_auto] gap-2.5 sm:gap-4 px-3 sm:px-4 py-3.5',
-                'items-center cursor-pointer transition-colors border-b border-white/[0.05] last:border-0',
-                isCurrent ? 'bg-track/[0.08]' : 'hover:bg-white/[0.035]',
-              )}
-            >
-              <span className="flex justify-center items-center">
-                {isCurrent && isPlaying ? (
-                  <NowPlayingBars />
-                ) : (
-                  <span
-                    className={cn(
-                      'font-display italic text-xl sm:text-2xl leading-none tabular-nums',
-                      isCurrent ? 'text-accent' : 'text-ink-3 group-hover:text-ink',
-                    )}
-                  >
-                    {String(index + 1).padStart(2, '0')}
-                  </span>
-                )}
-              </span>
-              <SmartImage
-                src={track.thumbnail}
-                alt=""
-                kind="track"
-                rounded="rounded-sharp"
-                className="w-10 h-10 sm:w-12 sm:h-12 ring-1 ring-white/10"
-                imgClassName="object-cover"
-              />
-              <div className="flex-1 min-w-0">
-                <h4
-                  className={cn(
-                    'text-[14px] font-medium truncate',
-                    isCurrent ? 'text-accent' : 'text-ink',
-                  )}
-                >
-                  {track.title}
-                </h4>
-                <p className="font-editorial text-[12.5px] text-ink-3 truncate mt-0.5">
-                  by {track.artist || 'Unknown artist'}
-                </p>
-              </div>
-              <div
-                className="touch-action-visible opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity flex items-center gap-1"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <AddToPlaylistButton
-                  track={track}
-                  className="p-1.5"
-                  buttonLabel={`Add ${track.title || 'track'} to playlist`}
-                />
-                <HeartButton track={track} size="sm" />
-              </div>
-              {track.duration ? (
-                <div className="hidden sm:flex items-center gap-2 text-ink-4 justify-end">
-                  <Clock className="w-3.5 h-3.5" />
-                  <span className="font-mono text-[12px] tabular-nums tracking-tight">
-                    {track.duration}
-                  </span>
-                </div>
-              ) : (
-                <span className="hidden sm:inline-block w-12" aria-hidden />
-              )}
-            </motion.div>
+              track={track}
+              index={index}
+              isCurrent={isCurrent}
+              isPlaying={isCurrent && isPlaying}
+              onPlay={onPlay}
+            />
           );
         })}
       </motion.div>
