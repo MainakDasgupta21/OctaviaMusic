@@ -96,14 +96,17 @@ const MainLayout = () => {
     resetPageScroll();
   }, [location.pathname]);
 
-  // While the page scroller is actively moving, flag the document so hover
-  // micro-interactions (lift / magnetic glow / reveal buttons) are suppressed
-  // on the content underneath the cursor. Without this, scrolling sweeps every
-  // card under a parked pointer, each one briefly triggering its hover lift —
-  // a cascading wave that reads as the cards "floating" with the scroll. The
-  // flag is cleared a beat after the last scroll event so resting hover works
-  // normally. Scoped to `#main-content`, so nested rails and the scroll-locked
-  // /player route never trip it.
+  // Flag <html> with `data-scrolling` while the page scroller is moving; the
+  // flag clears ~120ms after the last scroll event. CSS uses it to fix the
+  // "cards float/ghost/lag then snap" jank: the fixed, full-viewport grain
+  // overlay (`body::before`) is blended over all content with `mix-blend-mode`,
+  // which forces the browser to re-composite the whole screen every scroll
+  // frame and knocks scrolling off the GPU fast-path. Dropping that overlay
+  // for the duration of a scroll restores smooth scrolling (it's barely
+  // visible at ~0.045 opacity, so the user never notices). The same flag also
+  // suppresses pointer-hover lift on cards that slide under a parked cursor.
+  // Scoped to `#main-content`, so nested rails and the /player route (scroll
+  // locked) never trip it.
   useEffect(() => {
     const scroller = mainRef.current;
     if (!scroller || typeof document === 'undefined') return undefined;

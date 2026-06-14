@@ -2106,17 +2106,31 @@
 }
 
 /* =========================================================================
-   Scroll-activity hover guard
+   Scroll-activity guards
    While the page scroller (`#main-content`) is actively moving, MainLayout
-   sets `data-scrolling` on <html>. Scrolling parks the cursor while cards
-   slide underneath it, so each card would briefly enter `:hover` and fire its
-   lift / magnetic-glow / reveal transition — a cascading wave that reads as
-   the cards "floating" with the scroll. Disabling pointer events on the
-   scroller's content for the duration kills every hover / group-hover effect
-   at once. The scroller itself keeps pointer-events, so wheel/scroll is never
-   interrupted; the flag clears ~120ms after scrolling stops so resting hover
-   returns to normal.
+   sets `data-scrolling` on <html>. The flag clears ~120ms after scrolling
+   stops, so everything below applies only for the duration of a scroll and
+   resting visuals are completely unchanged.
    ========================================================================= */
+
+/* 1. The real cause of "cards float/ghost/lag then snap" during fast scroll:
+   the grain overlay below is a viewport-sized `position: fixed` element painted
+   ON TOP of all content with `mix-blend-mode`. To keep the blend correct, the
+   browser must re-composite the entire screen against the scrolling content on
+   every frame — which forces scrolling off the GPU fast-path, so the content
+   layer trails the scroll and snaps into place. Worse on big screens (more
+   pixels to blend each frame). The grain is barely-there (opacity ~0.045), so
+   dropping it for the length of a scroll is imperceptible and restores smooth,
+   lag-free scrolling. Covers every theme variant of `body::before`. */
+:root[data-scrolling='true'] body::before {
+  display: none;
+}
+
+/* 2. Cursor-parked hover guard. Scrolling slides cards under a stationary
+   pointer; without this each card would briefly enter `:hover` and fire its
+   lift / magnetic-glow / reveal transition. Disabling pointer events on the
+   scroller's content kills every hover / group-hover effect at once. The
+   scroller itself keeps pointer-events, so wheel/scroll is never interrupted. */
 :root[data-scrolling='true'] #main-content > * {
   pointer-events: none;
 }
