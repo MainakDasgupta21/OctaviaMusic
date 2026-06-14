@@ -78,7 +78,7 @@ export const LogoMark = ({
   return (
     <span
       className={cn(
-        'relative inline-flex items-center justify-center select-none',
+        'relative inline-flex shrink-0 items-center justify-center select-none',
         styles.chipClasses,
         className,
       )}

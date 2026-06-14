@@ -78,11 +78,11 @@ const MobileDrawer = () => {
         <SheetTitle className="sr-only">Navigation</SheetTitle>
 
         {/* Brand */}
-        <div className="flex items-center gap-3 px-5 py-5 border-b border-white/[0.06]">
+        <div className="flex items-center gap-3 px-5 py-5 pr-14 border-b border-white/[0.06]">
           <LogoMark size={36} />
-          <div className="flex items-center gap-1.5">
-            <Wordmark size="md" />
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-4 mt-1">
+          <div className="flex min-w-0 items-baseline gap-1.5">
+            <Wordmark size="md" className="truncate" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-4 shrink-0">
               / hub
             </span>
           </div>

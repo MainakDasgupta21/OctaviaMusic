@@ -482,7 +482,7 @@ const TopBar = () => {
         <form
           onSubmit={handleSubmit}
           role="search"
-          className="flex-1 min-w-0 max-w-[min(100%,46rem)] lg:max-w-[min(100%,52rem)] mx-auto lg:mx-0"
+          className="flex-1 min-w-0 max-w-[min(100%,46rem)] lg:max-w-[min(100%,52rem)]"
         >
           <button
             type="button"
@@ -912,8 +912,6 @@ const TopBar = () => {
             </PopoverContent>
           </Popover>
         </form>
-
-        <div className="flex-1 lg:hidden" />
 
         <div className="flex items-center ml-auto shrink-0">
           {/* Glass cluster — Favorites + Notifications grouped inside a
