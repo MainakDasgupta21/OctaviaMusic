@@ -8,6 +8,7 @@ const exploreRoutes = require('./explore.routes');
 const lyricsRoutes = require('./lyrics.routes');
 const authRoutes = require('./auth.routes');
 const meRoutes = require('./me.routes');
+const playlistsRoutes = require('./playlists.routes');
 const usersRoutes = require('./users.routes');
 const adminRoutes = require('./admin.routes');
 
@@ -22,6 +23,7 @@ router.use(exploreRoutes);
 router.use(lyricsRoutes);
 router.use(authRoutes);
 router.use(meRoutes);
+router.use(playlistsRoutes);
 router.use(usersRoutes);
 router.use(adminRoutes);
 

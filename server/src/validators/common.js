@@ -43,15 +43,21 @@ const trackSchema = z
   })
   .strip();
 
+const playlistVisibilitySchema = z.enum(['private', 'public']);
+
+// Clients send display-only extras on the draft (e.g. `createdAt`, `updatedAt`).
+// Strip unknown keys rather than rejecting the request so a create never fails
+// validation over fields the service layer ignores anyway.
 const playlistInputSchema = z
   .object({
     id: idString.optional(),
     name: z.string().trim().min(1).max(120),
     description: z.string().trim().max(500).optional().default(''),
     pinned: z.boolean().optional().default(false),
+    visibility: playlistVisibilitySchema.optional(),
     tracks: z.array(trackSchema).optional().default([]),
   })
-  .strict();
+  .strip();
 
 const settingsSchema = z
   .object({
@@ -94,5 +100,6 @@ module.exports = {
   avatarUrlSchema,
   trackSchema,
   playlistInputSchema,
+  playlistVisibilitySchema,
   settingsSchema,
 };

@@ -88,6 +88,16 @@ const reorderPlaylistTracks = async (req, res) => {
   res.json({ item });
 };
 
+const getSharedPlaylist = async (req, res) => {
+  const item = await libraryService.getSharedPlaylist(req.params.shareId);
+  res.json({ item });
+};
+
+const copySharedPlaylist = async (req, res) => {
+  const item = await libraryService.copySharedPlaylist(req.user._id, req.params.shareId);
+  res.status(201).json({ item });
+};
+
 const listHistory = async (req, res) => {
   const items = await libraryService.listHistory(req.user._id, { limit: req.query.limit });
   res.json({ items });
@@ -149,6 +159,8 @@ module.exports = {
   addPlaylistTrack,
   removePlaylistTrack,
   reorderPlaylistTracks,
+  getSharedPlaylist,
+  copySharedPlaylist,
   listHistory,
   createHistoryEntry,
   listSearchHistory,

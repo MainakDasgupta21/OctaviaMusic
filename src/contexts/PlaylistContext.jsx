@@ -5,7 +5,7 @@ import {
   useMemo,
 } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import api from '@/lib/api';
+import api, { copySharedPlaylist } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import notify from '@/lib/notify';
 
@@ -67,6 +67,12 @@ export const PlaylistProvider = ({ children }) => {
       await api.patch(`/me/playlists/${encodeURIComponent(playlistId)}/tracks`, { trackIds });
     },
   });
+  const setVisibilityMutation = useMutation({
+    mutationFn: async ({ id, visibility }) => {
+      const response = await api.patch(`/me/playlists/${encodeURIComponent(id)}`, { visibility });
+      return response.data?.item || null;
+    },
+  });
 
   const playlists = userId ? playlistsQuery.data || EMPTY_PLAYLISTS : EMPTY_PLAYLISTS;
 
@@ -83,13 +89,25 @@ export const PlaylistProvider = ({ children }) => {
       }
       const id = newId();
       const now = Date.now();
-      const draft = { id, name, description, tracks, pinned, createdAt: now, updatedAt: now };
+      const draft = { id, name, description, tracks, pinned, visibility: 'private', shareId: null, createdAt: now, updatedAt: now };
       const previous = queryClient.getQueryData(queryKey) || [];
 
       updatePlaylistCollection((rows) => [...rows, draft]);
-      createPlaylistMutation.mutate(draft, {
-        onError: () => queryClient.setQueryData(queryKey, previous),
-      });
+      // Send only the fields the API recognizes; display-only extras like
+      // `createdAt`/`updatedAt` are kept in the optimistic cache but omitted
+      // from the request body.
+      createPlaylistMutation.mutate(
+        { id, name, description, pinned, tracks },
+        {
+          onError: () => {
+            queryClient.setQueryData(queryKey, previous);
+            notify.error('Could not create playlist');
+          },
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey });
+          },
+        },
+      );
       return id;
     },
     [createPlaylistMutation, queryClient, queryKey, updatePlaylistCollection, userId],
@@ -224,6 +242,50 @@ export const PlaylistProvider = ({ children }) => {
     });
   }, [updatePlaylistCollection, userId]);
 
+  // Publish/unpublish a playlist. On success we reconcile the server item back
+  // into cache so the freshly generated `shareId` is available to build links.
+  // Returns the updated playlist (with `shareId`) or null on failure.
+  const setPlaylistVisibility = useCallback(async (id, visibility) => {
+    if (!userId) {
+      notify.signInRequired('share playlists');
+      return null;
+    }
+    const previous = queryClient.getQueryData(queryKey) || [];
+    updatePlaylistCollection((rows) =>
+      rows.map((entry) =>
+        entry.id === id ? { ...entry, visibility, updatedAt: Date.now() } : entry),
+    );
+    try {
+      const item = await setVisibilityMutation.mutateAsync({ id, visibility });
+      if (item) {
+        updatePlaylistCollection((rows) =>
+          rows.map((entry) => (entry.id === id ? { ...entry, ...item } : entry)));
+      }
+      return item;
+    } catch {
+      queryClient.setQueryData(queryKey, previous);
+      notify.error('Could not update sharing');
+      return null;
+    }
+  }, [queryClient, queryKey, setVisibilityMutation, updatePlaylistCollection, userId]);
+
+  // Saves an independent copy of a shared playlist into the current user's
+  // library and returns the new playlist id (or null on failure).
+  const importSharedPlaylist = useCallback(async (shareId) => {
+    if (!userId) {
+      notify.signInRequired('save shared playlists');
+      return null;
+    }
+    try {
+      const item = await copySharedPlaylist(shareId);
+      await queryClient.invalidateQueries({ queryKey });
+      return item?.id || null;
+    } catch {
+      notify.error('Could not save playlist');
+      return null;
+    }
+  }, [queryClient, queryKey, userId]);
+
   const pinned = useMemo(() => playlists.filter((p) => p.pinned), [playlists]);
 
   const value = useMemo(
@@ -238,6 +300,8 @@ export const PlaylistProvider = ({ children }) => {
       reorderTracks,
       togglePin,
       reorderPlaylists,
+      setPlaylistVisibility,
+      importSharedPlaylist,
     }),
     [
       playlists,
@@ -250,6 +314,8 @@ export const PlaylistProvider = ({ children }) => {
       reorderTracks,
       togglePin,
       reorderPlaylists,
+      setPlaylistVisibility,
+      importSharedPlaylist,
     ],
   );
 

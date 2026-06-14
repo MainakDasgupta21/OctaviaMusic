@@ -159,3 +159,109 @@ describe('library.service ownership scoping', () => {
     });
   });
 });
+
+describe('library.service playlist sharing', () => {
+  const baseDeps = () => ({
+    FavoriteModel: makeNoopModel(),
+    LikedAlbumModel: makeNoopModel(),
+    FollowedArtistModel: makeNoopModel(),
+    PlaylistModel: makeNoopModel(),
+    ListeningHistoryModel: makeNoopModel(),
+    SearchHistoryModel: makeNoopModel(),
+    UserModel: makeNoopModel(),
+  });
+
+  it('creates a private playlist with no share id by default', async () => {
+    const PlaylistModel = makeNoopModel();
+    const service = createLibraryService({ ...baseDeps(), PlaylistModel });
+
+    const result = await service.createPlaylist('user-1', {
+      id: 'p-1',
+      name: 'Chill',
+      tracks: [],
+    });
+
+    expect(result.visibility).toBe('private');
+    expect(result.shareId).toBeNull();
+  });
+
+  it('generates a stable share id when a playlist is created public', async () => {
+    const PlaylistModel = { ...makeNoopModel(), exists: vi.fn(async () => null) };
+    const service = createLibraryService({ ...baseDeps(), PlaylistModel });
+
+    const result = await service.createPlaylist('user-1', {
+      id: 'p-2',
+      name: 'Party',
+      visibility: 'public',
+    });
+
+    expect(result.visibility).toBe('public');
+    expect(typeof result.shareId).toBe('string');
+    expect(result.shareId.length).toBeGreaterThan(0);
+    expect(PlaylistModel.exists).toHaveBeenCalled();
+  });
+
+  it('returns a public shared playlist with its owner display name', async () => {
+    const PlaylistModel = {
+      ...makeNoopModel(),
+      findOne: vi.fn(async () => ({
+        userId: 'owner-1',
+        toJSON: () => ({
+          id: 'p-3',
+          name: 'Shared',
+          visibility: 'public',
+          shareId: 'tok',
+          tracks: [],
+        }),
+      })),
+    };
+    const UserModel = {
+      ...makeNoopModel(),
+      findById: vi.fn(() => ({
+        select: () => ({ lean: async () => ({ displayName: 'Alice' }) }),
+      })),
+    };
+    const service = createLibraryService({ ...baseDeps(), PlaylistModel, UserModel });
+
+    const result = await service.getSharedPlaylist('tok');
+
+    expect(PlaylistModel.findOne).toHaveBeenCalledWith({ shareId: 'tok', visibility: 'public' });
+    expect(result.owner.displayName).toBe('Alice');
+    expect(result.name).toBe('Shared');
+  });
+
+  it('throws when a shared playlist is missing or not public', async () => {
+    const PlaylistModel = { ...makeNoopModel(), findOne: vi.fn(async () => null) };
+    const service = createLibraryService({ ...baseDeps(), PlaylistModel });
+
+    await expect(service.getSharedPlaylist('missing')).rejects.toThrow(/Playlist not found/);
+  });
+
+  it('copies a public playlist into the requesting user library as an independent private copy', async () => {
+    const PlaylistModel = {
+      ...makeNoopModel(),
+      findOne: vi.fn(() => ({
+        lean: async () => ({
+          userId: 'owner-1',
+          name: 'Shared',
+          description: 'desc',
+          visibility: 'public',
+          shareId: 'tok',
+          tracks: [{ trackId: 't1', title: 'Song', videoId: 'v1' }],
+        }),
+      })),
+    };
+    const service = createLibraryService({ ...baseDeps(), PlaylistModel });
+
+    const result = await service.copySharedPlaylist('user-9', 'tok');
+
+    expect(PlaylistModel.findOne).toHaveBeenCalledWith({ shareId: 'tok', visibility: 'public' });
+    expect(PlaylistModel.create).toHaveBeenCalled();
+    expect(result.userId).toBe('user-9');
+    expect(result.visibility).toBe('private');
+    expect(result.shareId).toBeNull();
+    expect(result.name).toBe('Shared');
+    expect(result.tracks).toHaveLength(1);
+    expect(result.tracks[0].trackId).toBe('t1');
+  });
+});

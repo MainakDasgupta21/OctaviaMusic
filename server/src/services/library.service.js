@@ -1,4 +1,4 @@
-const { randomUUID } = require('crypto');
+const { randomUUID, randomBytes } = require('crypto');
 const { Favorite } = require('../models/Favorite');
 const { LikedAlbum } = require('../models/LikedAlbum');
 const { FollowedArtist } = require('../models/FollowedArtist');
@@ -52,6 +52,18 @@ const ensurePlaylist = async (PlaylistModel, userId, playlistId) => {
   const playlist = await PlaylistModel.findOne({ userId, playlistId });
   if (!playlist) throw new NotFoundError('Playlist not found');
   return playlist;
+};
+
+// Short, URL-safe public share token. Retries on the (astronomically rare)
+// unique-index collision so the caller always gets a usable token.
+const generateShareId = async (PlaylistModel) => {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const candidate = randomBytes(9).toString('base64url');
+    // eslint-disable-next-line no-await-in-loop
+    const clash = await PlaylistModel.exists({ shareId: candidate });
+    if (!clash) return candidate;
+  }
+  throw new ConflictError('Could not generate a unique share link');
 };
 
 const createLibraryService = ({
@@ -163,12 +175,17 @@ const createLibraryService = ({
       .then((rows) => rows.map((row) => PlaylistModel.hydrate(row).toJSON()));
 
   const createPlaylist = async (userId, payload) => {
+    const visibility = payload?.visibility === 'public' ? 'public' : 'private';
+    const shareId =
+      visibility === 'public' ? await generateShareId(PlaylistModel) : null;
     const playlist = await PlaylistModel.create({
       userId: toObjectId(userId),
       playlistId: String(payload?.id || '').trim() || randomUUID(),
       name: String(payload?.name || 'New playlist').trim(),
       description: String(payload?.description || '').trim(),
       pinned: Boolean(payload?.pinned),
+      visibility,
+      shareId,
       tracks: dedupeTracks(payload?.tracks).map((track) => ({
         ...track,
         addedAt: new Date(),
@@ -182,8 +199,66 @@ const createLibraryService = ({
     if (typeof patch.name === 'string') playlist.name = patch.name.trim() || playlist.name;
     if (typeof patch.description === 'string') playlist.description = patch.description.trim();
     if (typeof patch.pinned === 'boolean') playlist.pinned = patch.pinned;
+    if (patch.visibility === 'public' || patch.visibility === 'private') {
+      playlist.visibility = patch.visibility;
+      // Generate a stable share token the first time a playlist is published;
+      // keep it stable thereafter so shared links never break.
+      if (patch.visibility === 'public' && !playlist.shareId) {
+        playlist.shareId = await generateShareId(PlaylistModel);
+      }
+    }
     await playlist.save();
     return playlist.toJSON();
+  };
+
+  // Public read-only view of a shared playlist, resolved by its share token.
+  // Returns the playlist plus a minimal owner descriptor; never leaks userId.
+  const getSharedPlaylist = async (shareId) => {
+    const token = String(shareId || '').trim();
+    if (!token) throw new NotFoundError('Playlist not found');
+    const playlist = await PlaylistModel.findOne({ shareId: token, visibility: 'public' });
+    if (!playlist) throw new NotFoundError('Playlist not found');
+    const owner = await UserModel.findById(playlist.userId)
+      .select('displayName username')
+      .lean();
+    return {
+      ...playlist.toJSON(),
+      owner: {
+        displayName: owner?.displayName || owner?.username || 'A listener',
+      },
+    };
+  };
+
+  // Save an independent copy of a public playlist into the current user's
+  // library. The copy is always private and gets a fresh playlistId.
+  const copySharedPlaylist = async (userId, shareId) => {
+    const token = String(shareId || '').trim();
+    if (!token) throw new NotFoundError('Playlist not found');
+    const source = await PlaylistModel.findOne({ shareId: token, visibility: 'public' }).lean();
+    if (!source) throw new NotFoundError('Playlist not found');
+    const copy = await PlaylistModel.create({
+      userId: toObjectId(userId),
+      playlistId: randomUUID(),
+      name: String(source.name || 'New playlist').trim(),
+      description: String(source.description || '').trim(),
+      pinned: false,
+      visibility: 'private',
+      shareId: null,
+      tracks: dedupeTracks(
+        (source.tracks || []).map((track) => ({
+          id: track.trackId,
+          videoId: track.videoId,
+          title: track.title,
+          artist: track.artist,
+          artistId: track.artistId,
+          artistSlug: track.artistSlug,
+          albumId: track.albumId,
+          thumbnail: track.thumbnail,
+          duration: track.duration,
+        })),
+      ).map((track) => ({ ...track, addedAt: new Date() })),
+    });
+    return copy.toJSON();
   };
 
   const deletePlaylist = async (userId, playlistId) => {
@@ -399,6 +474,8 @@ const createLibraryService = ({
     addPlaylistTrack,
     removePlaylistTrack,
     reorderPlaylistTracks,
+    getSharedPlaylist,
+    copySharedPlaylist,
     listHistory,
     addHistoryItem,
     listSearchHistory,

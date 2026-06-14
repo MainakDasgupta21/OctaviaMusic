@@ -24,6 +24,7 @@ const SettingsPageImport = () => import('@/features/settings/pages/SettingsPage'
 const ArtistPageImport = () => import('@/features/artist/pages/ArtistPage');
 const AlbumPageImport = () => import('@/features/album/pages/AlbumPage');
 const PlaylistPageImport = () => import('@/features/playlist/pages/PlaylistPage');
+const SharedPlaylistPageImport = () => import('@/features/playlist/pages/SharedPlaylistPage');
 const ChartsPageImport = () => import('@/features/charts/pages/ChartsPage');
 const ChartsArtistsPageImport = () => import('@/features/charts/pages/ChartsArtistsPage');
 const ExplorePageImport = () => import('@/features/explore/pages/ExplorePage');
@@ -46,6 +47,7 @@ const SettingsPage = lazy(SettingsPageImport);
 const ArtistPage = lazy(ArtistPageImport);
 const AlbumPage = lazy(AlbumPageImport);
 const PlaylistPage = lazy(PlaylistPageImport);
+const SharedPlaylistPage = lazy(SharedPlaylistPageImport);
 const ChartsPage = lazy(ChartsPageImport);
 const ChartsArtistsPage = lazy(ChartsArtistsPageImport);
 const ExplorePage = lazy(ExplorePageImport);
@@ -73,6 +75,7 @@ registerPrefetch('/genres', GenresPageImport);
 registerPrefetch('/artist', ArtistPageImport);
 registerPrefetch('/album', AlbumPageImport);
 registerPrefetch('/playlist', PlaylistPageImport);
+registerPrefetch('/shared', SharedPlaylistPageImport);
 registerPrefetch('/login', LoginPageImport);
 registerPrefetch('/register', RegisterPageImport);
 registerPrefetch('/forgot-password', ForgotPasswordPageImport);
@@ -119,6 +122,7 @@ const App = () => (
             <Route path="/genres" element={wrap(GenresPage)} />
             <Route path="/artist/:slug" element={wrap(ArtistPage)} />
             <Route path="/album/:id" element={wrap(AlbumPage)} />
+            <Route path="/shared/:shareId" element={wrap(SharedPlaylistPage)} />
             <Route element={<ProtectedRoute />}>
               <Route path="/favorites" element={wrap(FavoritesPage)} />
               <Route path="/library" element={wrap(LibraryPage)} />

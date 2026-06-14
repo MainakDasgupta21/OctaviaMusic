@@ -414,6 +414,24 @@ export const isNetworkError = (error) =>
   Boolean(error?.code === 'ERR_NETWORK' || (error && !error.response));
 
 // =============================================================================
+// Shared playlists — public read-only view + "save a copy" import.
+// =============================================================================
+
+// Fetches a publicly shared playlist by its share token. No auth required.
+// Returns the playlist object (with an `owner` descriptor) or throws on 404.
+export const getSharedPlaylist = async (shareId, { signal } = {}) => {
+  const response = await api.get(`/playlists/shared/${encodeURIComponent(shareId)}`, { signal });
+  return upgradeAllImages(response.data?.item || null);
+};
+
+// Saves an independent, private copy of a public playlist into the current
+// user's library. Requires authentication; returns the new playlist.
+export const copySharedPlaylist = async (shareId) => {
+  const response = await api.post(`/playlists/shared/${encodeURIComponent(shareId)}/copy`);
+  return response.data?.item || null;
+};
+
+// =============================================================================
 // Auth endpoints
 // =============================================================================
 

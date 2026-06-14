@@ -10,6 +10,8 @@ import {
   ListMusic,
   Pencil,
   GripVertical,
+  Share2,
+  Lock,
 } from 'lucide-react';
 import {
   DndContext,
@@ -188,6 +190,7 @@ const PlaylistPage = () => {
     removeTrackFromPlaylist,
     togglePin,
     reorderTracks,
+    setPlaylistVisibility,
   } = usePlaylists();
   const { playTracksInOrder, currentTrack } = usePlayer();
   const playlist = useMemo(() => playlists.find((p) => p.id === id), [playlists, id]);
@@ -248,6 +251,31 @@ const PlaylistPage = () => {
     });
     setEditing(false);
     toast.success('Playlist updated');
+  };
+
+  const copyShareLink = async (shareId) => {
+    const url = `${window.location.origin}/shared/${shareId}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      notify.copied('Share link');
+    } catch {
+      notify.error("Couldn't copy link");
+    }
+  };
+
+  const handleShare = async () => {
+    // Already public — just copy the existing stable link again.
+    if (playlist.visibility === 'public' && playlist.shareId) {
+      copyShareLink(playlist.shareId);
+      return;
+    }
+    const updated = await setPlaylistVisibility(playlist.id, 'public');
+    if (updated?.shareId) copyShareLink(updated.shareId);
+  };
+
+  const handleMakePrivate = async () => {
+    const updated = await setPlaylistVisibility(playlist.id, 'private');
+    if (updated) notify.saved('Playlist is now private');
   };
 
   const handleDragEnd = (event) => {
@@ -393,6 +421,24 @@ const PlaylistPage = () => {
             >
               {playlist.pinned ? 'Unpin' : 'Pin'}
             </Button>
+            <Button
+              variant="editorial"
+              size="lg"
+              onClick={handleShare}
+              leftIcon={<Share2 className="w-3.5 h-3.5" />}
+            >
+              {playlist.visibility === 'public' ? 'Copy link' : 'Share'}
+            </Button>
+            {playlist.visibility === 'public' ? (
+              <Button
+                variant="ghost"
+                size="icon-lg"
+                onClick={handleMakePrivate}
+                aria-label="Make playlist private"
+              >
+                <Lock className="w-4 h-4" />
+              </Button>
+            ) : null}
             <Button
               variant="ghost"
               size="icon-lg"

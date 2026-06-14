@@ -3,6 +3,7 @@ const {
   idString,
   trackSchema,
   playlistInputSchema,
+  playlistVisibilitySchema,
   settingsSchema,
 } = require('./common');
 
@@ -79,6 +80,7 @@ const playlistUpdateSchema = z.object({
       name: z.string().trim().min(1).max(120).optional(),
       description: z.string().trim().max(500).optional(),
       pinned: z.boolean().optional(),
+      visibility: playlistVisibilitySchema.optional(),
     })
     .strict()
     .refine((value) => Object.keys(value).length > 0, {
@@ -113,6 +115,18 @@ const playlistTrackReorderSchema = z.object({
     })
     .strict(),
   params: z.object({ id: idString }).strict(),
+  query: emptyQuery,
+});
+
+const sharedPlaylistParamSchema = z.object({
+  body: z.object({}).strict().optional().default({}),
+  params: z.object({ shareId: idString }).strict(),
+  query: emptyQuery,
+});
+
+const playlistCopyParamSchema = z.object({
+  body: z.object({}).strict().optional().default({}),
+  params: z.object({ shareId: idString }).strict(),
   query: emptyQuery,
 });
 
@@ -192,6 +206,8 @@ module.exports = {
   playlistTrackAddSchema,
   playlistTrackRemoveSchema,
   playlistTrackReorderSchema,
+  sharedPlaylistParamSchema,
+  playlistCopyParamSchema,
   historyCreateSchema,
   historyListSchema,
   searchHistoryListSchema,

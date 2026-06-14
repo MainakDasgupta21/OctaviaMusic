@@ -30,6 +30,15 @@ const playlistSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true, maxlength: 120 },
     description: { type: String, default: '', trim: true, maxlength: 500 },
     pinned: { type: Boolean, default: false },
+    visibility: {
+      type: String,
+      enum: ['private', 'public'],
+      default: 'private',
+      index: true,
+    },
+    // Stable URL-safe token used for public share links. Null until the
+    // playlist is first made public, then kept stable so links never break.
+    shareId: { type: String, default: null },
     tracks: { type: [playlistTrackSchema], default: [] },
   },
   {
@@ -41,11 +50,14 @@ const playlistSchema = new mongoose.Schema(
 
 playlistSchema.index({ userId: 1, createdAt: -1 });
 playlistSchema.index({ userId: 1, playlistId: 1 }, { unique: true });
+playlistSchema.index({ shareId: 1 }, { unique: true, sparse: true });
 
 playlistSchema.set('toJSON', {
   transform: (_doc, ret) => {
     const out = { ...ret };
     out.id = out.playlistId;
+    out.visibility = out.visibility || 'private';
+    out.shareId = out.shareId || null;
     out.createdAt = new Date(out.createdAt).getTime();
     out.updatedAt = new Date(out.updatedAt).getTime();
     out.tracks = Array.isArray(out.tracks)
