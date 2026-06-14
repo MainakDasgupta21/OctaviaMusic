@@ -9,6 +9,7 @@ const { User, USER_SETTINGS_DEFAULTS } = require('../models/User');
 const { NotFoundError, ValidationError, ConflictError } = require('../utils/app-errors');
 
 const SEARCH_HISTORY_CAP = 50;
+const LISTENING_HISTORY_CAP = 20;
 
 const toObjectId = (value) => value;
 
@@ -307,10 +308,10 @@ const createLibraryService = ({
     return playlist.toJSON();
   };
 
-  const listHistory = async (userId, { limit = 24 } = {}) =>
+  const listHistory = async (userId, { limit = LISTENING_HISTORY_CAP } = {}) =>
     ListeningHistoryModel.find({ userId: toObjectId(userId) })
       .sort({ playedAt: -1, updatedAt: -1 })
-      .limit(Math.max(1, Math.min(200, Number(limit) || 24)))
+      .limit(Math.max(1, Math.min(200, Number(limit) || LISTENING_HISTORY_CAP)))
       .lean()
       .then((rows) => rows.map((row) => ListeningHistoryModel.hydrate(row).toJSON()));
 
@@ -326,6 +327,18 @@ const createLibraryService = ({
       },
       { upsert: true, new: true, setDefaultsOnInsert: true },
     );
+
+    // Keep only the most recent `LISTENING_HISTORY_CAP` plays per user so the
+    // window stays fixed at 20 and the oldest play is evicted from the DB.
+    const overflow = await ListeningHistoryModel.find({ userId: toObjectId(userId) })
+      .sort({ playedAt: -1, updatedAt: -1 })
+      .skip(LISTENING_HISTORY_CAP)
+      .select('_id')
+      .lean();
+    if (overflow.length) {
+      await ListeningHistoryModel.deleteMany({ _id: { $in: overflow.map((row) => row._id) } });
+    }
+
     return doc.toJSON();
   };
 

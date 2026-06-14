@@ -21,7 +21,7 @@ const PlayerContext = createContext(undefined);
 const PlayerProgressContext = createContext(undefined);
 
 const STORAGE_KEY = 'octavia.player.v1';
-const HISTORY_MAX = 24;
+const HISTORY_MAX = 20;
 const SMART_QUEUE_LIMIT = 24;
 const SMART_REMOTE_LIMIT = 30;
 // Seconds into a track past which "previous" restarts the current song rather
@@ -150,9 +150,7 @@ export const PlayerProvider = ({ children }) => {
     currentIndex: Number.isInteger(persisted?.queueIndex) ? persisted.queueIndex : -1,
     queueMode: normalizeQueueMode(persisted?.queueMode),
   });
-  const [history, setHistory] = useState(
-    Array.isArray(persisted?.history) ? persisted.history : [],
-  );
+  const [history, setHistory] = useState([]);
   const [shuffle, setShuffle] = useState(Boolean(persisted?.shuffle));
   const [repeat, setRepeat] = useState(persisted?.repeat || 'off');
   const [isMuted, setIsMuted] = useState(false);
