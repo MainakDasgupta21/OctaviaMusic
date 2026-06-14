@@ -43,6 +43,8 @@ const MainLayout = () => {
   const paletteEverOpened = useStickyTrue(paletteOpen);
   const drawerEverOpened = useStickyTrue(mobileDrawerOpen);
 
+  const mainRef = useRef(null);
+
   useKeyboardShortcuts();
   useFirstRunHints();
 
@@ -94,6 +96,39 @@ const MainLayout = () => {
     resetPageScroll();
   }, [location.pathname]);
 
+  // While the page scroller is actively moving, flag the document so hover
+  // micro-interactions (lift / magnetic glow / reveal buttons) are suppressed
+  // on the content underneath the cursor. Without this, scrolling sweeps every
+  // card under a parked pointer, each one briefly triggering its hover lift —
+  // a cascading wave that reads as the cards "floating" with the scroll. The
+  // flag is cleared a beat after the last scroll event so resting hover works
+  // normally. Scoped to `#main-content`, so nested rails and the scroll-locked
+  // /player route never trip it.
+  useEffect(() => {
+    const scroller = mainRef.current;
+    if (!scroller || typeof document === 'undefined') return undefined;
+
+    const root = document.documentElement;
+    let idleTimer = null;
+
+    const handleScroll = () => {
+      root.dataset.scrolling = 'true';
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        delete root.dataset.scrolling;
+        idleTimer = null;
+      }, 120);
+    };
+
+    scroller.addEventListener('scroll', handleScroll, { passive: true });
+
+    return () => {
+      scroller.removeEventListener('scroll', handleScroll);
+      if (idleTimer) clearTimeout(idleTimer);
+      delete root.dataset.scrolling;
+    };
+  }, []);
+
   return (
     <div
       className={cn(
@@ -126,6 +161,7 @@ const MainLayout = () => {
 
         <main
           id="main-content"
+          ref={mainRef}
           className={cn(
             'relative flex-1 min-h-0 min-w-0 custom-scrollbar overscroll-contain',
             // The Now Playing screen is a single, locked viewport on desktop:

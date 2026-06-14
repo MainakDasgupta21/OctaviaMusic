@@ -2105,6 +2105,22 @@
   .sidebar-pill[data-armed='false'] { opacity: 0; }
 }
 
+/* =========================================================================
+   Scroll-activity hover guard
+   While the page scroller (`#main-content`) is actively moving, MainLayout
+   sets `data-scrolling` on <html>. Scrolling parks the cursor while cards
+   slide underneath it, so each card would briefly enter `:hover` and fire its
+   lift / magnetic-glow / reveal transition — a cascading wave that reads as
+   the cards "floating" with the scroll. Disabling pointer events on the
+   scroller's content for the duration kills every hover / group-hover effect
+   at once. The scroller itself keeps pointer-events, so wheel/scroll is never
+   interrupted; the flag clears ~120ms after scrolling stops so resting hover
+   returns to normal.
+   ========================================================================= */
+:root[data-scrolling='true'] #main-content > * {
+  pointer-events: none;
+}
+
 /* Reduced transparency: drop the heavy blur/bloom for an opaque, high-contrast
    backdrop so text never relies on translucency to stay legible. */
 @media (prefers-reduced-transparency: reduce) {
