@@ -11,7 +11,8 @@ export const VoiceSearchButton = ({ onTranscript, className, size = 'md' }) => {
   if (!isSupported) return null;
 
   const Icon = isListening ? Square : Mic;
-  const dim = size === 'sm' ? 'w-3.5 h-3.5' : 'w-4 h-4';
+  const dim = size === 'sm' ? 'w-[15px] h-[15px]' : 'w-[18px] h-[18px]';
+  const box = size === 'sm' ? 'h-7 w-7' : 'h-9 w-9';
 
   return (
     <button
@@ -27,11 +28,11 @@ export const VoiceSearchButton = ({ onTranscript, className, size = 'md' }) => {
             : 'Search by voice'
       }
       className={cn(
-        'relative inline-flex items-center justify-center rounded-sharp transition-colors focus-ring',
-        size === 'sm' ? 'p-1.5' : 'p-2',
+        'relative inline-flex items-center justify-center rounded-full transition-colors focus-ring',
+        box,
         isListening
-          ? 'bg-track/20 text-accent border border-track/50'
-          : 'border border-white/[0.10] text-ink-3 hover:text-ink hover:bg-white/[0.04] hover:border-white/[0.22]',
+          ? 'bg-track/15 text-accent'
+          : 'text-ink-3 hover:text-ink hover:bg-white/[0.06]',
         className,
       )}
     >
@@ -39,7 +40,7 @@ export const VoiceSearchButton = ({ onTranscript, className, size = 'md' }) => {
       {isListening ? (
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 rounded-sharp ring-2 ring-track/40 animate-pulse"
+          className="pointer-events-none absolute inset-0 rounded-full ring-2 ring-track/45 animate-pulse"
         />
       ) : null}
     </button>
