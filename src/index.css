@@ -2150,6 +2150,18 @@
   pointer-events: none;
 }
 
+/* …but NESTED scrollers (the horizontal card rails, tab bars, chip/filter
+   bars) must keep receiving wheel + touch while a scroll is in flight,
+   otherwise the guard above swallows the very input that side-scrolls them —
+   which made horizontal scrolling impossible on touch and trackpad alike.
+   Re-enabling pointer-events on the scroll containers (they all carry one of
+   these utility classes) restores native side-scrolling everywhere; the
+   `data-scrolling` flag still clears card hover on the rest of the page. */
+:root[data-scrolling='true'] #main-content .no-scrollbar,
+:root[data-scrolling='true'] #main-content .custom-scrollbar {
+  pointer-events: auto;
+}
+
 /* Reduced transparency: drop the heavy blur/bloom for an opaque, high-contrast
    backdrop so text never relies on translucency to stay legible. */
 @media (prefers-reduced-transparency: reduce) {

@@ -84,14 +84,21 @@ const MainLayout = () => {
 
   // Lenis owns wheel smoothing for the page-level scroller (`#main-content`).
   // Skip on /player which locks scroll entirely — running Lenis against a
-  // hidden-overflow element does nothing useful and wastes a RAF loop.
-  useLenisScroll({ enabled: !isPlayerRoute });
+  // hidden-overflow element does nothing useful and wastes a RAF loop — and
+  // when the user has reduced motion enabled (native instant scrolling).
+  useLenisScroll({ enabled: !isPlayerRoute && !settings.reduceMotion });
 
   // Reset the page scroller to top on pathname change. We intentionally
   // ignore `location.search` updates (filter/deep-link param changes
   // within the same page shouldn't yank the user back to the top).
   useEffect(() => {
     resetPageScroll();
+    // The incoming route is usually a different height; tell Lenis to recompute
+    // its scroll limit immediately instead of waiting on the debounced
+    // ResizeObserver, so the page is fully scrollable the instant it mounts.
+    if (typeof window !== 'undefined' && window.__lenis) {
+      window.__lenis.resize();
+    }
   }, [location.pathname]);
 
   // Flag <html> with `data-scrolling` while ANY scroller is moving; the flag
@@ -201,22 +208,33 @@ const MainLayout = () => {
                 ),
           )}
         >
-          <ErrorBoundary>
-            {/* Each route mounts a fresh keyed wrapper that animates in on
-                mount. We intentionally avoid `AnimatePresence mode="wait"`
-                here: pairing it with lazy `Suspense` routes can drop the
-                exit-complete handoff under React 18, leaving the incoming
-                page unmounted (blank) or stuck at its initial opacity. An
-                enter-only transition is bulletproof — the page always shows. */}
-            <motion.div
-              key={location.pathname}
-              initial={pagePush.initial}
-              animate={pagePush.animate}
-              className={isPlayerRoute ? 'h-full overflow-hidden' : undefined}
-            >
-              <Outlet />
-            </motion.div>
-          </ErrorBoundary>
+          {/* Stable inner wrapper that never remounts across route changes.
+              Lenis observes THIS node's size to drive page smoothing; keeping
+              it mounted (while the keyed motion.div below swaps per route) is
+              what lets smooth scrolling stay enabled without breaking. On
+              /player it carries the full-height lock so the layout chain is
+              unchanged. */}
+          <div
+            id="main-scroll-content"
+            className={isPlayerRoute ? 'h-full overflow-hidden' : undefined}
+          >
+            <ErrorBoundary>
+              {/* Each route mounts a fresh keyed wrapper that animates in on
+                  mount. We intentionally avoid `AnimatePresence mode="wait"`
+                  here: pairing it with lazy `Suspense` routes can drop the
+                  exit-complete handoff under React 18, leaving the incoming
+                  page unmounted (blank) or stuck at its initial opacity. An
+                  enter-only transition is bulletproof — the page always shows. */}
+              <motion.div
+                key={location.pathname}
+                initial={pagePush.initial}
+                animate={pagePush.animate}
+                className={isPlayerRoute ? 'h-full overflow-hidden' : undefined}
+              >
+                <Outlet />
+              </motion.div>
+            </ErrorBoundary>
+          </div>
         </main>
       </div>
 

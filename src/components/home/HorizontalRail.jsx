@@ -1,6 +1,13 @@
-import { useId, useRef } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { smoothScrollBy } from '@/lib/scroll';
+
+// Width of the cosmetic edge fade. Only ever applied to a side that has
+// hidden content beyond it.
+const FADE = 'clamp(10px,3vw,16px)';
+// A few px of slop so the fade clears completely once the rail is parked at
+// either extreme (sub-pixel scroll positions shouldn't keep an edge dimmed).
+const EDGE_SLOP = 4;
 
 const HorizontalRail = ({
   children,
@@ -10,6 +17,36 @@ const HorizontalRail = ({
 }) => {
   const ref = useRef(null);
   const regionId = useId();
+  // Which edges currently have off-screen content. We only fade an edge when
+  // there is more to scroll toward it. At rest (scrolled fully to the start or
+  // end) the first/last tile must be crisp and fully readable — fading them
+  // there clipped the leading tile's artwork, number badge and title, which
+  // was the side-scroll bug.
+  const [edges, setEdges] = useState({ left: false, right: false });
+
+  const syncEdges = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const max = el.scrollWidth - el.clientWidth;
+    const left = el.scrollLeft > EDGE_SLOP;
+    const right = el.scrollLeft < max - EDGE_SLOP;
+    setEdges((prev) => (prev.left === left && prev.right === right ? prev : { left, right }));
+  }, []);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    syncEdges();
+    el.addEventListener('scroll', syncEdges, { passive: true });
+    // Lazy images and responsive reflow change the scroll extents after mount,
+    // so recompute when the rail's content size shifts too.
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(syncEdges) : null;
+    ro?.observe(el);
+    return () => {
+      el.removeEventListener('scroll', syncEdges);
+      ro?.disconnect();
+    };
+  }, [syncEdges]);
 
   const resolveStep = () => {
     const width = ref.current?.clientWidth || scrollStep;
@@ -21,6 +58,13 @@ const HorizontalRail = ({
     smoothScrollBy(ref.current, { left: resolveStep() * direction });
   };
 
+  // Build the mask with a real fade only on the side(s) that have more content.
+  // A `0px` stop collapses the transparent band to nothing, leaving that edge
+  // fully opaque.
+  const leftStop = edges.left ? FADE : '0px';
+  const rightStop = edges.right ? FADE : '0px';
+  const maskImage = `linear-gradient(90deg, transparent 0, #000 ${leftStop}, #000 calc(100% - ${rightStop}), transparent 100%)`;
+
   return (
     <div className="relative group/rail">
       <div
@@ -30,12 +74,11 @@ const HorizontalRail = ({
         aria-label={ariaLabel}
         // Edge fade-masks blend the leftmost and rightmost tiles into the
         // background so the rail reads as "more is over there" rather than
-        // ending abruptly. Pure cosmetic; scroll behaviour is unchanged.
+        // ending abruptly. Applied per-edge so the parked first/last tile stays
+        // fully visible. Pure cosmetic; scroll behaviour is unchanged.
         style={{
-          WebkitMaskImage:
-            'linear-gradient(90deg, transparent 0, #000 clamp(10px,3vw,16px), #000 calc(100% - clamp(10px,3vw,16px)), transparent 100%)',
-          maskImage:
-            'linear-gradient(90deg, transparent 0, #000 clamp(10px,3vw,16px), #000 calc(100% - clamp(10px,3vw,16px)), transparent 100%)',
+          WebkitMaskImage: maskImage,
+          maskImage,
         }}
         // `overflow-x-auto` promotes overflow-y to `auto` as well (CSS spec),
         // so without vertical room the rail would shear card hover-lifts,
