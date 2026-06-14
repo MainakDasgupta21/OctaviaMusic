@@ -2182,9 +2182,12 @@
    Mobile Performance Band (<600px)
    ========================================================================= */
 @media (max-width: 599px) {
+  /* Keep the now-playing vinyl spinning on phones — it's a cheap, GPU-only
+     `transform: rotate` (no blur/scale), so it stays smooth where the heavier
+     ken-burns / drift / glow effects below would not. The spin is still gated
+     by `prefers-reduced-motion` further down. */
   .ambient-drift,
   .np-cover-kenburns,
-  .vinyl-spinning,
   .pulse-glow {
     animation: none !important;
   }
